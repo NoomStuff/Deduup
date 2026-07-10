@@ -1,0 +1,8 @@
+node_modules/
+.cache/
+dist/
+dist-electron/
+release/
+*.tsbuildinfo
+bun.lockb
+package-lock.json

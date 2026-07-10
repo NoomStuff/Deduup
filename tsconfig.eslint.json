@@ -1,0 +1,5 @@
+{
+   "extends": "./tsconfig.json",
+   "references": [{ "path": "./tsconfig.renderer.json" }, { "path": "./tsconfig.electron.json" }],
+   "include": ["src", "*.config.ts", "*.config.js", "eslint.config.js"]
+}
