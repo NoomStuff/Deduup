@@ -70,7 +70,9 @@ export const CompareOverlay = ({ compare, onClose, onKeep }: { compare: CompareS
                onMouseLeave={() => setFocusedSide(null)}
                type="button"
             >
-               <strong aria-label={`Image ${compare.leftIndex + 1}`} className="compare__actionIndex">{compare.leftIndex + 1}</strong>
+               <strong aria-label={`Image ${compare.leftIndex + 1}`} className="compare__actionIndex">
+                  {compare.leftIndex + 1}
+               </strong>
                <span>Keep image {compare.leftIndex + 1}</span>
                <small title={compare.left.file}>{compare.left.file}</small>
             </button>
@@ -109,7 +111,9 @@ export const CompareOverlay = ({ compare, onClose, onKeep }: { compare: CompareS
                onMouseLeave={() => setFocusedSide(null)}
                type="button"
             >
-               <strong aria-label={`Image ${compare.rightIndex + 1}`} className="compare__actionIndex">{compare.rightIndex + 1}</strong>
+               <strong aria-label={`Image ${compare.rightIndex + 1}`} className="compare__actionIndex">
+                  {compare.rightIndex + 1}
+               </strong>
                <span>Keep image {compare.rightIndex + 1}</span>
                <small title={compare.right.file}>{compare.right.file}</small>
             </button>

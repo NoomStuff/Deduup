@@ -1,5 +1,5 @@
 ﻿import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import type { CSSProperties, DragEvent, FocusEvent, MouseEvent } from "react";
+import type { CSSProperties, DragEvent, MouseEvent } from "react";
 import { createRoot } from "react-dom/client";
 import {
    ArrowLeft,
@@ -9,17 +9,12 @@ import {
    Eraser,
    Flag,
    FolderOpen,
-   FolderTree,
    HomeIcon,
    Image as ImageIcon,
-   Keyboard,
-   LoaderCircle,
    MousePointer2,
    Redo2,
-   RotateCw,
    Search,
    Settings,
-   ShieldCheck,
    Sparkles,
    Trash2,
    TriangleAlert,
@@ -27,14 +22,17 @@ import {
    X,
 } from "lucide-react";
 import type { Decisions, FileActionStatus, ImageSet, ImageSetDecision, ImageItem, PatchResult, ScanProgress } from "../shared/types.js";
-import type { CompareState, ConfirmAction, ContextMenuKind, ContextMenuState, PatchView, TooltipState, TravelDirection } from "./appTypes.js";
+import type { CompareState, ConfirmAction, ContextMenuKind, ContextMenuState, PatchView, TravelDirection } from "./appTypes.js";
 import { CompareOverlay } from "./components/CompareOverlay.js";
+import { FinalReview } from "./components/FinalReview.js";
+import { ScanPanel, SettingsPanel } from "./components/SidePanels.js";
+import { LoadingScreen, ScanningScreen, StartupScreen } from "./components/AppStatusScreens.js";
 import { ImageCard } from "./components/ImageCard.js";
-import { Toggle } from "./components/Toggle.js";
+import { useDecisionHistory } from "./hooks/useDecisionHistory.js";
+import { useTooltip } from "./hooks/useTooltip.js";
 import {
    createConfirmAction,
    emptyImageSetDecision,
-   formatBytes,
    getAnchoredPosition,
    getAutoPick,
    getButtonMenuPosition,
@@ -56,7 +54,6 @@ import {
    getSimilarityBands,
    getSimilarityColor,
    getSimilarityLabel,
-   getTooltipPosition,
    setImageSetDecision,
 } from "./reviewModel.js";
 import "./styles.css";
@@ -64,26 +61,6 @@ import "./workflow.css";
 
 const shortcutReservedTargetSelector = "input,textarea,select,[contenteditable='true']";
 const startupPreferenceKey = "show-start-screen-on-startup";
-
-const getScanPhaseLabel = (phase: ScanProgress["phase"] | undefined): string => {
-   if (phase === "discovering") {
-      return "Finding image files";
-   }
-
-   if (phase === "hashing") {
-      return "Reading and comparing images";
-   }
-
-   if (phase === "grouping") {
-      return "Building similarity groups";
-   }
-
-   if (phase === "saving") {
-      return "Saving your scan";
-   }
-
-   return "Preparing your scan";
-};
 
 const getStartupPreference = (): boolean => {
    try {
@@ -109,9 +86,16 @@ const isShortcutReservedByTarget = (event: KeyboardEvent): boolean => {
 
 export const App = () => {
    const [groups, setGroups] = useState<ImageSet[]>([]);
-   const [decisions, setDecisions] = useState<Decisions>({});
-   const [undoStack, setUndoStack] = useState<Decisions[]>([]);
-   const [redoStack, setRedoStack] = useState<Decisions[]>([]);
+   const {
+      decisions,
+      canUndo,
+      canRedo,
+      updateDecisions,
+      replaceDecisions,
+      clearHistory,
+      undo: undoLastDecision,
+      redo: redoLastDecision,
+   } = useDecisionHistory();
    const [currentIndex, setCurrentIndex] = useState(0);
    const [loading, setLoading] = useState(true);
    const [error, setError] = useState<string | null>(null);
@@ -135,14 +119,16 @@ export const App = () => {
    const [isSettingsOpen, setIsSettingsOpen] = useState(false);
    const [isScanPanelOpen, setIsScanPanelOpen] = useState(false);
    const [contextMenu, setContextMenu] = useState<ContextMenuState | null>(null);
-   const [tooltip, setTooltip] = useState<TooltipState | null>(null);
+   const { tooltip, hideTooltip, getTooltipProps } = useTooltip();
    const [confirmMajorActions, setConfirmMajorActions] = useState(true);
    const [wrapImageShelf, setWrapImageShelf] = useState(true);
    const [showStartupOnLaunch, setShowStartupOnLaunch] = useState(getStartupPreference);
    const [isStartupOpen, setIsStartupOpen] = useState(getStartupPreference);
    const [filmstripEdges, setFilmstripEdges] = useState({ left: false, right: false });
    const filmstripRef = useRef<HTMLElement | null>(null);
-   const tooltipTimerRef = useRef<number | null>(null);
+   const filmstripTargetRef = useRef<number | null>(null);
+   const filmstripAnimationRef = useRef<number | null>(null);
+   const hasPositionedFilmstripRef = useRef(false);
 
    const currentGroup = groups[currentIndex] ?? null;
    const currentDecision = currentGroup === null ? emptyImageSetDecision() : getDecision(decisions, currentGroup.id);
@@ -151,82 +137,36 @@ export const App = () => {
    const duplicatePreview = useMemo(() => getDuplicatePreview(groups, decisions), [decisions, groups]);
    const fileWorkflow = useMemo(() => getFileWorkflowState(groups, decisions), [decisions, groups]);
    const similarityBands = useMemo(() => getSimilarityBands(groups), [groups]);
-   const currentImageSetState = currentGroup === null ? "open" : getImageSetState(currentGroup, decisions[currentGroup.id]);
    const selectedImage = currentGroup?.images.find((image) => image.originalPath === selectedImagePath) ?? null;
 
-   const pushUndo = useCallback((snapshot: Decisions): void => {
-      setUndoStack((existing) => [snapshot, ...existing].slice(0, 30));
+   const startFilmstripAnimation = useCallback((): void => {
+      if (filmstripAnimationRef.current !== null) return;
+
+      const tick = (): void => {
+         const filmstrip = filmstripRef.current;
+         const target = filmstripTargetRef.current;
+         if (filmstrip === null || target === null) {
+            filmstripAnimationRef.current = null;
+            return;
+         }
+
+         const distance = target - filmstrip.scrollLeft;
+         if (Math.abs(distance) < 0.5) {
+            filmstrip.scrollLeft = target;
+            filmstripAnimationRef.current = null;
+            return;
+         }
+
+         filmstrip.scrollLeft += distance * 0.22;
+         filmstripAnimationRef.current = window.requestAnimationFrame(tick);
+      };
+
+      filmstripAnimationRef.current = window.requestAnimationFrame(tick);
    }, []);
 
-   const hideTooltip = useCallback((): void => {
-      if (tooltipTimerRef.current !== null) {
-         window.clearTimeout(tooltipTimerRef.current);
-         tooltipTimerRef.current = null;
-      }
-      setTooltip(null);
-   }, []);
-
-   const getTooltipProps = useCallback(
-      (title: string, body: string, hotkey?: string) => ({
-         onBlur: hideTooltip,
-         onFocus: (event: FocusEvent<HTMLElement>) => {
-            const rect = event.currentTarget.getBoundingClientRect();
-            setTooltip({ title, body, ...getTooltipPosition(rect), ...(hotkey === undefined ? {} : { hotkey }) });
-         },
-         onMouseEnter: (event: MouseEvent<HTMLElement>) => {
-            const rect = event.currentTarget.getBoundingClientRect();
-            if (tooltipTimerRef.current !== null) {
-               window.clearTimeout(tooltipTimerRef.current);
-            }
-            tooltipTimerRef.current = window.setTimeout(() => {
-               setTooltip({ title, body, ...getTooltipPosition(rect), ...(hotkey === undefined ? {} : { hotkey }) });
-            }, 520);
-         },
-         onMouseLeave: hideTooltip,
-      }),
-      [hideTooltip]
-   );
-
-   const updateDecisions = useCallback(
-      (updater: (existing: Decisions) => Decisions): void => {
-         setDecisions((existing) => {
-            const next = updater(existing);
-            if (next !== existing) {
-               pushUndo(existing);
-               setRedoStack([]);
-               setPatchResult(null);
-            }
-            return next;
-         });
-      },
-      [pushUndo]
-   );
-
-   const undoLastDecision = (): void => {
-      setUndoStack((existing) => {
-         const [previous, ...rest] = existing;
-         if (previous !== undefined) {
-            setDecisions((current) => {
-               setRedoStack((redoExisting) => [current, ...redoExisting].slice(0, 30));
-               return previous;
-            });
-         }
-         return rest;
-      });
-   };
-
-   const redoLastDecision = (): void => {
-      setRedoStack((existing) => {
-         const [next, ...rest] = existing;
-         if (next !== undefined) {
-            setDecisions((current) => {
-               setUndoStack((undoExisting) => [current, ...undoExisting].slice(0, 30));
-               return next;
-            });
-         }
-         return rest;
-      });
-   };
+   useEffect(() => {
+      setPatchResult(null);
+   }, [decisions]);
 
    useEffect(() => {
       const api = window.imageDeduplicator;
@@ -239,7 +179,7 @@ export const App = () => {
       api.loadData()
          .then((result) => {
             setGroups(result.groups);
-            setDecisions(result.decisions);
+            replaceDecisions(result.decisions);
             setScanRoot(result.scanRoot);
             setIncludeSubfolders(result.scanRoot === null ? true : result.includeSubfolders);
             setCurrentIndex(getResumeIndex(result.groups, result.decisions));
@@ -248,7 +188,7 @@ export const App = () => {
          })
          .catch((unknownError: unknown) => setError(unknownError instanceof Error ? unknownError.message : "Failed to load duplicate groups"))
          .finally(() => setLoading(false));
-   }, []);
+   }, [replaceDecisions]);
 
    useEffect(() => {
       const api = window.imageDeduplicator;
@@ -286,6 +226,15 @@ export const App = () => {
    }, [currentGroup, selectedImagePath]);
 
    useEffect(() => {
+      hasPositionedFilmstripRef.current = false;
+      filmstripTargetRef.current = null;
+      if (filmstripAnimationRef.current !== null) {
+         window.cancelAnimationFrame(filmstripAnimationRef.current);
+         filmstripAnimationRef.current = null;
+      }
+   }, [groups]);
+
+   useEffect(() => {
       const filmstrip = filmstripRef.current;
       if (filmstrip === null || view !== "review") {
          return;
@@ -303,11 +252,24 @@ export const App = () => {
          const targetLeft = activeCenter - filmstrip.clientWidth / 2;
          const maxLeft = filmstrip.scrollWidth - filmstrip.clientWidth;
          const nextLeft = Math.max(0, Math.min(maxLeft, targetLeft));
-         filmstrip.scrollTo({ left: nextLeft, behavior: "smooth" });
+         filmstripTargetRef.current = nextLeft;
+         if (!hasPositionedFilmstripRef.current) {
+            filmstrip.scrollLeft = nextLeft;
+            hasPositionedFilmstripRef.current = true;
+            return;
+         }
+         startFilmstripAnimation();
       });
 
       return () => window.cancelAnimationFrame(handle);
-   }, [currentIndex, groups.length, isScanning, isStartupOpen, loading, view]);
+   }, [currentIndex, groups.length, isScanning, isStartupOpen, loading, startFilmstripAnimation, view]);
+
+   useEffect(
+      () => () => {
+         if (filmstripAnimationRef.current !== null) window.cancelAnimationFrame(filmstripAnimationRef.current);
+      },
+      []
+   );
 
    useEffect(() => {
       const filmstrip = filmstripRef.current;
@@ -926,8 +888,7 @@ export const App = () => {
          setPatchResult(result);
          const refreshed = await api.loadData();
          setGroups(refreshed.groups);
-         setUndoStack([]);
-         setRedoStack([]);
+         clearHistory();
          setDuplicateFolderHasContent(refreshed.duplicateFolderHasContent);
          setLastFileAction(refreshed.lastFileAction);
       } catch (unknownError: unknown) {
@@ -1014,9 +975,7 @@ export const App = () => {
       try {
          const result = await api.scanFolder({ rootPath, includeSubfolders });
          setGroups(result.groups);
-         setDecisions(result.decisions);
-         setUndoStack([]);
-         setRedoStack([]);
+         replaceDecisions(result.decisions);
          setCurrentIndex(0);
          setSelectedImagePath(result.groups[0]?.images[0]?.originalPath ?? null);
          setView("review");
@@ -1079,101 +1038,29 @@ export const App = () => {
    };
 
    if (loading) {
-      return (
-         <main className="shell shell--center">
-            <div className="loadingCard">
-               <span className="spinner" aria-hidden="true" />
-               <div>
-                  <strong>Loading scan</strong>
-                  <small>Reading local review data.</small>
-               </div>
-               <div className="loadingBars" aria-hidden="true">
-                  <span />
-                  <span />
-                  <span />
-               </div>
-            </div>
-         </main>
-      );
+      return <LoadingScreen />;
    }
 
    if (isScanning) {
-      const progressPercent = scanProgress === null || scanProgress.total === 0 ? 0 : Math.round((scanProgress.completed / scanProgress.total) * 100);
-      const phaseLabel = getScanPhaseLabel(scanProgress?.phase);
-      return (
-         <main className="scanLoadingShell">
-            <section aria-live="polite" className="scanLoadingPanel">
-               <LoaderCircle aria-hidden="true" className="scanLoadingPanel__icon spinIcon" />
-               <div>
-                  <p className="sectionLabel">Scanning folder</p>
-                  <h1>{phaseLabel}</h1>
-                  <p>{scanProgress?.currentFile ?? "This can take a moment for large folders."}</p>
-               </div>
-               <div className="scanLoadingProgress">
-                  <div aria-label={String(progressPercent) + "% complete"} className="progressBar">
-                     <span style={{ width: String(progressPercent) + "%" }} />
-                  </div>
-                  <div className="scanLoadingBars" aria-hidden="true">
-                     <span />
-                     <span />
-                     <span />
-                     <span />
-                  </div>
-                  <strong>{String(progressPercent)}% complete</strong>
-               </div>
-            </section>
-         </main>
-      );
+      return <ScanningScreen progress={scanProgress} />;
    }
 
    if (isStartupOpen || currentGroup === null) {
-      const canUseApp = window.imageDeduplicator !== undefined;
-      const hasSavedReview = groups.length > 0;
-      const canRescan = scanRoot !== null;
       return (
-         <main className="startupShell" onDragOver={(event) => event.preventDefault()} onDrop={handleDrop}>
-            <section aria-labelledby="startup-title" className="startupPanel">
-               <div className="startupPanel__heading">
-                  <span className="startupPanel__mark">
-                     <ImageIcon aria-hidden="true" />
-                  </span>
-                  <div>
-                     <h1 id="startup-title">Image Deduplicator</h1>
-                     <p>Find the copies worth removing. Keep the originals in control.</p>
-                  </div>
-               </div>
-               <div className="startupActions">
-                  <button className="startupAction startupAction--primary" disabled={!canUseApp} onClick={() => void openNewFolder()} type="button">
-                     <FolderOpen aria-hidden="true" />
-                     <span className="startupAction__label">Open a new folder</span>
-                  </button>
-                  <button
-                     className="startupAction startupAction--continue"
-                     disabled={!canUseApp || !hasSavedReview}
-                     onClick={() => setIsStartupOpen(false)}
-                     type="button"
-                  >
-                     <Redo2 aria-hidden="true" />
-                     <span className="startupAction__label">Continue review</span>
-                  </button>
-                  <button
-                     className="startupAction startupAction--rescan"
-                     disabled={!canUseApp || !canRescan}
-                     onClick={() => {
-                        setIsStartupOpen(false);
-                        void startScan();
-                     }}
-                     type="button"
-                  >
-                     <RotateCw aria-hidden="true" />
-                     <span className="startupAction__label">Rescan current folder</span>
-                  </button>
-               </div>
-               <div className="startupPreference">
-                  <Toggle checked={showStartupOnLaunch} label="Show this screen when the app starts" onChange={updateStartupPreference} />
-               </div>
-            </section>
-         </main>
+         <StartupScreen
+            canRescan={scanRoot !== null}
+            canUseApp={window.imageDeduplicator !== undefined}
+            hasSavedReview={groups.length > 0}
+            onContinue={() => setIsStartupOpen(false)}
+            onDrop={handleDrop}
+            onOpenFolder={() => void openNewFolder()}
+            onRescan={() => {
+               setIsStartupOpen(false);
+               void startScan();
+            }}
+            onShowOnLaunchChange={updateStartupPreference}
+            showOnLaunch={showStartupOnLaunch}
+         />
       );
    }
 
@@ -1203,22 +1090,13 @@ export const App = () => {
                <p className="sectionLabel">{folderName}</p>
                <h1>
                   {getDetectionNumber(currentGroup.id)}
-                  <span>
-                     {currentIndex + 1} / {groups.length}
-                  </span>
+                  <span>/{groups.length}</span>
                </h1>
-            </div>
-            <div className="groupStats">
-               <span>
-                  <ImageIcon aria-hidden="true" /> {currentGroup.images.length} images
-               </span>
-               <span className={`statePill statePill--${currentImageSetState}`}>{getImageSetLabel(currentGroup, currentDecision)}</span>
-               <span>{reviewPercent}% reviewed</span>
             </div>
             <div className="topbar__actions">
                <button
                   className="iconButton"
-                  disabled={undoStack.length === 0}
+                  disabled={!canUndo}
                   onClick={undoLastDecision}
                   type="button"
                   {...getTooltipProps("Undo", "Restore the previous review choice.", "Ctrl Z")}
@@ -1227,7 +1105,7 @@ export const App = () => {
                </button>
                <button
                   className="iconButton"
-                  disabled={redoStack.length === 0}
+                  disabled={!canRedo}
                   onClick={redoLastDecision}
                   type="button"
                   {...getTooltipProps("Redo", "Reapply a choice you just undid.", "Ctrl Shift Z")}
@@ -1380,278 +1258,49 @@ export const App = () => {
                </section>
             </>
          ) : (
-            <section className={`patchReview${movePreview.length === 0 && duplicatePreview.length === 0 ? " patchReview--empty" : ""}`}>
-               <header className="patchReview__header">
-                  <div className="patchReview__heading">
-                     <p className="sectionLabel">Final review</p>
-                     <h2>
-                        {fileWorkflow.markedCount === 0
-                           ? "Nothing marked yet"
-                           : fileWorkflow.readyToMoveCount > 0
-                             ? `${fileWorkflow.readyToMoveCount} files ready to move`
-                             : fileWorkflow.movedCount > 0
-                               ? `${fileWorkflow.movedCount} files moved to duplicate`
-                               : fileWorkflow.recycledCount > 0
-                                 ? `${fileWorkflow.recycledCount} duplicates recycled`
-                                 : "Marked files are unavailable"}
-                     </h2>
-                  </div>
-                  <dl className="patchSummary" aria-label="Review summary">
-                     <div>
-                        <dt>Ready</dt>
-                        <dd>{fileWorkflow.readyToMoveCount}</dd>
-                        <span>files</span>
-                     </div>
-                     <div>
-                        <dt>In duplicate</dt>
-                        <dd>{fileWorkflow.movedCount}</dd>
-                        <span>files</span>
-                     </div>
-                     <div>
-                        <dt>Review size</dt>
-                        <dd>{formatBytes([...movePreview, ...duplicatePreview].reduce((total, file) => total + file.size, 0))}</dd>
-                        <span>visible here</span>
-                     </div>
-                  </dl>
-               </header>
-
-               <div className="destinationPanel">
-                  <div className="destinationPanel__icon">
-                     <FolderOpen aria-hidden="true" />
-                  </div>
-                  <div className="destinationPanel__details">
-                     <small>Move destination</small>
-                     <strong title={duplicateDestination}>{duplicateDestination}</strong>
-                  </div>
-                  <button
-                     className="destinationPanel__open"
-                     onClick={() => void openCurrentGroupFolder()}
-                     type="button"
-                     {...getTooltipProps("Open scan folder", "Open the folder that contains the duplicate destination.")}
-                  >
-                     Open folder
-                  </button>
-               </div>
-
-               <div className="reviewFileSections">
-                  {movePreview.length > 0 && (
-                     <section className="fileReviewSection" aria-labelledby="marked-files-heading">
-                        <div className="fileReviewSection__header">
-                           <div>
-                              <p className="sectionLabel">Marked files</p>
-                              <h3 id="marked-files-heading">{movePreview.length} ready to move</h3>
-                           </div>
-                           <span>At source</span>
-                        </div>
-                        <div className="markedGallery__grid">
-                           {movePreview.map((row) => (
-                              <figure className="markedThumb" key={`${row.groupId}-${row.file}`}>
-                                 <img alt={row.file} src={row.previewUrl} />
-                                 <figcaption>
-                                    <strong>{row.file}</strong>
-                                    <span>
-                                       {getDetectionNumber(row.groupId)} / {formatBytes(row.size)}
-                                    </span>
-                                 </figcaption>
-                              </figure>
-                           ))}
-                        </div>
-                     </section>
-                  )}
-
-                  {duplicatePreview.length > 0 && (
-                     <section className="fileReviewSection fileReviewSection--duplicate" aria-labelledby="duplicate-files-heading">
-                        <div className="fileReviewSection__header">
-                           <div>
-                              <p className="sectionLabel">Files in /duplicate</p>
-                              <h3 id="duplicate-files-heading">{duplicatePreview.length} moved files</h3>
-                           </div>
-                           <span>Undoable</span>
-                        </div>
-                        <div className="markedGallery__grid">
-                           {duplicatePreview.map((row) => (
-                              <figure className="markedThumb" key={`${row.groupId}-${row.file}`}>
-                                 <img alt={row.file} src={row.previewUrl} />
-                                 <figcaption>
-                                    <strong>{row.file}</strong>
-                                    <span>
-                                       {getDetectionNumber(row.groupId)} / {formatBytes(row.size)}
-                                    </span>
-                                 </figcaption>
-                              </figure>
-                           ))}
-                        </div>
-                     </section>
-                  )}
-
-                  {movePreview.length === 0 && duplicatePreview.length === 0 && (
-                     <div className="emptyReviewState">
-                        <ShieldCheck aria-hidden="true" />
-                        <div>
-                           <strong>
-                              {fileWorkflow.movedCount > 0
-                                 ? "Marked files are in the duplicate folder."
-                                 : fileWorkflow.recycledCount > 0
-                                   ? "The duplicate folder was moved to the Recycle Bin."
-                                   : "Your originals are untouched."}
-                           </strong>
-                           <span>
-                              {fileWorkflow.movedCount > 0
-                                 ? "Undo the move or recycle the duplicate folder."
-                                 : fileWorkflow.recycledCount > 0
-                                   ? "The move can no longer be undone from this screen."
-                                   : "Return to selection to mark the duplicate files you want to move."}
-                           </span>
-                        </div>
-                     </div>
-                  )}
-               </div>
-
-               <footer className="patchReview__footer">
-                  <div className="patchReview__status" aria-live="polite">
-                     {isApplying ? (
-                        <div className="applyProgress" role="status">
-                           <strong>Moving marked files</strong>
-                           <div className="progressBar progressBar--indeterminate" aria-hidden="true">
-                              <span />
-                           </div>
-                        </div>
-                     ) : isRestoringDuplicate ? (
-                        <div className="applyProgress" role="status">
-                           <strong>Restoring moved files</strong>
-                           <div className="progressBar progressBar--indeterminate" aria-hidden="true">
-                              <span />
-                           </div>
-                        </div>
-                     ) : restoreResult !== null ? (
-                        <div className="result">
-                           <Undo2 aria-hidden="true" />
-                           <span>
-                              Restored {restoreResult.moved.length}, skipped {restoreResult.skipped.length}, errors {restoreResult.errors.length}
-                           </span>
-                        </div>
-                     ) : patchResult !== null ? (
-                        <div className="result">
-                           <ShieldCheck aria-hidden="true" />
-                           <span>
-                              Moved {patchResult.moved.length}, skipped {patchResult.skipped.length}, errors {patchResult.errors.length}
-                           </span>
-                        </div>
-                     ) : lastFileAction === "recycled" ? (
-                        <div className="result">
-                           <Trash2 aria-hidden="true" />
-                           <span>Duplicate folder moved to the Recycle Bin.</span>
-                        </div>
-                     ) : (
-                        <div className="patchSafetyNote">
-                           <ShieldCheck aria-hidden="true" />
-                           <span>Marked files move to the duplicate folder first.</span>
-                        </div>
-                     )}
-                  </div>
-                  <div className="patchReview__actions">
-                     {fileWorkflow.movedCount > 0 && (
-                        <button
-                           className="restoreButton"
-                           disabled={isApplying || isRestoringDuplicate || isTrashingDuplicate}
-                           onClick={() => void restoreDuplicateFolder()}
-                           type="button"
-                           {...getTooltipProps("Undo", "Move marked files from the duplicate folder back to their original locations.")}
-                        >
-                           <Undo2 aria-hidden="true" />
-                           {isRestoringDuplicate ? "Undoing..." : "Undo"}
-                        </button>
-                     )}
-                     <button
-                        className="finishDeletionButton"
-                        disabled={isApplying || isRestoringDuplicate || isTrashingDuplicate || fileWorkflow.readyToMoveCount === 0}
-                        onClick={() => void applyPatch()}
-                        type="button"
-                        {...getTooltipProps("Move marked", "Move every marked file that is still at its source into the duplicate folder.")}
-                     >
-                        <FolderOpen aria-hidden="true" />
-                        <span>{isApplying ? "Moving..." : "Move marked"}</span>
-                     </button>
-                     <button
-                        className="danger recycleButton"
-                        disabled={!duplicateFolderHasContent || fileWorkflow.movedCount === 0 || isApplying || isTrashingDuplicate || isRestoringDuplicate}
-                        onClick={() => {
-                           if (confirmMajorActions) {
-                              setConfirmAction(createConfirmAction("trashDuplicate"));
-                           } else {
-                              void trashDuplicateFolder();
-                           }
-                        }}
-                        type="button"
-                        {...getTooltipProps("Recycle duplicates", "Send the duplicate folder and everything in it to the Recycle Bin.")}
-                     >
-                        <Trash2 aria-hidden="true" />
-                        {isTrashingDuplicate ? "Recycling..." : "Recycle duplicates"}
-                     </button>
-                  </div>
-               </footer>
-            </section>
+            <FinalReview
+               destination={duplicateDestination}
+               duplicateFolderHasContent={duplicateFolderHasContent}
+               duplicatePreview={duplicatePreview}
+               getTooltipProps={getTooltipProps}
+               isApplying={isApplying}
+               isRestoring={isRestoringDuplicate}
+               isTrashing={isTrashingDuplicate}
+               lastFileAction={lastFileAction}
+               movePreview={movePreview}
+               onApply={() => void applyPatch()}
+               onOpenFolder={() => void openCurrentGroupFolder()}
+               onRestore={() => void restoreDuplicateFolder()}
+               onTrash={() => (confirmMajorActions ? setConfirmAction(createConfirmAction("trashDuplicate")) : void trashDuplicateFolder())}
+               patchResult={patchResult}
+               restoreResult={restoreResult}
+               workflow={fileWorkflow}
+            />
          )}
 
          {isSettingsOpen && (
-            <aside className="settingsPanel">
-               <div className="panelHeader">
-                  <div>
-                     <p className="sectionLabel">App</p>
-                     <h2>Settings</h2>
-                  </div>
-                  <button aria-label="Close settings" className="iconButton" onClick={() => setIsSettingsOpen(false)} type="button">
-                     <X aria-hidden="true" />
-                  </button>
-               </div>
-               <div className="settingsGroup">
-                  <p className="sectionLabel">Review</p>
-                  <Toggle checked={wrapImageShelf} label="Wrap image shelf" onChange={setWrapImageShelf} />
-                  <Toggle checked={confirmMajorActions} label="Confirm major actions" onChange={setConfirmMajorActions} />
-                  <Toggle checked={showStartupOnLaunch} label="Show start screen on launch" onChange={updateStartupPreference} />
-                  <button className="danger" onClick={() => setConfirmAction(createConfirmAction("clearAll"))} type="button">
-                     <Eraser aria-hidden="true" /> Clear choices
-                  </button>
-               </div>
-               <div className="shortcutReference">
-                  <Keyboard aria-hidden="true" />
-                  <div>
-                     <strong>Power keys</strong>
-                     <span>Shift-click toggles deletion, Ctrl advances after a choice, Alt-click picks images to compare.</span>
-                  </div>
-               </div>
-            </aside>
+            <SettingsPanel
+               confirmMajorActions={confirmMajorActions}
+               onClear={() => setConfirmAction(createConfirmAction("clearAll"))}
+               onClose={() => setIsSettingsOpen(false)}
+               onConfirmChange={setConfirmMajorActions}
+               onStartupChange={updateStartupPreference}
+               onWrapChange={setWrapImageShelf}
+               showStartupOnLaunch={showStartupOnLaunch}
+               wrapImageShelf={wrapImageShelf}
+            />
          )}
 
          {isScanPanelOpen && (
-            <aside className="settingsPanel">
-               <div className="panelHeader">
-                  <div>
-                     <p className="sectionLabel">Scan</p>
-                     <h2>Folder</h2>
-                  </div>
-                  <button aria-label="Close scan panel" className="iconButton" onClick={() => setIsScanPanelOpen(false)} type="button">
-                     <X aria-hidden="true" />
-                  </button>
-               </div>
-               <div className="scanPanelPath">
-                  <FolderTree aria-hidden="true" />
-                  <span>{scanRoot ?? "No folder selected"}</span>
-               </div>
-               <div className="settingsGroup">
-                  <Toggle checked={includeSubfolders} label="Include subfolders" onChange={setIncludeSubfolders} />
-                  <button onClick={() => void chooseScanFolder()} type="button">
-                     <FolderTree aria-hidden="true" /> Change folder
-                  </button>
-                  <button disabled={scanRoot === null} onClick={() => void startScan()} type="button">
-                     <RotateCw aria-hidden="true" />
-                     Rescan
-                  </button>
-                  <button className="danger" onClick={() => setConfirmAction(createConfirmAction("clearAll"))} type="button">
-                     <Eraser aria-hidden="true" /> Clear choices
-                  </button>
-               </div>
-            </aside>
+            <ScanPanel
+               includeSubfolders={includeSubfolders}
+               onChooseFolder={() => void chooseScanFolder()}
+               onClear={() => setConfirmAction(createConfirmAction("clearAll"))}
+               onClose={() => setIsScanPanelOpen(false)}
+               onIncludeSubfoldersChange={setIncludeSubfolders}
+               onRescan={() => void startScan()}
+               scanRoot={scanRoot}
+            />
          )}
 
          {contextMenu !== null && (

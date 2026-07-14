@@ -1,4 +1,12 @@
 /* Final file workflow and comparison overrides. Loaded after the existing visual rework. */
+.topbar {
+   grid-template-columns: minmax(180px, 1fr) auto;
+}
+
+.topbar__actions {
+   grid-column: 2;
+}
+
 .patchReview {
    overflow: hidden;
 }
