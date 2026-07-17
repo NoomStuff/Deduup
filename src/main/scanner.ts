@@ -1,6 +1,7 @@
 import { readdir, stat } from "node:fs/promises";
 import path from "node:path";
 import sharp from "sharp";
+import { duplicateContainerFolderName, managedDuplicateFolderName } from "../shared/constants.js";
 import type { ScanProgress } from "../shared/types.js";
 
 export interface ScannedImage {
@@ -19,43 +20,38 @@ export interface GroupedImages {
 }
 
 export type ScanProgressReporter = (progress: ScanProgress) => void;
+export type ScanWarningReporter = (filePath: string) => void;
 
 const supportedExtensions = new Set([".jpg", ".jpeg", ".png", ".webp", ".bmp", ".gif", ".avif", ".tif", ".tiff"]);
 const hashDistanceThreshold = 13;
 const groupingYieldInterval = 256;
 const exactSimilarityLimit = 96;
 const similaritySampleLimit = 4096;
-const maximumDetectionSimilarity = 20;
-const maximumDetectionImages = 100;
-const projectionCount = 128;
-const projectionWidth = 12;
-const projectionBucketCount = 1 << projectionWidth;
 
-interface HashWords {
-   high: number;
-   low: number;
-}
+const hashPartitionCount = 4;
+const hashPartitionBits = 16;
+type SimilarityIndex = Map<number, number[]>[];
 
-type ProjectionIndex = (number[] | undefined)[];
-
-const createProjection = (projectionIndex: number): number[] => {
-   const positions = new Set<number>();
-   let state = Math.imul(projectionIndex + 1, 0x9e3779b9) >>> 0;
-   while (positions.size < projectionWidth) {
-      state ^= state << 13;
-      state ^= state >>> 17;
-      state ^= state << 5;
-      positions.add((state >>> 0) & 63);
+const createPartitionMasks = (): number[] => {
+   const masks = [0];
+   for (let first = 0; first < hashPartitionBits; first += 1) {
+      masks.push(1 << first);
+      for (let second = first + 1; second < hashPartitionBits; second += 1) {
+         masks.push((1 << first) | (1 << second));
+         for (let third = second + 1; third < hashPartitionBits; third += 1) {
+            masks.push((1 << first) | (1 << second) | (1 << third));
+         }
+      }
    }
-   return [...positions];
+   return masks;
 };
 
-const projections = Array.from({ length: projectionCount }, (_, index) => createProjection(index));
+const partitionMasks = createPartitionMasks();
 
-export const collectImagePaths = async (rootPath: string, includeSubfolders: boolean): Promise<string[]> => {
+export const collectImagePaths = async (rootPath: string, reportWarning?: ScanWarningReporter): Promise<string[]> => {
    const collected: string[] = [];
    const normalizedRoot = path.resolve(rootPath);
-   const duplicateOutputPath = path.join(normalizedRoot, "duplicate");
+   const duplicateOutputPath = path.join(normalizedRoot, duplicateContainerFolderName, managedDuplicateFolderName);
 
    const visit = async (folderPath: string, isRoot = false): Promise<void> => {
       const normalizedFolderPath = path.resolve(folderPath);
@@ -68,15 +64,14 @@ export const collectImagePaths = async (rootPath: string, includeSubfolders: boo
             throw error;
          }
          console.warn(`Skipping unreadable folder: ${folderPath}`, error);
+         reportWarning?.(folderPath);
          return [];
       });
 
       for (const entry of entries) {
          const entryPath = path.join(folderPath, entry.name);
          if (entry.isDirectory()) {
-            if (includeSubfolders) {
-               await visit(entryPath);
-            }
+            await visit(entryPath);
          } else if (entry.isFile() && supportedExtensions.has(path.extname(entry.name).toLowerCase())) {
             collected.push(entryPath);
          }
@@ -98,7 +93,7 @@ const createDifferenceHash = (pixels: Buffer): string => {
    return hash.toString(16).padStart(16, "0");
 };
 
-const scanImage = async (filePath: string): Promise<ScannedImage | null> => {
+const scanImage = async (filePath: string, reportWarning?: ScanWarningReporter): Promise<ScannedImage | null> => {
    try {
       const source = sharp(filePath, { animated: false, failOn: "none" }).rotate();
       const metadata = await source.metadata();
@@ -115,11 +110,12 @@ const scanImage = async (filePath: string): Promise<ScannedImage | null> => {
       };
    } catch (error: unknown) {
       console.warn(`Skipping unreadable image: ${filePath}`, error);
+      reportWarning?.(filePath);
       return null;
    }
 };
 
-export const scanImages = async (paths: string[], reportProgress: ScanProgressReporter): Promise<ScannedImage[]> => {
+export const scanImages = async (paths: string[], reportProgress: ScanProgressReporter, reportWarning?: ScanWarningReporter): Promise<ScannedImage[]> => {
    const results: (ScannedImage | null)[] = Array.from({ length: paths.length }, () => null);
    let nextIndex = 0;
    let completed = 0;
@@ -133,7 +129,7 @@ export const scanImages = async (paths: string[], reportProgress: ScanProgressRe
          if (filePath === undefined) {
             continue;
          }
-         results[index] = await scanImage(filePath);
+         results[index] = await scanImage(filePath, reportWarning);
          completed += 1;
          reportProgress({ phase: "hashing", completed, total: paths.length, currentFile: path.basename(filePath) });
       }
@@ -191,64 +187,43 @@ const getGroupSimilarity = (images: ScannedImage[]): number => {
    return comparisons === 0 ? 0 : totalDistance / comparisons;
 };
 
-const parseHashWords = (hash: string): HashWords => ({
-   high: Number.parseInt(hash.slice(0, 8), 16) >>> 0,
-   low: Number.parseInt(hash.slice(8), 16) >>> 0,
-});
-
-const countBits = (input: number): number => {
-   let value = input >>> 0;
-   value -= (value >>> 1) & 0x55555555;
-   value = (value & 0x33333333) + ((value >>> 2) & 0x33333333);
-   return (((value + (value >>> 4)) & 0x0f0f0f0f) * 0x01010101) >>> 24;
-};
-
-const getWordDistance = (left: HashWords, right: HashWords): number => countBits(left.high ^ right.high) + countBits(left.low ^ right.low);
-
-const getProjectionKey = (hash: HashWords, projection: number[]): number => {
-   let key = 0;
-   for (const position of projection) {
-      const bit = position < 32 ? (hash.low >>> position) & 1 : (hash.high >>> (position - 32)) & 1;
-      key = (key << 1) | bit;
-   }
-   return key;
-};
+const getHashPartition = (hash: bigint, partition: number): number => Number((hash >> BigInt(partition * hashPartitionBits)) & 0xffffn);
 
 const findAndIndexMatches = (
    imageIndex: number,
-   hashWords: HashWords[],
-   indexes: ProjectionIndex[],
+   hash: bigint,
+   hashValues: bigint[],
+   indexes: SimilarityIndex,
    candidateMarkers: Int32Array,
    onMatch: (matchingIndex: number) => void
 ): void => {
-   const hash = hashWords[imageIndex];
-   if (hash === undefined) return;
    const marker = imageIndex + 1;
-
-   projections.forEach((projection, projectionIndex) => {
-      const index = indexes[projectionIndex];
-      if (index === undefined) return;
-      const key = getProjectionKey(hash, projection);
-      const candidates = index[key];
-      if (candidates !== undefined) {
+   for (let partition = 0; partition < hashPartitionCount; partition += 1) {
+      const index = indexes[partition];
+      if (index === undefined) continue;
+      const partitionValue = getHashPartition(hash, partition);
+      for (const mask of partitionMasks) {
+         const candidates = index.get(partitionValue ^ mask);
+         if (candidates === undefined) continue;
          for (const candidateIndex of candidates) {
             if (candidateMarkers[candidateIndex] === marker) continue;
             candidateMarkers[candidateIndex] = marker;
-            const candidateHash = hashWords[candidateIndex];
-            if (candidateHash !== undefined && getWordDistance(hash, candidateHash) <= hashDistanceThreshold) onMatch(candidateIndex);
+            const candidateHash = hashValues[candidateIndex];
+            if (candidateHash !== undefined && getHashValueDistance(hash, candidateHash) <= hashDistanceThreshold) onMatch(candidateIndex);
          }
       }
 
-      if (candidates === undefined) index[key] = [imageIndex];
-      else candidates.push(imageIndex);
-   });
+      const bucket = index.get(partitionValue);
+      if (bucket === undefined) index.set(partitionValue, [imageIndex]);
+      else bucket.push(imageIndex);
+   }
 };
 
 const yieldToMainLoop = (): Promise<void> => new Promise((resolve) => setImmediate(resolve));
 
 const getConnectedGroups = async (images: ScannedImage[], reportProgress: ScanProgressReporter): Promise<ScannedImage[][]> => {
    const parent = images.map((_, index) => index);
-   const hashWords = images.map((image) => parseHashWords(image.hash));
+   const hashValues = images.map((image) => BigInt(`0x${image.hash}`));
    const find = (index: number): number => {
       let root = index;
       while (parent[root] !== root) root = parent[root] ?? root;
@@ -265,11 +240,21 @@ const getConnectedGroups = async (images: ScannedImage[], reportProgress: ScanPr
       if (leftRoot !== rightRoot) parent[rightRoot] = leftRoot;
    };
 
-   const indexes: ProjectionIndex[] = Array.from({ length: projectionCount }, () => Array.from({ length: projectionBucketCount }));
+   const indexes: SimilarityIndex = Array.from({ length: hashPartitionCount }, () => new Map<number, number[]>());
    const candidateMarkers = new Int32Array(images.length);
+   const exactHashRepresentatives = new Map<bigint, number>();
    reportProgress({ phase: "grouping", completed: 0, total: images.length });
    for (let imageIndex = 0; imageIndex < images.length; imageIndex += 1) {
-      findAndIndexMatches(imageIndex, hashWords, indexes, candidateMarkers, (matchingIndex) => union(imageIndex, matchingIndex));
+      const hash = hashValues[imageIndex];
+      if (hash !== undefined) {
+         const exactRepresentative = exactHashRepresentatives.get(hash);
+         if (exactRepresentative === undefined) {
+            findAndIndexMatches(imageIndex, hash, hashValues, indexes, candidateMarkers, (matchingIndex) => union(imageIndex, matchingIndex));
+            exactHashRepresentatives.set(hash, imageIndex);
+         } else {
+            union(imageIndex, exactRepresentative);
+         }
+      }
 
       const completed = imageIndex + 1;
       if (completed % groupingYieldInterval === 0 && completed < images.length) {
@@ -282,7 +267,9 @@ const getConnectedGroups = async (images: ScannedImage[], reportProgress: ScanPr
    const groupsByRoot = new Map<number, ScannedImage[]>();
    images.forEach((image, index) => {
       const root = find(index);
-      groupsByRoot.set(root, [...(groupsByRoot.get(root) ?? []), image]);
+      const group = groupsByRoot.get(root);
+      if (group === undefined) groupsByRoot.set(root, [image]);
+      else group.push(image);
    });
    return [...groupsByRoot.values()];
 };
@@ -290,9 +277,8 @@ const getConnectedGroups = async (images: ScannedImage[], reportProgress: ScanPr
 export const groupImages = async (images: ScannedImage[], reportProgress: ScanProgressReporter): Promise<GroupedImages[]> => {
    const connectedGroups = await getConnectedGroups(images, reportProgress);
    const groups = connectedGroups
-      .filter((group) => group.length > 1 && group.length <= maximumDetectionImages)
+      .filter((group) => group.length > 1)
       .map((group) => ({ similarity: getGroupSimilarity(group), images: group }))
-      .filter((group) => group.similarity <= maximumDetectionSimilarity)
       .sort((left, right) => left.similarity - right.similarity);
    reportProgress({ phase: "grouping", completed: images.length, total: images.length });
    return groups;

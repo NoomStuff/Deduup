@@ -1,11 +1,14 @@
 export interface ImageItem {
    file: string;
    originalPath: string;
+   currentPath: string;
+   folderPath: string;
    hash: string;
    width: number;
    height: number;
    size: number;
    previewUrl: string;
+   fullPreviewUrl: string;
    exists: boolean;
    sourceStatus: "available" | "movedByApp" | "recycledByApp" | "missing";
 }
@@ -50,14 +53,15 @@ export interface LoadDataResult {
    groups: ImageSet[];
    decisions: Decisions;
    scanRoot: string | null;
-   includeSubfolders: boolean;
+   duplicateFolderPath: string | null;
+   currentGroupId: string | null;
    duplicateFolderHasContent: boolean;
    lastFileAction: FileActionStatus;
+   scanWarningCount: number;
 }
 
 export interface ScanRequest {
    rootPath: string;
-   includeSubfolders: boolean;
 }
 
 export interface ScanProgress {
@@ -73,6 +77,7 @@ export interface AppApi {
    scanFolder: (request: ScanRequest) => Promise<LoadDataResult>;
    onScanProgress: (listener: (progress: ScanProgress) => void) => () => void;
    saveDecisions: (decisions: Decisions) => Promise<void>;
+   saveCurrentGroup: (groupId: string) => Promise<void>;
    applyPatch: (decisions: Decisions) => Promise<PatchResult>;
    getDuplicateFolderStatus: () => Promise<boolean>;
    restoreDuplicateFolder: () => Promise<PatchResult>;

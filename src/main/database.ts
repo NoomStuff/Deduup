@@ -1,9 +1,11 @@
 import { app } from "electron";
-import { readdir, stat } from "node:fs/promises";
+import { stat } from "node:fs/promises";
 import path from "node:path";
 import { DatabaseSync } from "node:sqlite";
+import { duplicateContainerFolderName, managedDuplicateFolderName } from "../shared/constants.js";
 import type { Decisions, FileActionStatus, ImageItem, ImageSet, LoadDataResult } from "../shared/types.js";
 import { createPreviewUrl, resetPreviewAccess } from "./previewProtocol.js";
+import { collectManagedFolderFiles } from "./fileOperations.js";
 import type { GroupedImages } from "./scanner.js";
 
 interface SettingRow {
@@ -83,7 +85,7 @@ export const setSetting = (key: string, value: string): void => {
    getDatabase().prepare("INSERT INTO settings (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value").run(key, value);
 };
 
-export const saveScan = (rootPath: string, includeSubfolders: boolean, groups: GroupedImages[]): void => {
+export const saveScan = (rootPath: string, groups: GroupedImages[]): void => {
    const db = getDatabase();
    const insertGroup = db.prepare("INSERT INTO duplicate_groups (id, similarity, sort_index, folder_path) VALUES (?, ?, ?, ?)");
    const insertImage = db.prepare(
@@ -101,8 +103,8 @@ export const saveScan = (rootPath: string, includeSubfolders: boolean, groups: G
          }
       });
       setSetting("scan_root", rootPath);
-      setSetting("include_subfolders", includeSubfolders ? "1" : "0");
       setSetting("last_file_action", "idle");
+      setSetting("current_group_id", groups.length === 0 ? "" : "detection_001");
       db.exec("COMMIT");
    } catch (error: unknown) {
       db.exec("ROLLBACK");
@@ -152,24 +154,22 @@ export const getLastFileAction = (): FileActionStatus => {
 
 export const getDuplicateFolderPath = (): string | null => {
    const scanRoot = getSetting("scan_root");
-   return scanRoot === null ? null : path.join(scanRoot, "duplicate");
+   return scanRoot === null ? null : path.join(scanRoot, duplicateContainerFolderName, managedDuplicateFolderName);
 };
 
-const findMovedPath = async (row: ImageRow, decisions: Decisions, scanRoot: string | null): Promise<string | null> => {
-   const decision = decisions[row.groupId];
-   if (scanRoot === null || decision === undefined || !decision.completed || !decision.deletedImages.includes(row.originalPath)) return null;
+export const saveCurrentGroupId = (groupId: string): void => {
+   const row = getDatabase().prepare("SELECT 1 AS value FROM duplicate_groups WHERE id = ?").get(groupId) as SettingRow | undefined;
+   if (row === undefined) throw new Error(`Unknown detection: ${groupId}`);
+   setSetting("current_group_id", groupId);
+};
+
+const findMovedPath = async (row: ImageRow, scanRoot: string | null): Promise<string | null> => {
+   if (scanRoot === null) return null;
    const relativePath = path.relative(scanRoot, row.originalPath);
    const safeRelativePath = relativePath.startsWith("..") || path.isAbsolute(relativePath) ? row.file : relativePath;
-   const movedPath = path.join(scanRoot, "duplicate", row.groupId, safeRelativePath);
-   const movedFile = path.parse(movedPath);
-   return readdir(movedFile.dir)
-      .then((entries) => {
-         const entry = entries.find((candidateEntry) => {
-            const candidate = path.parse(candidateEntry);
-            return candidate.base === movedFile.base || (candidate.ext === movedFile.ext && candidate.name.startsWith(`${movedFile.name}-`));
-         });
-         return entry === undefined ? null : path.join(movedFile.dir, entry);
-      })
+   const movedPath = path.join(scanRoot, duplicateContainerFolderName, managedDuplicateFolderName, row.groupId, safeRelativePath);
+   return stat(movedPath)
+      .then((value) => (value.isFile() ? movedPath : null))
       .catch(() => null);
 };
 
@@ -194,20 +194,24 @@ export const loadGroups = async (
          const exists = await stat(row.originalPath)
             .then(() => true)
             .catch(() => false);
-         const movedPath = exists ? null : await findMovedPath(row, decisions, scanRoot);
+         const movedPath = exists ? null : await findMovedPath(row, scanRoot);
          const wasRecycledByApp =
             movedPath === null &&
             lastFileAction === "recycled" &&
             decisions[row.groupId]?.completed === true &&
             decisions[row.groupId]?.deletedImages.includes(row.originalPath) === true;
+         const previewPath = movedPath ?? row.originalPath;
          const item: ImageItem = {
             file: row.file,
             originalPath: row.originalPath,
+            currentPath: previewPath,
+            folderPath: path.dirname(previewPath),
             hash: row.hash,
             width: row.width,
             height: row.height,
             size: row.size,
-            previewUrl: createPreviewUrl(movedPath ?? row.originalPath),
+            previewUrl: createPreviewUrl(previewPath),
+            fullPreviewUrl: createPreviewUrl(previewPath, "full"),
             exists,
             sourceStatus: exists ? "available" : movedPath !== null ? "movedByApp" : wasRecycledByApp ? "recycledByApp" : "missing",
          };
@@ -218,20 +222,9 @@ export const loadGroups = async (
    return groupRows.map((row) => ({ ...row, images: imagesByGroup.get(row.id) ?? [] }));
 };
 
-const collectFiles = async (rootPath: string): Promise<string[]> => {
-   const entries = await readdir(rootPath, { withFileTypes: true }).catch(() => []);
-   const files: string[] = [];
-   for (const entry of entries) {
-      const entryPath = path.join(rootPath, entry.name);
-      if (entry.isDirectory()) files.push(...(await collectFiles(entryPath)));
-      else if (entry.isFile()) files.push(entryPath);
-   }
-   return files;
-};
-
 export const getDuplicateFolderFiles = async (): Promise<string[]> => {
    const duplicatePath = getDuplicateFolderPath();
-   return duplicatePath === null ? [] : collectFiles(duplicatePath);
+   return duplicatePath === null ? [] : collectManagedFolderFiles(duplicatePath);
 };
 
 export const getDuplicateFolderStatus = async (): Promise<boolean> => (await getDuplicateFolderFiles()).length > 0;
@@ -240,12 +233,16 @@ export const getLoadResult = async (): Promise<LoadDataResult> => {
    const decisions = loadDecisions();
    const scanRoot = getSetting("scan_root");
    const lastFileAction = getLastFileAction();
+   const groups = await loadGroups(decisions, scanRoot, lastFileAction);
+   const savedGroupId = getSetting("current_group_id");
    return {
-      groups: await loadGroups(decisions, scanRoot, lastFileAction),
+      groups,
       decisions,
       scanRoot,
-      includeSubfolders: getSetting("include_subfolders") === "1",
+      duplicateFolderPath: getDuplicateFolderPath(),
+      currentGroupId: savedGroupId !== null && groups.some((group) => group.id === savedGroupId) ? savedGroupId : (groups[0]?.id ?? null),
       duplicateFolderHasContent: await getDuplicateFolderStatus(),
       lastFileAction,
+      scanWarningCount: 0,
    };
 };

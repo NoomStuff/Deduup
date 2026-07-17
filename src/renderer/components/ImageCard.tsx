@@ -12,6 +12,7 @@ export const ImageCard = memo(function ImageCard({
    isComparePick,
    isSelected,
    onClick,
+   onDoubleClick,
    onContextMenu,
    onBadgeClick,
    onToggleDelete,
@@ -22,6 +23,7 @@ export const ImageCard = memo(function ImageCard({
    isComparePick: boolean;
    isSelected: boolean;
    onClick: (event: MouseEvent, image: ImageItem) => void;
+   onDoubleClick: (event: MouseEvent, image: ImageItem) => void;
    onContextMenu: (event: MouseEvent, image: ImageItem) => void;
    onBadgeClick: (event: MouseEvent, image: ImageItem) => void;
    onToggleDelete: (event: MouseEvent, image: ImageItem) => void;
@@ -40,6 +42,7 @@ export const ImageCard = memo(function ImageCard({
       <article
          className={`imageCard imageCard--${state}${isSelected ? " imageCard--selected" : ""}${isComparePick ? " imageCard--comparePick" : ""}${isMutable ? "" : " imageCard--immutable"}`}
          onClick={(event) => onClick(event, image)}
+         onDoubleClick={(event) => onDoubleClick(event, image)}
          onContextMenu={(event) => onContextMenu(event, image)}
       >
          <button aria-label={`Open actions for image ${index + 1}`} className="imageCard__badge" onClick={(event) => onBadgeClick(event, image)} type="button">
@@ -61,7 +64,7 @@ export const ImageCard = memo(function ImageCard({
             </span>
          )}
          {image.sourceStatus === "available" ? (
-            <img alt={image.file} draggable={false} loading="eager" src={image.previewUrl} />
+            <img alt={image.file} draggable={false} loading="lazy" src={image.previewUrl} />
          ) : (
             <div className={"imageCard__fallback imageCard__fallback--" + image.sourceStatus}>
                {image.sourceStatus === "movedByApp" ? <FolderOpen aria-hidden="true" /> : <ImageOff aria-hidden="true" />}

@@ -1245,25 +1245,6 @@ kbd {
    text-overflow: ellipsis;
    white-space: nowrap;
 }
-.scanPanelPath {
-   display: flex;
-   min-width: 0;
-   align-items: center;
-   gap: 10px;
-   border: 1px solid rgba(255, 255, 255, 0.075);
-   border-radius: var(--radius-md);
-   padding: 12px;
-   background: #ffffff0a;
-}
-.scanPanelPath span {
-   min-width: 0;
-   overflow: hidden;
-   color: var(--muted);
-   font-size: 12px;
-   font-weight: 680;
-   text-overflow: ellipsis;
-   white-space: nowrap;
-}
 .contextMenu {
    position: fixed;
    z-index: 20;
@@ -2280,7 +2261,6 @@ button {
 .emptyMoveList,
 .tooltipBubble,
 .appToast,
-.scanPanelPath,
 .folderPicker {
    border-radius: 14px;
 }
@@ -3161,13 +3141,6 @@ kbd {
    color: #ffd0d7;
 }
 
-.scanPanelPath {
-   border-color: #1c1a20;
-   border-radius: var(--radius-sm);
-   background: #000;
-}
-
-.scanPanelPath svg,
 .shortcutReference svg {
    color: var(--accent);
 }
@@ -3784,7 +3757,6 @@ button {
 .emptyMoveList,
 .tooltipBubble,
 .appToast,
-.scanPanelPath,
 .folderPicker {
    border-radius: 14px !important;
 }

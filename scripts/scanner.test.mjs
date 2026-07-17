@@ -1,6 +1,9 @@
 import assert from "node:assert/strict";
+import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
+import os from "node:os";
+import path from "node:path";
 import test from "node:test";
-import { groupImages } from "../dist-electron/main/scanner.js";
+import { collectImagePaths, groupImages } from "../dist-electron/main/scanner.js";
 
 const createImage = (hash, index) => ({
    file: `${index}.jpg`,
@@ -44,12 +47,39 @@ test("reports incremental grouping progress", async () => {
    assert.ok(completed.some((value) => value > 0 && value < images.length));
 });
 
-test("excludes detections larger than 100 images", async () => {
+test("keeps detections larger than 100 images", async () => {
    const images = Array.from({ length: 101 }, (_, index) => createImage(0x123456789abcdef0n, index));
-   assert.deepEqual(await groupImages(images, () => undefined), []);
+   const groups = await groupImages(images, () => undefined);
+   assert.equal(groups.length, 1);
+   assert.equal(groups[0]?.images.length, images.length);
 });
 
-test("excludes detections with an average distance above 20", async () => {
+test("always discovers supported images in nested folders", async () => {
+   const root = await mkdtemp(path.join(os.tmpdir(), "image-deduplicator-scan-"));
+   try {
+      const nestedImage = path.join(root, "one", "two", "image.jpg");
+      const unsupportedFile = path.join(root, "one", "notes.txt");
+      await mkdir(path.dirname(nestedImage), { recursive: true });
+      await writeFile(nestedImage, "image");
+      await writeFile(unsupportedFile, "notes");
+
+      assert.deepEqual(await collectImagePaths(root), [nestedImage]);
+   } finally {
+      await rm(root, { recursive: true, force: true });
+   }
+});
+
+test("keeps connected matches when the group average is above 20", async () => {
    const images = [0n, (1n << 13n) - 1n, (1n << 26n) - 1n, (1n << 39n) - 1n].map(createImage);
-   assert.deepEqual(await groupImages(images, () => undefined), []);
+   const groups = await groupImages(images, () => undefined);
+   assert.equal(groups.length, 1);
+   assert.equal(groups[0]?.images.length, images.length);
+   assert.ok((groups[0]?.similarity ?? 0) > 20);
+});
+
+test("finds every match inside the distance threshold", async () => {
+   const images = [createImage(0n, 0), createImage(0x0020181002860002n, 1)];
+   const groups = await groupImages(images, () => undefined);
+   assert.equal(groups.length, 1);
+   assert.equal(groups[0]?.images.length, 2);
 });

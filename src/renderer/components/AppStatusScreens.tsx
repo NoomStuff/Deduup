@@ -12,7 +12,7 @@ const getScanPhaseLabel = (phase: ScanProgress["phase"] | undefined): string => 
 };
 
 export const LoadingScreen = () => (
-   <main className="shell shell--center">
+   <main aria-live="polite" className="shell shell--center" role="status">
       <div className="loadingCard">
          <span className="spinner" aria-hidden="true" />
          <div>
@@ -40,7 +40,14 @@ export const ScanningScreen = ({ progress }: { progress: ScanProgress | null }) 
                <p>{progress?.currentFile ?? "This can take a moment for large folders."}</p>
             </div>
             <div className="scanLoadingProgress">
-               <div aria-label={`${progressPercent}% complete`} className="progressBar">
+               <div
+                  aria-label={`${progressPercent}% complete`}
+                  aria-valuemax={100}
+                  aria-valuemin={0}
+                  aria-valuenow={progressPercent}
+                  className="progressBar"
+                  role="progressbar"
+               >
                   <span style={{ width: `${progressPercent}%` }} />
                </div>
                <div className="scanLoadingBars" aria-hidden="true">
@@ -57,7 +64,6 @@ export const ScanningScreen = ({ progress }: { progress: ScanProgress | null }) 
 };
 
 interface StartupScreenProps {
-   canUseApp: boolean;
    hasSavedReview: boolean;
    canRescan: boolean;
    showOnLaunch: boolean;
@@ -69,7 +75,6 @@ interface StartupScreenProps {
 }
 
 export const StartupScreen = ({
-   canUseApp,
    hasSavedReview,
    canRescan,
    showOnLaunch,
@@ -91,15 +96,15 @@ export const StartupScreen = ({
             </div>
          </div>
          <div className="startupActions">
-            <button className="startupAction startupAction--primary" disabled={!canUseApp} onClick={onOpenFolder} type="button">
+            <button className="startupAction startupAction--primary" onClick={onOpenFolder} type="button">
                <FolderOpen aria-hidden="true" />
                <span className="startupAction__label">Open a new folder</span>
             </button>
-            <button className="startupAction startupAction--continue" disabled={!canUseApp || !hasSavedReview} onClick={onContinue} type="button">
+            <button className="startupAction startupAction--continue" disabled={!hasSavedReview} onClick={onContinue} type="button">
                <Redo2 aria-hidden="true" />
                <span className="startupAction__label">Continue review</span>
             </button>
-            <button className="startupAction startupAction--rescan" disabled={!canUseApp || !canRescan} onClick={onRescan} type="button">
+            <button className="startupAction startupAction--rescan" disabled={!canRescan} onClick={onRescan} type="button">
                <RotateCw aria-hidden="true" />
                <span className="startupAction__label">Rescan current folder</span>
             </button>

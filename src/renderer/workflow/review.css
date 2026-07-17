@@ -1,0 +1,100 @@
+.topbar {
+   grid-template-columns: minmax(180px, 1fr) auto;
+}
+
+.topbar__actions {
+   grid-column: 2;
+}
+
+.similarityBand {
+   border-color: color-mix(in srgb, var(--band-color) 22%, #343039) !important;
+   background: linear-gradient(90deg, color-mix(in srgb, var(--band-color) 10%, transparent), transparent 42px), #0d0c10 !important;
+   box-shadow: inset 0 1px color-mix(in srgb, var(--band-color) 14%, transparent);
+}
+
+.similarityBand:hover,
+.similarityBand:has(.similarityBand__tag:hover),
+.similarityBand:has(.similarityBand__tag:focus-visible) {
+   border-color: color-mix(in srgb, var(--band-color) 46%, #4b4650) !important;
+   background: linear-gradient(90deg, color-mix(in srgb, var(--band-color) 14%, transparent), transparent 48px), #0f0e12 !important;
+   box-shadow: inset 0 1px color-mix(in srgb, var(--band-color) 20%, transparent);
+}
+
+.similarityBand__tag {
+   border-color: color-mix(in srgb, var(--band-color) 42%, #4a4650) !important;
+   background: color-mix(in srgb, var(--band-color) 13%, #121116) !important;
+   color: color-mix(in srgb, var(--band-color) 72%, white);
+}
+
+.compare__action .compare__actionIndex {
+   display: grid;
+   width: 40px;
+   height: 40px;
+   min-height: 40px;
+   place-items: center;
+   margin: 0;
+   padding: 0;
+   color: #fff;
+   font-size: 18px;
+   font-weight: 860;
+   line-height: 1;
+}
+
+.compare__action--left .compare__actionIndex {
+   color: #d3ffdf;
+}
+
+.compare__action--right .compare__actionIndex {
+   color: #e2d5ff;
+}
+
+.filmstripFrame {
+   position: relative;
+   min-width: 0;
+   flex: 1 1 auto;
+   overflow: hidden;
+}
+
+.filmstripFrame .filmstrip {
+   width: 100%;
+   height: 100%;
+}
+
+.filmstripFrame::before,
+.filmstripFrame::after {
+   position: absolute;
+   top: 0;
+   bottom: 12px;
+   z-index: 4;
+   width: 38px;
+   opacity: 0;
+   content: "";
+   pointer-events: none;
+   transition: opacity 180ms ease;
+}
+
+.filmstripFrame::before {
+   left: 0;
+   background: linear-gradient(90deg, #0b0b0d 0, rgb(11 11 13 / 0.84) 34%, transparent 100%);
+}
+
+.filmstripFrame::after {
+   right: 0;
+   background: linear-gradient(270deg, #0b0b0d 0, rgb(11 11 13 / 0.84) 34%, transparent 100%);
+}
+
+.filmstripFrame--fadeLeft::before,
+.filmstripFrame--fadeRight::after {
+   opacity: 1;
+}
+
+.imageCard--immutable .imageCard__deleteToggle {
+   opacity: 0.18;
+}
+
+.contextMenu__command:disabled {
+   border-color: var(--line);
+   background: #0b0b0d;
+   color: var(--faint);
+   opacity: 0.48;
+}

@@ -60,6 +60,23 @@ const FileGallery = ({
    </section>
 );
 
+const FileActionErrors = ({ result }: { result: PatchResult | null }) => {
+   if (result === null || result.errors.length === 0) return null;
+   return (
+      <details className="fileActionErrors">
+         <summary>{result.errors.length} image{result.errors.length === 1 ? "" : "s"} need attention</summary>
+         <ul>
+            {result.errors.map((error) => (
+               <li key={`${error.from}-${error.to}`}>
+                  <strong>{error.file}</strong>
+                  <span>{error.message}</span>
+               </li>
+            ))}
+         </ul>
+      </details>
+   );
+};
+
 export const FinalReview = ({
    movePreview,
    duplicatePreview,
@@ -84,12 +101,12 @@ export const FinalReview = ({
       workflow.markedCount === 0
          ? "Nothing marked yet"
          : workflow.readyToMoveCount > 0
-           ? `${workflow.readyToMoveCount} files ready to move`
+           ? `${workflow.readyToMoveCount} images ready to move`
            : workflow.movedCount > 0
              ? `${workflow.movedCount} files moved to duplicate`
              : workflow.recycledCount > 0
                ? `${workflow.recycledCount} duplicates recycled`
-               : "Marked files are unavailable";
+               : "Marked images are unavailable";
 
    return (
       <section className={`patchReview${isEmpty ? " patchReview--empty" : ""}`}>
@@ -102,12 +119,12 @@ export const FinalReview = ({
                <div>
                   <dt>Ready</dt>
                   <dd>{workflow.readyToMoveCount}</dd>
-                  <span>files</span>
+                  <span>images</span>
                </div>
                <div>
                   <dt>In duplicate</dt>
                   <dd>{workflow.movedCount}</dd>
-                  <span>files</span>
+                  <span>images</span>
                </div>
                <div>
                   <dt>Review size</dt>
@@ -137,7 +154,7 @@ export const FinalReview = ({
 
          <div className="reviewFileSections">
             {movePreview.length > 0 && (
-               <FileGallery files={movePreview} label="Marked files" status="At source" title={`${movePreview.length} ready to move`} />
+               <FileGallery files={movePreview} label="Marked images" status="At source" title={`${movePreview.length} ready to move`} />
             )}
             {duplicatePreview.length > 0 && (
                <FileGallery duplicate files={duplicatePreview} label="Files in /duplicate" status="Undoable" title={`${duplicatePreview.length} moved files`} />
@@ -148,7 +165,7 @@ export const FinalReview = ({
                   <div>
                      <strong>
                         {workflow.movedCount > 0
-                           ? "Marked files are in the duplicate folder."
+                           ? "Marked images are in the duplicate folder."
                            : workflow.recycledCount > 0
                              ? "The duplicate folder was moved to the Recycle Bin."
                              : "Your originals are untouched."}
@@ -169,7 +186,7 @@ export const FinalReview = ({
             <div className="patchReview__status" aria-live="polite">
                {isApplying ? (
                   <div className="applyProgress" role="status">
-                     <strong>Moving marked files</strong>
+                     <strong>Moving marked images</strong>
                      <div className="progressBar progressBar--indeterminate" aria-hidden="true">
                         <span />
                      </div>
@@ -203,9 +220,10 @@ export const FinalReview = ({
                ) : (
                   <div className="patchSafetyNote">
                      <ShieldCheck aria-hidden="true" />
-                     <span>Marked files move to the duplicate folder first.</span>
+                     <span>Marked images move to the managed duplicate folder first.</span>
                   </div>
                )}
+               <FileActionErrors result={restoreResult ?? patchResult} />
             </div>
             <div className="patchReview__actions">
                {workflow.movedCount > 0 && (
@@ -214,7 +232,7 @@ export const FinalReview = ({
                      disabled={isApplying || isRestoring || isTrashing}
                      onClick={onRestore}
                      type="button"
-                     {...getTooltipProps("Undo", "Move marked files from the duplicate folder back to their original locations.")}
+                     {...getTooltipProps("Undo", "Move marked images from the duplicate folder back to their original locations.")}
                   >
                      <Undo2 aria-hidden="true" />
                      {isRestoring ? "Undoing..." : "Undo"}
@@ -225,7 +243,7 @@ export const FinalReview = ({
                   disabled={isApplying || isRestoring || isTrashing || workflow.readyToMoveCount === 0}
                   onClick={onApply}
                   type="button"
-                  {...getTooltipProps("Move marked", "Move every marked file that is still at its source into the duplicate folder.")}
+                  {...getTooltipProps("Move marked", "Move every marked image that is still at its source into the duplicate folder.")}
                >
                   <FolderOpen aria-hidden="true" />
                   <span>{isApplying ? "Moving..." : "Move marked"}</span>

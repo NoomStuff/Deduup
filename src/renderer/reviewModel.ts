@@ -95,13 +95,13 @@ const getMovePreviewByStatus = (imageSets: ImageSet[], decisions: Decisions, sou
    const rows: MovePreview[] = [];
    for (const imageSet of imageSets) {
       const decision = decisions[imageSet.id];
-      if (decision === undefined || !isImageSetCompleted(decision)) {
+      if (sourceStatus === "available" && (decision === undefined || !isImageSetCompleted(decision))) {
          continue;
       }
 
-      const deletedPaths = getDeletedImagesForSet(imageSet, decision);
+      const deletedPaths = sourceStatus === "available" && decision !== undefined ? getDeletedImagesForSet(imageSet, decision) : null;
       for (const image of imageSet.images) {
-         if (deletedPaths.has(image.originalPath) && image.sourceStatus === sourceStatus) {
+         if (image.sourceStatus === sourceStatus && (deletedPaths === null || deletedPaths.has(image.originalPath))) {
             rows.push({ groupId: imageSet.id, file: image.file, previewUrl: image.previewUrl, size: image.size });
          }
       }
@@ -118,6 +118,16 @@ export const getFileWorkflowState = (imageSets: ImageSet[], decisions: Decisions
    for (const imageSet of imageSets) {
       const markedPaths = getDeletedImagesForSet(imageSet, getDecision(decisions, imageSet.id));
       for (const image of imageSet.images) {
+         if (image.sourceStatus === "movedByApp") {
+            state.markedCount += 1;
+            state.movedCount += 1;
+            continue;
+         }
+         if (image.sourceStatus === "recycledByApp") {
+            state.markedCount += 1;
+            state.recycledCount += 1;
+            continue;
+         }
          if (!markedPaths.has(image.originalPath)) {
             continue;
          }
@@ -125,10 +135,6 @@ export const getFileWorkflowState = (imageSets: ImageSet[], decisions: Decisions
          state.markedCount += 1;
          if (image.sourceStatus === "available") {
             state.readyToMoveCount += 1;
-         } else if (image.sourceStatus === "movedByApp") {
-            state.movedCount += 1;
-         } else if (image.sourceStatus === "recycledByApp") {
-            state.recycledCount += 1;
          } else {
             state.missingCount += 1;
          }
@@ -198,20 +204,10 @@ export const getSimilarityBands = (groups: ImageSet[]): SimilarityBand[] => {
    return bands;
 };
 
-export const getResumeIndex = (groups: ImageSet[], decisions: Decisions): number => {
-   if (groups.length === 0) {
-      return 0;
-   }
-
-   let lastDecidedIndex = -1;
-   groups.forEach((imageSet, index) => {
-      if (decisions[imageSet.id] !== undefined) {
-         lastDecidedIndex = index;
-      }
-   });
-
-   const nextIndex = lastDecidedIndex + 1;
-   return Math.max(0, Math.min(groups.length - 1, nextIndex));
+export const getResumeIndex = (groups: ImageSet[], currentGroupId: string | null): number => {
+   if (groups.length === 0 || currentGroupId === null) return 0;
+   const savedIndex = groups.findIndex((imageSet) => imageSet.id === currentGroupId);
+   return savedIndex < 0 ? 0 : savedIndex;
 };
 
 const hasLetters = (value: string): boolean => /[a-z]/iu.test(value);
@@ -335,9 +331,18 @@ export const createConfirmAction = (kind: ConfirmKind): ConfirmAction => {
    if (kind === "trashDuplicate") {
       return {
          kind,
-         title: "Recycle the duplicate folder?",
-         body: "The entire 'duplicate' folder will be moved to the Recycle Bin. This can no longer be undone from this app.",
+         title: "Recycle moved images?",
+         body: "The app-managed duplicate folder will be moved to the Recycle Bin. This can no longer be undone from this app.",
          confirmLabel: "Recycle folder",
+      };
+   }
+
+   if (kind === "rescan") {
+      return {
+         kind,
+         title: "Rescan this folder?",
+         body: "The scan results and all review choices will be replaced. Images already moved must be restored or recycled first.",
+         confirmLabel: "Rescan",
       };
    }
 

@@ -50,11 +50,11 @@ export const CompareOverlay = ({ compare, onClose, onKeep }: { compare: CompareS
    }, [updateRevealFromClientX]);
 
    return (
-      <div className="compare">
+      <div aria-labelledby="compare-title" aria-modal="true" className="compare" role="dialog">
          <div className="compare__header">
             <div>
                <p className="sectionLabel">Compare</p>
-               <h2>Choose the image to keep</h2>
+               <h2 id="compare-title">Choose the image to keep</h2>
             </div>
             <button aria-label="Close comparison" className="iconButton" onClick={onClose} title="Close comparison" type="button">
                <X aria-hidden="true" />

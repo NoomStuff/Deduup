@@ -1,5 +1,6 @@
-import { contextBridge, ipcRenderer } from "electron";
 import type { AppApi, Decisions, LoadDataResult, PatchResult, ScanProgress, ScanRequest } from "../shared/types.js";
+
+const { contextBridge, ipcRenderer } = require("electron") as typeof import("electron");
 
 const api: AppApi = {
    loadData: async (): Promise<LoadDataResult> => ipcRenderer.invoke("data:load") as Promise<LoadDataResult>,
@@ -12,6 +13,9 @@ const api: AppApi = {
    },
    saveDecisions: async (decisions: Decisions): Promise<void> => {
       await ipcRenderer.invoke("decisions:save", decisions);
+   },
+   saveCurrentGroup: async (groupId: string): Promise<void> => {
+      await ipcRenderer.invoke("position:save", groupId);
    },
    applyPatch: async (decisions: Decisions): Promise<PatchResult> => ipcRenderer.invoke("patch:apply", decisions) as Promise<PatchResult>,
    getDuplicateFolderStatus: async (): Promise<boolean> => ipcRenderer.invoke("duplicate:status") as Promise<boolean>,

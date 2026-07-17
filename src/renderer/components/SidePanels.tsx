@@ -1,4 +1,4 @@
-import { Eraser, FolderTree, Keyboard, RotateCw, X } from "lucide-react";
+import { Eraser, Keyboard, X } from "lucide-react";
 import { Toggle } from "./Toggle.js";
 
 interface SettingsPanelProps {
@@ -30,38 +30,6 @@ export const SettingsPanel = (props: SettingsPanelProps) => (
             <strong>Power keys</strong>
             <span>Shift-click toggles deletion, Ctrl advances, and Alt-click compares images.</span>
          </div>
-      </div>
-   </aside>
-);
-
-interface ScanPanelProps {
-   scanRoot: string | null;
-   includeSubfolders: boolean;
-   onIncludeSubfoldersChange: (checked: boolean) => void;
-   onChooseFolder: () => void;
-   onRescan: () => void;
-   onClear: () => void;
-   onClose: () => void;
-}
-
-export const ScanPanel = (props: ScanPanelProps) => (
-   <aside className="settingsPanel">
-      <PanelHeader label="Scan" title="Folder" onClose={props.onClose} />
-      <div className="scanPanelPath">
-         <FolderTree aria-hidden="true" />
-         <span>{props.scanRoot ?? "No folder selected"}</span>
-      </div>
-      <div className="settingsGroup">
-         <Toggle checked={props.includeSubfolders} label="Include subfolders" onChange={props.onIncludeSubfoldersChange} />
-         <button onClick={props.onChooseFolder} type="button">
-            <FolderTree aria-hidden="true" /> Change folder
-         </button>
-         <button disabled={props.scanRoot === null} onClick={props.onRescan} type="button">
-            <RotateCw aria-hidden="true" /> Rescan
-         </button>
-         <button className="danger" onClick={props.onClear} type="button">
-            <Eraser aria-hidden="true" /> Clear choices
-         </button>
       </div>
    </aside>
 );

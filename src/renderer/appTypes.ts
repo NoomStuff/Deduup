@@ -12,7 +12,7 @@ export type PatchView = "review" | "patch";
 export type TravelDirection = "idle" | "left" | "right";
 export type ImageSetState = "open" | "saved" | "someDeleted" | "allDeleted";
 export type ImageDeleteState = "active" | "deleted";
-export type ConfirmKind = "deleteAll" | "clearAll" | "trashDuplicate";
+export type ConfirmKind = "deleteAll" | "clearAll" | "trashDuplicate" | "rescan";
 
 export interface SimilarityBand {
    label: string;
