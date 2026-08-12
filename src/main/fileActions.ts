@@ -13,7 +13,7 @@ const getKnownMoves = async (decisions: Decisions | null): Promise<PatchMove[]> 
    const moves: PatchMove[] = [];
    for (const group of groups) {
       const decision = decisions?.[group.id];
-      if (decisions !== null && decision?.completed !== true) continue;
+      if (decisions !== null && decision?.seen !== true) continue;
       const deletedImages = decisions === null ? null : new Set(decision?.deletedImages ?? []);
       for (const image of group.images) {
          if (deletedImages !== null && !deletedImages.has(image.originalPath)) continue;

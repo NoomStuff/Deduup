@@ -25,8 +25,6 @@ interface ReviewShortcuts {
    onClosePanels: () => void;
    onClosePreview: () => void;
    onKeepCompareImage: (side: "left" | "right") => void;
-   onKeepCurrentSet: (advance: boolean) => void;
-   onKeepSimilarityGroup: () => void;
    onNavigate: (offset: number) => void;
    onNavigateBand: (direction: -1 | 1) => void;
    onRedo: () => void;
@@ -92,21 +90,12 @@ export const useReviewShortcuts = (options: ReviewShortcuts): void => {
          } else if (event.key === "ArrowRight" || event.key === " " || key === "d") {
             event.preventDefault();
             options.onNavigate(1);
-         } else if ((key === "i" || key === "c") && options.hasCurrentGroup) {
-            event.preventDefault();
-            options.onKeepCurrentSet(false);
          } else if (key === "x" && options.hasCurrentGroup) {
             event.preventDefault();
             options.onRequestDeleteCurrentSet();
-         } else if (key === "u" && options.hasCurrentGroup) {
-            event.preventDefault();
-            options.onKeepSimilarityGroup();
          } else if (key === "v") {
             event.preventDefault();
             options.onAutoCompleteGroup();
-         } else if (event.key === "Enter" && options.hasCurrentGroup) {
-            event.preventDefault();
-            options.onKeepCurrentSet(event.ctrlKey);
          } else if ((event.key === "Delete" || event.key === "Backspace") && options.hasSelectedImage) {
             event.preventDefault();
             options.onToggleSelectedImage(event.ctrlKey);

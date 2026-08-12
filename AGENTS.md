@@ -1,6 +1,6 @@
 # Image Deduplicator
 
-Image Deduplicator is a local-first tool for finding, reviewing, and safely removing redundant images. It exists to reclaim disk space, speed up duplicate review, and leave image libraries easier to manage.
+We will be working on a local-first tool for finding, reviewing, and safely removing redundant images. It exists to reclaim disk space, speed up duplicate review, and leave image libraries easier to manage.
 
 ## What we optimize for
 
@@ -27,7 +27,8 @@ Preserve this clear, reversible path. Never blur a proposed action with one that
 
 - **Image**: one file.
 - **Set** / **detection**: one reviewable collection of related images.
-- **Similarity group**: sets sharing a displayed similarity score or band; a navigation and bulk-action aid, not a separate detection.
+- **Similarity group**: sets sharing a displayed similarity score. Used as user facing a navigation and bulk-action aid.
+- **Similarity band**: the container that has all owns all the sets that share a displayed similarity score and the sets contained within them.
 - **Removal candidate**: an image selected for removal that remains at its source.
 - **Quarantined image**: a removal candidate moved into the app-managed duplicate folder.
 

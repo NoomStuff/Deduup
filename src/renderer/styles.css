@@ -212,7 +212,7 @@ button svg,
    font-weight: 720;
    white-space: nowrap;
 }
-.statePill--saved {
+.statePill--seen {
    color: var(--keep) !important;
 }
 .statePill--someDeleted {
@@ -696,7 +696,7 @@ kbd {
    border-radius: 50%;
    background: transparent;
 }
-.filmstrip__item--saved:after {
+.filmstrip__item--seen:after {
    border-color: transparent;
    background: var(--keep);
    box-shadow: 0 0 14px #4ff0b56b;
@@ -2666,7 +2666,7 @@ input:focus-visible {
    font-size: 11px;
 }
 
-.statePill--saved {
+.statePill--seen {
    border-color: #35603f !important;
    color: var(--keep) !important;
 }
@@ -2934,7 +2934,7 @@ kbd {
    border-color: #5e5964;
 }
 
-.filmstrip__item--saved:after {
+.filmstrip__item--seen:after {
    border-color: var(--keep);
    background: var(--keep);
    box-shadow: none;

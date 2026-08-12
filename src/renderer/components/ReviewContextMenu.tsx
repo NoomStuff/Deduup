@@ -17,8 +17,7 @@ interface ReviewContextMenuProps {
    onClose: () => void;
    onDeleteImageSet: () => void;
    onDeleteSimilarityGroup: () => void;
-   onMarkImageSetCompleted: () => void;
-   onMarkSimilarityGroupCompleted: () => void;
+   onMarkSimilarityGroupSeen: () => void;
    onOpenImage: () => void;
    onShowImage: () => void;
    onToggleImage: () => void;
@@ -95,16 +94,6 @@ export const ReviewContextMenu = (props: ReviewContextMenuProps) => (
                <kbd>X</kbd>
             </button>
             <button
-               className="contextMenu__command contextMenu__command--success contextMenu__command--important"
-               onClick={command(props.onMarkImageSetCompleted, props.onClose)}
-               type="button"
-            >
-               <Check aria-hidden="true" />
-               <span>Mark whole set as kept</span>
-               <kbd>Enter</kbd>
-            </button>
-            <div className="contextMenu__divider" />
-            <button
                className="contextMenu__command contextMenu__command--accent"
                onClick={command(props.onAutoCompleteImageSet, props.onClose)}
                type="button"
@@ -130,12 +119,11 @@ export const ReviewContextMenu = (props: ReviewContextMenuProps) => (
             </button>
             <button
                className="contextMenu__command contextMenu__command--success contextMenu__command--important"
-               onClick={command(props.onMarkSimilarityGroupCompleted, props.onClose)}
+               onClick={command(props.onMarkSimilarityGroupSeen, props.onClose)}
                type="button"
             >
                <Check aria-hidden="true" />
-               <span>Mark entire group as kept</span>
-               <kbd>U</kbd>
+               <span>Mark all sets as seen</span>
             </button>
             <div className="contextMenu__divider" />
             <button

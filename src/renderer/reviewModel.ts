@@ -12,21 +12,21 @@ import type {
    TooltipState,
 } from "./appTypes.js";
 
-export const emptyImageSetDecision = (): ImageSetDecision => ({ deletedImages: [], completed: false });
+export const emptyImageSetDecision = (): ImageSetDecision => ({ deletedImages: [], seen: false });
 
 export const getDecision = (decisions: Decisions, groupId: string): ImageSetDecision => decisions[groupId] ?? emptyImageSetDecision();
 
 const normalizeDecisionForSave = (decision: ImageSetDecision): ImageSetDecision | null => {
    const deletedImages = [...new Set(decision.deletedImages.filter((path) => path.length > 0))];
-   if (!decision.completed && deletedImages.length === 0) {
+   if (!decision.seen && deletedImages.length === 0) {
       return null;
    }
 
-   return { deletedImages, completed: decision.completed };
+   return { deletedImages, seen: decision.seen };
 };
 
 const areDecisionsEqual = (left: ImageSetDecision, right: ImageSetDecision): boolean =>
-   left.completed === right.completed &&
+   left.seen === right.seen &&
    left.deletedImages.length === right.deletedImages.length &&
    left.deletedImages.every((path, index) => path === right.deletedImages[index]);
 
@@ -54,28 +54,28 @@ const getDeletedImagesForSet = (imageSet: ImageSet, decision: ImageSetDecision):
    return new Set(decision.deletedImages.filter((path) => imagePaths.has(path)));
 };
 
-export const getImageSetDecision = (imageSet: ImageSet, deletedPaths: Set<string>, completed = true): ImageSetDecision => {
+export const getImageSetDecision = (imageSet: ImageSet, deletedPaths: Set<string>, seen = true): ImageSetDecision => {
    const imagePaths = imageSet.images.map((image) => image.originalPath);
    const deleted = imagePaths.filter((path) => deletedPaths.has(path));
-   return { deletedImages: deleted, completed };
+   return { deletedImages: deleted, seen };
 };
 
-const isImageSetCompleted = (decision: ImageSetDecision | undefined): boolean => decision?.completed === true;
+const isImageSetSeen = (decision: ImageSetDecision | undefined): boolean => decision?.seen === true;
 
 export const getPatchPreview = (imageSets: ImageSet[], decisions: Decisions): PatchPreview => {
    let totalDeletes = 0;
    let totalKeptImages = 0;
-   let completedImageSets = 0;
+   let reviewedImageSets = 0;
    let deleteBytes = 0;
 
    for (const imageSet of imageSets) {
       const decision = decisions[imageSet.id];
-      if (decision === undefined || !isImageSetCompleted(decision)) {
+      if (decision === undefined || !isImageSetSeen(decision)) {
          totalKeptImages += imageSet.images.length;
          continue;
       }
 
-      completedImageSets += 1;
+      reviewedImageSets += 1;
 
       const deletedPaths = getDeletedImagesForSet(imageSet, decision);
       totalKeptImages += Math.max(0, imageSet.images.length - deletedPaths.size);
@@ -88,14 +88,14 @@ export const getPatchPreview = (imageSets: ImageSet[], decisions: Decisions): Pa
       }
    }
 
-   return { totalDeletes, totalKeptImages, completedImageSets, deleteBytes };
+   return { totalDeletes, totalKeptImages, reviewedImageSets, deleteBytes };
 };
 
 const getMovePreviewByStatus = (imageSets: ImageSet[], decisions: Decisions, sourceStatus: ImageItem["sourceStatus"]): MovePreview[] => {
    const rows: MovePreview[] = [];
    for (const imageSet of imageSets) {
       const decision = decisions[imageSet.id];
-      if (sourceStatus === "available" && (decision === undefined || !isImageSetCompleted(decision))) {
+      if (sourceStatus === "available" && (decision === undefined || !isImageSetSeen(decision))) {
          continue;
       }
 
@@ -144,7 +144,7 @@ export const getFileWorkflowState = (imageSets: ImageSet[], decisions: Decisions
 };
 
 export const getImageSetState = (imageSet: ImageSet, decision: ImageSetDecision | undefined): ImageSetState => {
-   if (decision?.completed !== true) {
+   if (decision?.seen !== true) {
       return "open";
    }
 
@@ -153,7 +153,7 @@ export const getImageSetState = (imageSet: ImageSet, decision: ImageSetDecision 
       return "allDeleted";
    }
 
-   return deletedCount > 0 ? "someDeleted" : "saved";
+   return deletedCount > 0 ? "someDeleted" : "seen";
 };
 
 export const getImageSetLabel = (imageSet: ImageSet, decision: ImageSetDecision): string => {
@@ -273,6 +273,10 @@ export const clamp = (value: number, min: number, max: number): number => Math.m
 export const getContextMenuSize = (kind: ContextMenuKind): { width: number; height: number } => {
    if (kind === "image") {
       return { width: 430, height: 358 };
+   }
+
+   if (kind === "imageSet") {
+      return { width: 430, height: 208 };
    }
 
    return { width: 430, height: 280 };

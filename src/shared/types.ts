@@ -24,7 +24,7 @@ export interface ImageSet {
 
 export interface ImageSetDecision {
    deletedImages: string[];
-   completed: boolean;
+   seen: boolean;
 }
 
 export type Decisions = Record<string, ImageSetDecision>;
@@ -32,7 +32,7 @@ export type Decisions = Record<string, ImageSetDecision>;
 export interface PatchPreview {
    totalDeletes: number;
    totalKeptImages: number;
-   completedImageSets: number;
+   reviewedImageSets: number;
    deleteBytes: number;
 }
 

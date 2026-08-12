@@ -28,7 +28,7 @@ interface ImageRow {
 interface DecisionRow {
    groupId: string;
    deletedImagesJson: string;
-   completed: number;
+   seen: number;
 }
 interface TableColumnRow {
    name: string;
@@ -54,17 +54,19 @@ export const getDatabase = (): DatabaseSync => {
       );
       CREATE TABLE IF NOT EXISTS decisions (
          group_id TEXT PRIMARY KEY REFERENCES duplicate_groups(id) ON DELETE CASCADE,
-         deleted_images_json TEXT NOT NULL, completed INTEGER NOT NULL
+         deleted_images_json TEXT NOT NULL, seen INTEGER NOT NULL
       );
    `);
 
    const decisionColumns = new Set((database.prepare("PRAGMA table_info(decisions)").all() as unknown as TableColumnRow[]).map((column) => column.name));
-   if (!decisionColumns.has("deleted_images_json") || !decisionColumns.has("completed")) {
+   if (decisionColumns.has("deleted_images_json") && decisionColumns.has("completed") && !decisionColumns.has("seen")) {
+      database.exec("ALTER TABLE decisions RENAME COLUMN completed TO seen");
+   } else if (!decisionColumns.has("deleted_images_json") || !decisionColumns.has("seen")) {
       database.exec(`
          DROP TABLE decisions;
          CREATE TABLE decisions (
             group_id TEXT PRIMARY KEY REFERENCES duplicate_groups(id) ON DELETE CASCADE,
-            deleted_images_json TEXT NOT NULL, completed INTEGER NOT NULL
+            deleted_images_json TEXT NOT NULL, seen INTEGER NOT NULL
          );
       `);
    }
@@ -123,22 +125,22 @@ const parseStringArray = (value: string): string[] => {
 
 export const loadDecisions = (): Decisions => {
    const rows = getDatabase()
-      .prepare("SELECT group_id AS groupId, deleted_images_json AS deletedImagesJson, completed FROM decisions")
+      .prepare("SELECT group_id AS groupId, deleted_images_json AS deletedImagesJson, seen FROM decisions")
       .all() as unknown as DecisionRow[];
-   return Object.fromEntries(rows.map((row) => [row.groupId, { deletedImages: parseStringArray(row.deletedImagesJson), completed: row.completed === 1 }]));
+   return Object.fromEntries(rows.map((row) => [row.groupId, { deletedImages: parseStringArray(row.deletedImagesJson), seen: row.seen === 1 }]));
 };
 
 export const saveDecisions = (decisions: Decisions): void => {
    const db = getDatabase();
    const insert = db.prepare(
-      "INSERT INTO decisions (group_id, deleted_images_json, completed) VALUES (?, ?, ?) " +
-         "ON CONFLICT(group_id) DO UPDATE SET deleted_images_json = excluded.deleted_images_json, completed = excluded.completed"
+      "INSERT INTO decisions (group_id, deleted_images_json, seen) VALUES (?, ?, ?) " +
+         "ON CONFLICT(group_id) DO UPDATE SET deleted_images_json = excluded.deleted_images_json, seen = excluded.seen"
    );
    db.exec("BEGIN IMMEDIATE");
    try {
       db.exec("DELETE FROM decisions");
       for (const [groupId, decision] of Object.entries(decisions)) {
-         insert.run(groupId, JSON.stringify(decision.deletedImages), decision.completed ? 1 : 0);
+         insert.run(groupId, JSON.stringify(decision.deletedImages), decision.seen ? 1 : 0);
       }
       db.exec("COMMIT");
    } catch (error: unknown) {
@@ -198,7 +200,7 @@ export const loadGroups = async (
          const wasRecycledByApp =
             movedPath === null &&
             lastFileAction === "recycled" &&
-            decisions[row.groupId]?.completed === true &&
+            decisions[row.groupId]?.seen === true &&
             decisions[row.groupId]?.deletedImages.includes(row.originalPath) === true;
          const previewPath = movedPath ?? row.originalPath;
          const item: ImageItem = {

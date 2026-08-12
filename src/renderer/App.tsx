@@ -36,6 +36,7 @@ import {
    getPatchPreview,
    getResumeIndex,
    getSimilarityBands,
+   setImageSetDecision,
 } from "./reviewModel.js";
 import "./styles.css";
 import "./workflow.css";
@@ -184,6 +185,12 @@ export const App = () => {
             return;
          }
 
+         if (currentGroup !== null) {
+            updateDecisions((existing) => {
+               const decision = getDecision(existing, currentGroup.id);
+               return setImageSetDecision(existing, currentGroup.id, { ...decision, seen: true });
+            });
+         }
          setTravelDirection(nextIndex > currentIndex ? "right" : "left");
          setCompare(null);
          setComparePick(null);
@@ -191,7 +198,7 @@ export const App = () => {
          setCurrentIndex(nextIndex);
          window.setTimeout(() => setTravelDirection("idle"), 180);
       },
-      [currentIndex, groups]
+      [currentGroup, currentIndex, groups, updateDecisions]
    );
 
    const goToAdjacentSimilarityBand = useCallback(
@@ -217,7 +224,6 @@ export const App = () => {
    );
 
    const {
-      advanceFromImageSet,
       autoCompleteImageSet,
       autoCompleteSimilarityGroup,
       clearAllChoices,
@@ -225,8 +231,7 @@ export const App = () => {
       clearSimilarityGroupChoices,
       deleteImageSet,
       deleteSimilarityGroup,
-      markImageSetCompleted,
-      markSimilarityGroupCompleted,
+      markSimilarityGroupSeen,
       toggleImageDeletion,
       toggleOnlyImageKept,
    } = createReviewActions({ currentIndex, decisions, groups, goTo, updateDecisions });
@@ -447,14 +452,6 @@ export const App = () => {
          if (currentGroup !== null && compare !== null) toggleOnlyImageKept(currentGroup, compare[side], true);
          setCompare(null);
       },
-      onKeepCurrentSet: (advance) => {
-         if (currentGroup === null) return;
-         markImageSetCompleted(currentGroup);
-         if (advance) advanceFromImageSet(currentGroup);
-      },
-      onKeepSimilarityGroup: () => {
-         if (currentGroup !== null) markSimilarityGroupCompleted(currentGroup);
-      },
       onNavigate: (offset) => goTo(currentIndex + offset),
       onNavigateBand: goToAdjacentSimilarityBand,
       onRedo: redoLastDecision,
@@ -637,7 +634,7 @@ export const App = () => {
    }
 
    const totalGroups = groups.length;
-   const reviewedGroups = patchPreview.completedImageSets;
+   const reviewedGroups = patchPreview.reviewedImageSets;
    const reviewProgress = totalGroups === 0 ? 0 : reviewedGroups / totalGroups;
    const reviewPercent = Math.round(reviewProgress * 100);
    const folderName = getFolderName(scanRoot);
@@ -749,8 +746,7 @@ export const App = () => {
                onClose={() => setContextMenu(null)}
                onDeleteImageSet={() => requestDeleteImageSet(contextImageSet)}
                onDeleteSimilarityGroup={() => deleteSimilarityGroup(contextImageSet)}
-               onMarkImageSetCompleted={() => markImageSetCompleted(contextImageSet)}
-               onMarkSimilarityGroupCompleted={() => markSimilarityGroupCompleted(contextImageSet)}
+               onMarkSimilarityGroupSeen={() => markSimilarityGroupSeen(contextImageSet)}
                onOpenImage={() => {
                   if (contextImage !== null) void openImage(contextImage);
                }}

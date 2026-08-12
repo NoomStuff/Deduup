@@ -46,6 +46,9 @@ const autoSelectedDecision = (imageSet: ImageSet, source: Decisions): ImageSetDe
    return getImageSetDecision(imageSet, deletedPaths, true);
 };
 
+const seenDecision = (imageSet: ImageSet, source: Decisions): ImageSetDecision =>
+   getImageSetDecision(imageSet, getDeletedImagePaths(getDecision(source, imageSet.id)), true);
+
 export const createReviewActions = ({ currentIndex, decisions, groups, goTo, updateDecisions }: ReviewActionOptions) => {
    const decide = (imageSet: ImageSet, decision: ImageSetDecision): void => {
       updateDecisions((existing) => setImageSetDecision(existing, imageSet.id, decision));
@@ -132,9 +135,8 @@ export const createReviewActions = ({ currentIndex, decisions, groups, goTo, upd
       deleteImageSet: (imageSet: ImageSet): void => decide(imageSet, availableImagesDecision(imageSet, decisions, true)),
       deleteSimilarityGroup: (imageSet: ImageSet): void =>
          updateSimilarityGroup(imageSet, (set, source) => availableImagesDecision(set, source, true)),
-      markImageSetCompleted: (imageSet: ImageSet): void => decide(imageSet, availableImagesDecision(imageSet, decisions, false)),
-      markSimilarityGroupCompleted: (imageSet: ImageSet): void =>
-         updateSimilarityGroup(imageSet, (set, source) => availableImagesDecision(set, source, false)),
+      markSimilarityGroupSeen: (imageSet: ImageSet): void =>
+         updateSimilarityGroup(imageSet, seenDecision),
       toggleImageDeletion,
       toggleOnlyImageKept,
    };
