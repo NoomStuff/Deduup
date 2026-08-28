@@ -1,16 +1,16 @@
 import { rm } from "node:fs/promises";
 import path from "node:path";
-import type { Decisions, PatchMove, PatchResult } from "../shared/types.js";
+import type { Decisions, MoveResult, PlannedMove } from "../shared/types.js";
 import { getDuplicateFolderFiles, getDuplicateFolderPath, getDuplicateFolderStatus, getSetting, loadGroups, setSetting } from "./database.js";
 import { applyFileMoves, assertManagedFolder, assertRecyclePlan, ensureManagedFolder, restoreFileMoves } from "./fileOperations.js";
 
-const getKnownMoves = async (decisions: Decisions | null): Promise<PatchMove[]> => {
+const getKnownMoves = async (decisions: Decisions | null): Promise<PlannedMove[]> => {
    const groups = await loadGroups();
    const scanRoot = getSetting("scan_root");
    const duplicatePath = getDuplicateFolderPath();
    if (scanRoot === null || duplicatePath === null) return [];
 
-   const moves: PatchMove[] = [];
+   const moves: PlannedMove[] = [];
    for (const group of groups) {
       const decision = decisions?.[group.id];
       if (decisions !== null && decision?.seen !== true) continue;
@@ -20,7 +20,7 @@ const getKnownMoves = async (decisions: Decisions | null): Promise<PatchMove[]> 
          const relativePath = path.relative(scanRoot, image.originalPath);
          const safeRelativePath = relativePath.startsWith("..") || path.isAbsolute(relativePath) ? image.file : relativePath;
          moves.push({
-            groupId: group.id,
+            setId: group.id,
             file: image.file,
             from: image.originalPath,
             to: path.join(duplicatePath, group.id, safeRelativePath),
@@ -30,10 +30,10 @@ const getKnownMoves = async (decisions: Decisions | null): Promise<PatchMove[]> 
    return moves;
 };
 
-export const getDeleteMoves = async (decisions: Decisions): Promise<PatchMove[]> => getKnownMoves(decisions);
+export const getDeleteMoves = async (decisions: Decisions): Promise<PlannedMove[]> => getKnownMoves(decisions);
 
-export const applyDecisions = async (decisions: Decisions): Promise<PatchResult> => {
-   const moves = await getDeleteMoves(decisions);
+export const moveMarkedImages = async (decisions: Decisions): Promise<MoveResult> => {
+   const moves = await getKnownMoves(decisions);
    const duplicatePath = getDuplicateFolderPath();
    if (moves.length > 0 && duplicatePath !== null) await ensureManagedFolder(duplicatePath);
    const result = await applyFileMoves(moves);
@@ -41,7 +41,7 @@ export const applyDecisions = async (decisions: Decisions): Promise<PatchResult>
    return result;
 };
 
-export const restoreDuplicateFolder = async (): Promise<PatchResult> => {
+export const restoreDuplicateFolder = async (): Promise<MoveResult> => {
    const duplicatePath = getDuplicateFolderPath();
    if (duplicatePath === null) throw new Error("No duplicate folder is available");
    await assertManagedFolder(duplicatePath);

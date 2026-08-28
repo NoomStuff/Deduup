@@ -28,10 +28,10 @@ const exists = (filePath) =>
       .catch(() => false);
 
 const move = (root, name = "image.jpg") => ({
-   groupId: "detection_001",
+   setId: "set_001",
    file: name,
    from: path.join(root, "source", name),
-   to: path.join(root, "duplicate", "detection_001", name),
+   to: path.join(root, "duplicate", "set_001", name),
 });
 
 test("moves files into nested managed destinations", () =>
@@ -87,7 +87,7 @@ test("restores known files while leaving collisions and unmanaged files untouche
       assert.equal(await exists(restored.to), false);
       assert.deepEqual(result.skipped, [{ ...collision, from: collision.to, to: collision.from }]);
       assert.equal(result.errors.length, 1);
-      assert.equal(result.errors[0].groupId, "unmanaged");
+      assert.equal(result.errors[0].setId, "unmanaged");
       assert.equal(await readFile(collision.to, "utf8"), "moved copy");
       assert.equal(await readFile(unmanaged, "utf8"), "user file");
    }));
@@ -127,7 +127,7 @@ test("ignores only the root ownership marker and reports nested same-name files"
 test("allows only the exact saved move plan to be recycled", () =>
    withWorkspace(async (root) => {
       const planned = move(root);
-      const unmanaged = path.join(root, "duplicate", "detection_001", "extra.jpg");
+      const unmanaged = path.join(root, "duplicate", "set_001", "extra.jpg");
       await ensureManagedFolder(path.join(root, "duplicate"));
 
       await assert.doesNotReject(assertRecyclePlan(path.join(root, "duplicate"), [planned], [planned.to]));

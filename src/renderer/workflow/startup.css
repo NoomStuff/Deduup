@@ -1,185 +1,265 @@
+/* --- Start screen ---------------------------------------------------------- */
+
 .startupShell {
    position: relative;
-   overflow: hidden;
-   background: linear-gradient(115deg, transparent 0 48%, rgb(255 255 255 / 0.018) 48% 48.15%, transparent 48.15%), linear-gradient(180deg, #050506, #000 72%);
+   display: grid;
+   place-items: center;
+   height: 100vh;
 }
 
-.startupShell::before {
+.startupShell--drag .startupPanel {
+   border-color: rgba(var(--accent-rgb), 0.6);
+}
+
+.startupDropHint {
    position: absolute;
-   inset: 0;
-   background: linear-gradient(90deg, transparent 0 10%, rgb(169 125 255 / 0.04) 50%, transparent 90%);
-   content: "";
+   inset: 18px;
+   z-index: 5;
+   display: grid;
+   place-content: center;
+   justify-items: center;
+   gap: 12px;
+   border: 2px dashed rgba(var(--accent-rgb), 0.6);
+   border-radius: var(--radius-lg);
+   background: rgba(var(--accent-rgb), 0.07);
+   color: var(--accent-bright);
+   font-size: 17px;
+   font-weight: 700;
    pointer-events: none;
 }
 
+.startupDropHint svg {
+   width: 38px;
+   height: 38px;
+}
+
 .startupPanel {
-   position: relative;
-   width: min(880px, 100%);
-   gap: 32px;
-   border: 0;
-   padding: 20px;
-   background: transparent;
-   box-shadow: none;
-   animation: startupEnter 440ms cubic-bezier(0.22, 1, 0.36, 1) both;
+   display: grid;
+   gap: 30px;
+   width: min(780px, 92vw);
+   border: 2px solid var(--line);
+   border-radius: var(--radius-lg);
+   background: linear-gradient(180deg, rgba(255, 255, 255, 0.03), rgba(255, 255, 255, 0.012)), rgba(var(--surface-rgb), 0.85);
+   box-shadow: var(--shadow);
+   backdrop-filter: blur(12px);
+   padding: 38px 42px 26px;
 }
 
 .startupPanel__heading {
+   display: flex;
    align-items: center;
    gap: 18px;
-   padding: 0 2px 4px;
 }
 
 .startupPanel__mark {
    display: grid;
-   width: 54px;
-   height: 54px;
-   flex: 0 0 auto;
    place-items: center;
-   border: 1px solid #4d3b70;
-   border-radius: 14px;
-   background: #17111f;
-   box-shadow: inset 0 0 0 1px #080609;
+   flex: none;
+   width: 56px;
+   height: 56px;
+   border-radius: 18px;
+   background: linear-gradient(135deg, var(--accent), var(--keep));
+   color: #0c0e16;
+   box-shadow: 0 12px 34px rgba(var(--accent-rgb), 0.3);
 }
 
 .startupPanel__mark svg {
-   width: 23px;
-   height: 23px;
-   color: #d7c5ff;
+   width: 26px;
+   height: 26px;
 }
 
 .startupPanel__heading h1 {
-   font-size: 35px;
-   font-weight: 780;
-   letter-spacing: -0.045em;
+   margin: 0;
+   font-size: 29px;
+   font-weight: 700;
+   letter-spacing: -0.015em;
+   color: var(--text-strong);
 }
 
 .startupPanel__heading p {
-   margin-top: 7px;
-   color: #8f8996;
-   font-size: 13px;
+   margin: 3px 0 0;
+   color: var(--muted);
+   font-size: 14px;
 }
 
 .startupActions {
+   display: grid;
    grid-template-columns: repeat(3, minmax(0, 1fr));
-   gap: clamp(34px, 7vw, 76px);
-   overflow: visible;
-   border: 0;
-   border-radius: 0;
-   background: transparent;
+   gap: 14px;
 }
 
-.startupAction,
-.startupAction:disabled {
-   position: relative;
-   min-height: 170px;
-   grid-template-columns: 1fr;
+.startupAction {
+   display: grid;
    align-content: center;
    justify-items: center;
    gap: 13px;
-   border: 0;
-   border-radius: 18px;
-   padding: 14px;
-   background: transparent;
-   text-align: center;
+   min-height: 168px;
+   border: 2px solid var(--line);
+   border-radius: 16px;
+   background: rgba(255, 255, 255, 0.025);
+   transition:
+      border-color 160ms ease-out,
+      background 160ms ease-out,
+      transform 260ms var(--bounce),
+      box-shadow 160ms ease-out;
 }
 
-.startupAction--primary {
-   --startup-action-color: var(--accent);
-}
-
-.startupAction--continue {
-   --startup-action-color: var(--keep);
-}
-
-.startupAction--rescan {
-   --startup-action-color: #d5ad69;
-}
-
-.startupAction::before {
-   display: none;
+.startupAction:hover:not(:disabled) {
+   border-color: var(--line-strong);
+   box-shadow: var(--shadow);
+   transform: translateY(-3px);
 }
 
 .startupAction > svg {
-   width: 94px;
-   height: 94px;
-   padding: 8px;
-   border: 0;
-   border-radius: 0;
-   background: transparent;
-   color: var(--startup-action-color, #aaa3b0);
-   stroke-width: 1.35;
-   transition:
-      transform 220ms cubic-bezier(0.22, 1, 0.36, 1),
-      opacity 160ms ease,
-      filter 160ms ease;
+   width: 44px;
+   height: 44px;
+   stroke-width: 1.5;
+   color: var(--startup-color, var(--muted));
+   transition: transform 260ms cubic-bezier(0.34, 2.56, 0.64, 1);
+}
+
+.startupAction:hover:not(:disabled) > svg {
+   transform: translateY(-3px) scale(1.07);
+}
+
+.startupAction--primary {
+   --startup-color: var(--accent);
+}
+
+.startupAction--continue {
+   --startup-color: var(--keep);
+}
+
+.startupAction--rescan {
+   --startup-color: var(--warning);
+}
+
+.startupAction--primary {
+   border-color: rgba(var(--accent-rgb), 0.4);
+   background: rgba(var(--accent-rgb), 0.08);
+}
+
+.startupAction--primary:hover:not(:disabled) {
+   border-color: rgba(var(--accent-rgb), 0.7);
+   background: rgba(var(--accent-rgb), 0.14);
 }
 
 .startupAction__label {
-   display: block !important;
-   color: #c7c1cc;
-   font-size: 12px;
-   font-weight: 650;
-   line-height: 1.2;
+   display: grid;
+   gap: 3px;
+   justify-items: center;
+   color: var(--text);
+   font-size: 13.5px;
+   font-weight: 700;
+   text-align: center;
 }
 
-.startupAction:hover:not(:disabled),
-.startupAction:focus-visible {
-   border: 0;
-   background: transparent;
-   box-shadow: none;
-   transform: none;
+.startupAction__label small {
+   color: var(--faint);
+   font-size: 11.5px;
+   font-weight: 600;
 }
 
-.startupAction:hover:not(:disabled) > svg,
-.startupAction:focus-visible > svg {
-   filter: brightness(1.2);
-   transform: translateY(-4px) scale(1.035);
+.startupAction:disabled {
+   opacity: 0.38;
 }
 
-.startupAction:disabled > svg,
 .startupAction:disabled .startupAction__label {
-   color: #514d56;
-   opacity: 0.58;
+   color: var(--faint);
 }
 
 .startupPreference {
-   justify-content: flex-start;
+   display: flex;
+   justify-content: center;
+   border-top: 1px solid var(--line);
+   padding: 18px 0 4px;
+}
+
+/* --- Scanning screen --------------------------------------------------------- */
+
+.scanLoadingShell {
+   display: grid;
+   place-items: center;
+   height: 100vh;
+}
+
+.scanLoadingPanel {
+   display: grid;
+   gap: 20px;
+   width: min(560px, 90vw);
+   border: 2px solid var(--line);
+   border-radius: var(--radius-lg);
+   background: rgba(var(--surface-rgb), 0.9);
+   box-shadow: var(--shadow);
+   padding: 30px 34px;
+}
+
+.scanLoadingPanel > div > h1 {
+   margin: 4px 0 6px;
+   font-size: 25px;
+   font-weight: 700;
+   letter-spacing: -0.01em;
+   color: var(--text-strong);
+}
+
+.scanLoadingPanel__file {
    margin: 0;
-   border-top: 1px solid #242229;
-   padding: 18px 2px 0;
+   overflow: hidden;
+   color: var(--muted);
+   font-size: 12.5px;
+   white-space: nowrap;
+   text-overflow: ellipsis;
 }
 
-@keyframes startupEnter {
-   from {
-      opacity: 0;
-      transform: translateY(18px) scale(0.985);
-   }
-
-   to {
-      opacity: 1;
-      transform: translateY(0) scale(1);
-   }
+.scanLoadingPanel__path {
+   display: block;
+   color: var(--faint);
+   font-size: 11.5px;
 }
 
-@media (prefers-reduced-motion: reduce) {
-   .startupPanel {
-      animation: none;
-   }
+.scanLoadingPanel__icon {
+   width: 30px;
+   height: 30px;
+   color: var(--accent);
 }
 
-@media (max-width: 1180px) {
-   .startupActions {
-      gap: 22px;
-   }
+.spinIcon {
+   animation: spin 0.9s linear infinite;
+}
 
-   .startupAction,
-   .startupAction:disabled {
-      min-height: 150px;
-      gap: 10px;
-   }
+.scanLoadingProgress {
+   display: grid;
+   grid-template-columns: 1fr auto;
+   align-items: center;
+   gap: 14px;
+}
 
-   .startupAction > svg {
-      width: 78px;
-      height: 78px;
-   }
+.scanLoadingProgress strong {
+   font-size: 15px;
+   font-weight: 800;
+   font-variant-numeric: tabular-nums;
+}
+
+/* --- Loading screen ------------------------------------------------------------ */
+
+.loadingCard {
+   display: flex;
+   align-items: center;
+   gap: 14px;
+   border: 2px solid var(--line);
+   border-radius: var(--radius-lg);
+   background: rgba(var(--surface-rgb), 0.9);
+   box-shadow: var(--shadow);
+   padding: 22px 28px;
+}
+
+.loadingCard strong {
+   display: block;
+   font-size: 15px;
+   color: var(--text-strong);
+}
+
+.loadingCard small {
+   color: var(--faint);
+   font-size: 12.5px;
 }

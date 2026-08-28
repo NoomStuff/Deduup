@@ -28,6 +28,9 @@ const groupingYieldInterval = 256;
 const exactSimilarityLimit = 96;
 const similaritySampleLimit = 4096;
 
+/** Groups whose average pairwise distance exceeds this are split before review. */
+const similarityCap = hashDistanceThreshold;
+
 const hashPartitionCount = 4;
 const hashPartitionBits = 16;
 type SimilarityIndex = Map<number, number[]>[];
@@ -189,6 +192,66 @@ const getGroupSimilarity = (images: ScannedImage[]): number => {
 
 const getHashPartition = (hash: bigint, partition: number): number => Number((hash >> BigInt(partition * hashPartitionBits)) & 0xffffn);
 
+/**
+ * Transitive matching can chain wildly different images into one enormous set.
+ * When a group averages past the similarity cap, its most distant member is
+ * exiled repeatedly until the remainder fits under the cap; the exiles are
+ * re-clustered on their own afterwards, so real duplicates further along the
+ * chain still get their own sets.
+ */
+const splitOverCapGroup = (group: ScannedImage[]): { kept: ScannedImage[]; exiled: ScannedImage[] } => {
+   const size = group.length;
+   const distances = new Int32Array(size * size);
+   for (let left = 0; left < size; left += 1) {
+      const leftImage = group[left];
+      if (leftImage === undefined) continue;
+      for (let right = left + 1; right < size; right += 1) {
+         const rightImage = group[right];
+         if (rightImage === undefined) continue;
+         const distance = getHashDistance(leftImage.hash, rightImage.hash);
+         distances[left * size + right] = distance;
+         distances[right * size + left] = distance;
+      }
+   }
+
+   const active: number[] = group.map((_, index) => index);
+   const averageDistance = (): number => {
+      let total = 0;
+      for (let left = 0; left < active.length; left += 1) {
+         for (let right = left + 1; right < active.length; right += 1) {
+            const leftIndex = active[left];
+            const rightIndex = active[right];
+            if (leftIndex === undefined || rightIndex === undefined) continue;
+            total += distances[leftIndex * size + rightIndex] ?? 0;
+         }
+      }
+      const pairs = (active.length * (active.length - 1)) / 2;
+      return pairs === 0 ? 0 : total / pairs;
+   };
+
+   const exiled: ScannedImage[] = [];
+   while (active.length > 2 && averageDistance() > similarityCap) {
+      let worstPosition = 0;
+      let worstSum = -1;
+      for (let position = 0; position < active.length; position += 1) {
+         const candidate = active[position];
+         if (candidate === undefined) continue;
+         let sum = 0;
+         for (const other of active) {
+            sum += distances[candidate * size + other] ?? 0;
+         }
+         if (sum > worstSum) {
+            worstSum = sum;
+            worstPosition = position;
+         }
+      }
+      const removedIndex = active.splice(worstPosition, 1)[0];
+      const removedImage = removedIndex === undefined ? undefined : group[removedIndex];
+      if (removedImage !== undefined) exiled.push(removedImage);
+   }
+
+   return { kept: active.map((index) => group[index]).filter((image): image is ScannedImage => image !== undefined), exiled };
+};
 const findAndIndexMatches = (
    imageIndex: number,
    hash: bigint,
@@ -275,11 +338,33 @@ const getConnectedGroups = async (images: ScannedImage[], reportProgress: ScanPr
 };
 
 export const groupImages = async (images: ScannedImage[], reportProgress: ScanProgressReporter): Promise<GroupedImages[]> => {
-   const connectedGroups = await getConnectedGroups(images, reportProgress);
-   const groups = connectedGroups
-      .filter((group) => group.length > 1)
-      .map((group) => ({ similarity: getGroupSimilarity(group), images: group }))
-      .sort((left, right) => left.similarity - right.similarity);
+   const results: GroupedImages[] = [];
+   let pending: ScannedImage[][] = [];
+
+   const admit = (group: ScannedImage[]): void => {
+      if (group.length < 2) return;
+      const similarity = getGroupSimilarity(group);
+      if (similarity <= similarityCap) {
+         results.push({ similarity, images: group });
+         return;
+      }
+      const { kept, exiled } = splitOverCapGroup(group);
+      results.push({ similarity: getGroupSimilarity(kept), images: kept });
+      if (exiled.length >= 2) pending.push(exiled);
+   };
+
+   for (const group of await getConnectedGroups(images, reportProgress)) {
+      admit(group);
+   }
+   while (pending.length > 0) {
+      const pool = pending.flatMap((group) => group);
+      pending = [];
+      for (const group of await getConnectedGroups(pool, () => undefined)) {
+         admit(group);
+      }
+   }
+
+   results.sort((left, right) => left.similarity - right.similarity);
    reportProgress({ phase: "grouping", completed: images.length, total: images.length });
-   return groups;
+   return results;
 };

@@ -1,12 +1,10 @@
-import { useCallback, useRef, useState } from "react";
-import type { FocusEvent, MouseEvent } from "react";
-import type { TooltipState } from "../appTypes.js";
-import { getTooltipPosition } from "../reviewModel.js";
+import { useCallback, useEffect, useRef, useState } from "react";
+import type { TooltipAnchor, TooltipState } from "../appTypes.js";
 
 export interface TooltipProps {
    onBlur: () => void;
-   onFocus: (event: FocusEvent<HTMLElement>) => void;
-   onMouseEnter: (event: MouseEvent<HTMLElement>) => void;
+   onFocus: (event: { currentTarget: { getBoundingClientRect(): DOMRect } }) => void;
+   onMouseEnter: (event: { currentTarget: { getBoundingClientRect(): DOMRect } }) => void;
    onMouseLeave: () => void;
 }
 
@@ -28,25 +26,29 @@ export const useTooltip = (): {
 
    const getTooltipProps = useCallback(
       (title: string, body: string, hotkey?: string): TooltipProps => {
-         const show = (rect: DOMRect): void =>
-            setTooltip({
-               title,
-               body,
-               ...getTooltipPosition(rect),
-               ...(hotkey === undefined ? {} : { hotkey }),
-            });
+         const show = (rect: DOMRect): void => {
+            const anchor: TooltipAnchor = { centerX: rect.left + rect.width / 2, top: rect.top, bottom: rect.bottom };
+            setTooltip({ title, body, ...(hotkey === undefined ? {} : { hotkey }), anchor });
+         };
          return {
             onBlur: hideTooltip,
             onFocus: (event) => show(event.currentTarget.getBoundingClientRect()),
             onMouseEnter: (event) => {
                const rect = event.currentTarget.getBoundingClientRect();
                if (timerRef.current !== null) window.clearTimeout(timerRef.current);
-               timerRef.current = window.setTimeout(() => show(rect), 520);
+               timerRef.current = window.setTimeout(() => show(rect), 420);
             },
             onMouseLeave: hideTooltip,
          };
       },
       [hideTooltip]
+   );
+
+   useEffect(
+      () => () => {
+         if (timerRef.current !== null) window.clearTimeout(timerRef.current);
+      },
+      []
    );
 
    return { tooltip, hideTooltip, getTooltipProps };

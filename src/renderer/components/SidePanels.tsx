@@ -1,4 +1,4 @@
-import { Eraser, Keyboard, X } from "lucide-react";
+import { Eraser, Keyboard, ShieldCheck, X } from "lucide-react";
 import { Toggle } from "./Toggle.js";
 
 interface SettingsPanelProps {
@@ -12,36 +12,65 @@ interface SettingsPanelProps {
    onClose: () => void;
 }
 
+const shortcuts: { keys: string; action: string }[] = [
+   { keys: "← → / A D / Space", action: "Previous or next set" },
+   { keys: "Ctrl ← →", action: "Jump between similarity bands" },
+   { keys: "1–9", action: "Mark or keep the Nth image (Ctrl to advance)" },
+   { keys: "Delete / Backspace", action: "Mark or keep the selected image" },
+   { keys: "X", action: "Mark the whole set" },
+   { keys: "V", action: "Autoselect the band" },
+   { keys: "C", action: "Compare the selected image with its neighbour" },
+   { keys: "Enter", action: "Preview the selected image" },
+   { keys: "Shift Click", action: "Mark or keep an image" },
+   { keys: "Alt Click", action: "Start a two-image compare" },
+   { keys: "Ctrl Z / Ctrl Shift Z", action: "Undo or redo" },
+   { keys: "Mouse 4 / 5", action: "Back or forward between sets" },
+];
+
 export const SettingsPanel = (props: SettingsPanelProps) => (
    <aside className="settingsPanel">
-      <PanelHeader label="App" title="Settings" onClose={props.onClose} />
+      <div className="panelHeader">
+         <div>
+            <p className="overlayLabel">App</p>
+            <h2>Settings</h2>
+         </div>
+         <button aria-label="Close settings" className="iconButton" onClick={props.onClose} type="button">
+            <X aria-hidden="true" />
+         </button>
+      </div>
       <div className="settingsGroup">
-         <p className="sectionLabel">Review</p>
+         <p className="settingsGroup__label">Review</p>
          <Toggle checked={props.wrapImageShelf} label="Wrap image shelf" onChange={props.onWrapChange} />
          <Toggle checked={props.confirmMajorActions} label="Confirm major actions" onChange={props.onConfirmChange} />
          <Toggle checked={props.showStartupOnLaunch} label="Show start screen on launch" onChange={props.onStartupChange} />
-         <button className="danger" onClick={props.onClear} type="button">
-            <Eraser aria-hidden="true" /> Clear choices
-         </button>
       </div>
-      <div className="shortcutReference">
-         <Keyboard aria-hidden="true" />
+      <div className="settingsGroup settingsGroup--safety">
+         <ShieldCheck aria-hidden="true" />
          <div>
-            <strong>Power keys</strong>
-            <span>Shift-click toggles deletion, Ctrl advances, and Alt-click compares images.</span>
+            <strong>How removal works</strong>
+            <span>Marked images move into a managed duplicate folder inside your scan folder. They stay recoverable there until you recycle that folder.</span>
          </div>
       </div>
-   </aside>
-);
-
-const PanelHeader = ({ label, title, onClose }: { label: string; title: string; onClose: () => void }) => (
-   <div className="panelHeader">
-      <div>
-         <p className="sectionLabel">{label}</p>
-         <h2>{title}</h2>
+      <div className="settingsGroup">
+         <p className="settingsGroup__label">Shortcuts</p>
+         <dl className="shortcutList">
+            {shortcuts.map((shortcut) => (
+               <div key={shortcut.keys}>
+                  <dt>
+                     <kbd>{shortcut.keys}</kbd>
+                  </dt>
+                  <dd>{shortcut.action}</dd>
+               </div>
+            ))}
+         </dl>
+         <p className="shortcutHint">
+            <Keyboard aria-hidden="true" /> Right-clicking images, sets, and band tags also opens their actions.
+         </p>
       </div>
-      <button aria-label={`Close ${title.toLowerCase()}`} className="iconButton" onClick={onClose} type="button">
-         <X aria-hidden="true" />
-      </button>
-   </div>
+      <div className="settingsGroup settingsGroup--danger">
+         <button className="dangerButton" onClick={props.onClear} type="button">
+            <Eraser aria-hidden="true" /> Clear all choices
+         </button>
+      </div>
+   </aside>
 );

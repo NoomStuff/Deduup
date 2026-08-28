@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import type { Decisions, LoadDataResult, PatchResult } from "../../shared/types.js";
+import type { Decisions, LoadDataResult, MoveResult } from "../../shared/types.js";
 import type { NotificationInput } from "./useNotifications.js";
 
 interface FileWorkflowActionsOptions {
@@ -11,15 +11,15 @@ interface FileWorkflowActionsOptions {
 }
 
 export const useFileWorkflowActions = ({ decisions, clearHistory, notify, onRefresh, reportError }: FileWorkflowActionsOptions) => {
-   const [patchResult, setPatchResult] = useState<PatchResult | null>(null);
-   const [restoreResult, setRestoreResult] = useState<PatchResult | null>(null);
+   const [moveResult, setMoveResult] = useState<MoveResult | null>(null);
+   const [restoreResult, setRestoreResult] = useState<MoveResult | null>(null);
    const [isApplying, setIsApplying] = useState(false);
    const [isTrashing, setIsTrashing] = useState(false);
    const [isRestoring, setIsRestoring] = useState(false);
 
-   useEffect(() => setPatchResult(null), [decisions]);
+   useEffect(() => setMoveResult(null), [decisions]);
    const clearResults = (): void => {
-      setPatchResult(null);
+      setMoveResult(null);
       setRestoreResult(null);
    };
 
@@ -28,8 +28,8 @@ export const useFileWorkflowActions = ({ decisions, clearHistory, notify, onRefr
       setIsApplying(true);
       setRestoreResult(null);
       try {
-         const result = await api.applyPatch(decisions);
-         setPatchResult(result);
+         const result = await api.applyMoves(decisions);
+         setMoveResult(result);
          onRefresh(await api.loadData());
          clearHistory();
          notify({
@@ -51,7 +51,7 @@ export const useFileWorkflowActions = ({ decisions, clearHistory, notify, onRefr
          await api.trashDuplicateFolder();
          onRefresh(await api.loadData());
          setRestoreResult(null);
-         notify({ tone: "success", title: "Duplicates recycled", message: "The app-managed duplicate folder was moved to the Recycle Bin." });
+         notify({ tone: "success", title: "Duplicates recycled", message: "The managed duplicate folder was moved to the Recycle Bin." });
       } catch (error: unknown) {
          reportError("Couldn’t recycle duplicates", error, "Failed to recycle moved duplicates");
       } finally {
@@ -65,7 +65,7 @@ export const useFileWorkflowActions = ({ decisions, clearHistory, notify, onRefr
       try {
          const result = await api.restoreDuplicateFolder();
          setRestoreResult(result);
-         setPatchResult(null);
+         setMoveResult(null);
          onRefresh(await api.loadData());
          notify({
             tone: result.errors.length > 0 ? "warning" : "success",
@@ -79,5 +79,5 @@ export const useFileWorkflowActions = ({ decisions, clearHistory, notify, onRefr
       }
    };
 
-   return { apply, clearResults, isApplying, isRestoring, isTrashing, patchResult, restore, restoreResult, trash };
+   return { apply, clearResults, isApplying, isRestoring, isTrashing, moveResult, restore, restoreResult, trash };
 };

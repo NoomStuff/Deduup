@@ -1,6 +1,6 @@
-import type { AppApi, Decisions, LoadDataResult, PatchResult, ScanProgress, ScanRequest } from "../shared/types.js";
+import type { AppApi, Decisions, LoadDataResult, MoveResult, ScanProgress, ScanRequest } from "../shared/types.js";
 
-const { contextBridge, ipcRenderer } = require("electron") as typeof import("electron");
+const { contextBridge, ipcRenderer, webUtils } = require("electron") as typeof import("electron");
 
 const api: AppApi = {
    loadData: async (): Promise<LoadDataResult> => ipcRenderer.invoke("data:load") as Promise<LoadDataResult>,
@@ -11,20 +11,30 @@ const api: AppApi = {
       ipcRenderer.on("scan:progress", handler);
       return () => ipcRenderer.removeListener("scan:progress", handler);
    },
+   onScanComplete: (listener: (result: LoadDataResult) => void): (() => void) => {
+      const handler = (_event: Electron.IpcRendererEvent, result: LoadDataResult): void => listener(result);
+      ipcRenderer.on("scan:complete", handler);
+      return () => ipcRenderer.removeListener("scan:complete", handler);
+   },
+   onAppError: (listener: (message: string) => void): (() => void) => {
+      const handler = (_event: Electron.IpcRendererEvent, message: string): void => listener(message);
+      ipcRenderer.on("app:error", handler);
+      return () => ipcRenderer.removeListener("app:error", handler);
+   },
    saveDecisions: async (decisions: Decisions): Promise<void> => {
       await ipcRenderer.invoke("decisions:save", decisions);
    },
-   saveCurrentGroup: async (groupId: string): Promise<void> => {
-      await ipcRenderer.invoke("position:save", groupId);
+   saveCurrentSet: async (setId: string): Promise<void> => {
+      await ipcRenderer.invoke("sets:save-position", setId);
    },
-   applyPatch: async (decisions: Decisions): Promise<PatchResult> => ipcRenderer.invoke("patch:apply", decisions) as Promise<PatchResult>,
+   applyMoves: async (decisions: Decisions): Promise<MoveResult> => ipcRenderer.invoke("moves:apply", decisions) as Promise<MoveResult>,
    getDuplicateFolderStatus: async (): Promise<boolean> => ipcRenderer.invoke("duplicate:status") as Promise<boolean>,
-   restoreDuplicateFolder: async (): Promise<PatchResult> => ipcRenderer.invoke("duplicate:restore") as Promise<PatchResult>,
+   restoreDuplicateFolder: async (): Promise<MoveResult> => ipcRenderer.invoke("duplicate:restore") as Promise<MoveResult>,
    trashDuplicateFolder: async (): Promise<void> => {
       await ipcRenderer.invoke("duplicate:trash");
    },
-   openGroupFolder: async (folderPath: string): Promise<void> => {
-      await ipcRenderer.invoke("group:open-folder", folderPath);
+   openSetFolder: async (folderPath: string): Promise<void> => {
+      await ipcRenderer.invoke("sets:open-folder", folderPath);
    },
    showImage: async (imagePath: string): Promise<void> => {
       await ipcRenderer.invoke("image:show", imagePath);
@@ -32,6 +42,7 @@ const api: AppApi = {
    openImage: async (imagePath: string): Promise<void> => {
       await ipcRenderer.invoke("image:open", imagePath);
    },
+   getPathForFile: (file: File): string => webUtils.getPathForFile(file),
 };
 
 contextBridge.exposeInMainWorld("imageDeduplicator", api);

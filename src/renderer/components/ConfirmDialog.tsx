@@ -8,7 +8,7 @@ export const ConfirmDialog = ({ action, onCancel, onConfirm }: { action: Confirm
             <TriangleAlert />
          </div>
          <div className="confirmDialog__content">
-            <p className="sectionLabel">Confirm</p>
+            <p className="overlayLabel">Confirm</p>
             <h2 id="confirm-title">{action.title}</h2>
             <p>{action.body}</p>
          </div>

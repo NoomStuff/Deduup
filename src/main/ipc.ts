@@ -1,10 +1,11 @@
 import { dialog, ipcMain, shell } from "electron";
 import { stat } from "node:fs/promises";
 import path from "node:path";
+import type { WebContents } from "electron";
 import { isObject, normalizeDecisions } from "../shared/schema.js";
 import type { LoadDataResult, ScanProgress, ScanRequest } from "../shared/types.js";
-import { getDuplicateFolderStatus, getLoadResult, getSetting, saveCurrentGroupId, saveDecisions, saveScan, setSetting } from "./database.js";
-import { applyDecisions, assertDuplicateFolderCanBeRecycled, restoreDuplicateFolder } from "./fileActions.js";
+import { getDuplicateFolderStatus, getLoadResult, getSetting, saveCurrentSetId, saveDecisions, saveScan, setSetting } from "./database.js";
+import { moveMarkedImages, assertDuplicateFolderCanBeRecycled, restoreDuplicateFolder } from "./fileActions.js";
 import { collectImagePaths, groupImages, scanImages } from "./scanner.js";
 
 const isNonEmptyString = (value: unknown): value is string => typeof value === "string" && value.trim().length > 0;
@@ -26,6 +27,26 @@ const openPath = async (targetPath: string): Promise<void> => {
    if (message.length > 0) throw new Error(message);
 };
 
+export const runScan = async (rootPath: string, sender: WebContents): Promise<LoadDataResult> => {
+   if (await getDuplicateFolderStatus()) {
+      throw new Error("Restore or recycle the currently moved duplicates before starting another scan.");
+   }
+   if (!(await stat(rootPath)).isDirectory()) throw new Error("The selected path is not a directory");
+   const report = (progress: ScanProgress): void => sender.send("scan:progress", progress);
+   let scanWarningCount = 0;
+   const reportWarning = (): void => {
+      scanWarningCount += 1;
+   };
+   report({ phase: "discovering", completed: 0, total: 0 });
+   const paths = await collectImagePaths(rootPath, reportWarning);
+   report({ phase: "discovering", completed: paths.length, total: paths.length });
+   const groups = await groupImages(await scanImages(paths, report, reportWarning), report);
+   report({ phase: "saving", completed: 0, total: groups.length });
+   saveScan(rootPath, groups);
+   report({ phase: "saving", completed: groups.length, total: groups.length });
+   return { ...(await getLoadResult()), scanWarningCount };
+};
+
 export const registerIpcHandlers = (): void => {
    ipcMain.handle("data:load", getLoadResult);
    ipcMain.handle("scan:choose-folder", async (): Promise<string | null> => {
@@ -34,30 +55,14 @@ export const registerIpcHandlers = (): void => {
    });
    ipcMain.handle("scan:start", async (event, rawRequest: unknown): Promise<LoadDataResult> => {
       const request = normalizeScanRequest(rawRequest);
-      if (await getDuplicateFolderStatus()) {
-         throw new Error("Restore or recycle the currently moved duplicates before starting another scan.");
-      }
-      if (!(await stat(request.rootPath)).isDirectory()) throw new Error("The selected path is not a directory");
-      const report = (progress: ScanProgress): void => event.sender.send("scan:progress", progress);
-      let scanWarningCount = 0;
-      const reportWarning = (): void => {
-         scanWarningCount += 1;
-      };
-      report({ phase: "discovering", completed: 0, total: 0 });
-      const paths = await collectImagePaths(request.rootPath, reportWarning);
-      report({ phase: "discovering", completed: paths.length, total: paths.length });
-      const groups = await groupImages(await scanImages(paths, report, reportWarning), report);
-      report({ phase: "saving", completed: 0, total: groups.length });
-      saveScan(request.rootPath, groups);
-      report({ phase: "saving", completed: groups.length, total: groups.length });
-      return { ...(await getLoadResult()), scanWarningCount };
+      return runScan(request.rootPath, event.sender);
    });
    ipcMain.handle("decisions:save", (_event, rawDecisions: unknown): void => saveDecisions(normalizeDecisions(rawDecisions)));
-   ipcMain.handle("position:save", (_event, groupId: unknown): void => {
-      if (!isNonEmptyString(groupId)) throw new TypeError("Invalid detection id");
-      saveCurrentGroupId(groupId);
+   ipcMain.handle("sets:save-position", (_event, setId: unknown): void => {
+      if (!isNonEmptyString(setId)) throw new TypeError("Invalid set id");
+      saveCurrentSetId(setId);
    });
-   ipcMain.handle("group:open-folder", async (_event, folderPath: unknown): Promise<void> => {
+   ipcMain.handle("sets:open-folder", async (_event, folderPath: unknown): Promise<void> => {
       if (isNonEmptyString(folderPath) && isWithinScanRoot(folderPath)) await openPath(folderPath);
    });
    ipcMain.handle("image:show", (_event, imagePath: unknown): void => {
@@ -66,10 +71,10 @@ export const registerIpcHandlers = (): void => {
    ipcMain.handle("image:open", async (_event, imagePath: unknown): Promise<void> => {
       if (isNonEmptyString(imagePath) && isWithinScanRoot(imagePath)) await openPath(imagePath);
    });
-   ipcMain.handle("patch:apply", async (_event, rawDecisions: unknown) => {
+   ipcMain.handle("moves:apply", async (_event, rawDecisions: unknown) => {
       const decisions = normalizeDecisions(rawDecisions);
       saveDecisions(decisions);
-      return applyDecisions(decisions);
+      return moveMarkedImages(decisions);
    });
    ipcMain.handle("duplicate:status", getDuplicateFolderStatus);
    ipcMain.handle("duplicate:restore", restoreDuplicateFolder);

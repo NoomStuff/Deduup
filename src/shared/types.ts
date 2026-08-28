@@ -29,24 +29,17 @@ export interface ImageSetDecision {
 
 export type Decisions = Record<string, ImageSetDecision>;
 
-export interface PatchPreview {
-   totalDeletes: number;
-   totalKeptImages: number;
-   reviewedImageSets: number;
-   deleteBytes: number;
-}
-
-export interface PatchMove {
-   groupId: string;
+export interface PlannedMove {
+   setId: string;
    file: string;
    from: string;
    to: string;
 }
 
-export interface PatchResult {
-   moved: PatchMove[];
-   skipped: PatchMove[];
-   errors: (PatchMove & { message: string })[];
+export interface MoveResult {
+   moved: PlannedMove[];
+   skipped: PlannedMove[];
+   errors: (PlannedMove & { message: string })[];
 }
 
 export interface LoadDataResult {
@@ -54,7 +47,7 @@ export interface LoadDataResult {
    decisions: Decisions;
    scanRoot: string | null;
    duplicateFolderPath: string | null;
-   currentGroupId: string | null;
+   currentSetId: string | null;
    duplicateFolderHasContent: boolean;
    lastFileAction: FileActionStatus;
    scanWarningCount: number;
@@ -76,13 +69,16 @@ export interface AppApi {
    chooseFolder: () => Promise<string | null>;
    scanFolder: (request: ScanRequest) => Promise<LoadDataResult>;
    onScanProgress: (listener: (progress: ScanProgress) => void) => () => void;
+   onScanComplete: (listener: (result: LoadDataResult) => void) => () => void;
+   onAppError: (listener: (message: string) => void) => () => void;
    saveDecisions: (decisions: Decisions) => Promise<void>;
-   saveCurrentGroup: (groupId: string) => Promise<void>;
-   applyPatch: (decisions: Decisions) => Promise<PatchResult>;
+   saveCurrentSet: (setId: string) => Promise<void>;
+   applyMoves: (decisions: Decisions) => Promise<MoveResult>;
    getDuplicateFolderStatus: () => Promise<boolean>;
-   restoreDuplicateFolder: () => Promise<PatchResult>;
+   restoreDuplicateFolder: () => Promise<MoveResult>;
    trashDuplicateFolder: () => Promise<void>;
-   openGroupFolder: (folderPath: string) => Promise<void>;
+   openSetFolder: (folderPath: string) => Promise<void>;
    showImage: (imagePath: string) => Promise<void>;
    openImage: (imagePath: string) => Promise<void>;
+   getPathForFile: (file: File) => string;
 }

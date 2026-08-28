@@ -1,20 +1,9 @@
-import type { DragEvent } from "react";
-import type { Decisions, ImageItem, ImageSet, ImageSetDecision, PatchPreview } from "../shared/types.js";
-import type {
-   ConfirmAction,
-   ConfirmKind,
-   ContextMenuKind,
-   FileWorkflowState,
-   ImageDeleteState,
-   ImageSetState,
-   MovePreview,
-   SimilarityBand,
-   TooltipState,
-} from "./appTypes.js";
+import type { Decisions, ImageItem, ImageSet, ImageSetDecision } from "../shared/types.js";
+import type { ConfirmAction, ConfirmKind, FileWorkflowState, ImageDeleteState, ImageSetState, MovePreview, SimilarityBand } from "./appTypes.js";
 
 export const emptyImageSetDecision = (): ImageSetDecision => ({ deletedImages: [], seen: false });
 
-export const getDecision = (decisions: Decisions, groupId: string): ImageSetDecision => decisions[groupId] ?? emptyImageSetDecision();
+export const getDecision = (decisions: Decisions, setId: string): ImageSetDecision => decisions[setId] ?? emptyImageSetDecision();
 
 const normalizeDecisionForSave = (decision: ImageSetDecision): ImageSetDecision | null => {
    const deletedImages = [...new Set(decision.deletedImages.filter((path) => path.length > 0))];
@@ -30,21 +19,21 @@ const areDecisionsEqual = (left: ImageSetDecision, right: ImageSetDecision): boo
    left.deletedImages.length === right.deletedImages.length &&
    left.deletedImages.every((path, index) => path === right.deletedImages[index]);
 
-export const setImageSetDecision = (decisions: Decisions, imageSetId: string, decision: ImageSetDecision): Decisions => {
+export const setImageSetDecision = (decisions: Decisions, setId: string, decision: ImageSetDecision): Decisions => {
    const normalized = normalizeDecisionForSave(decision);
    if (normalized === null) {
-      if (decisions[imageSetId] === undefined) {
+      if (decisions[setId] === undefined) {
          return decisions;
       }
 
-      return Object.fromEntries(Object.entries(decisions).filter(([existingImageSetId]) => existingImageSetId !== imageSetId));
+      return Object.fromEntries(Object.entries(decisions).filter(([existingSetId]) => existingSetId !== setId));
    }
 
-   if (decisions[imageSetId] !== undefined && areDecisionsEqual(decisions[imageSetId], normalized)) {
+   if (decisions[setId] !== undefined && areDecisionsEqual(decisions[setId], normalized)) {
       return decisions;
    }
 
-   return { ...decisions, [imageSetId]: normalized };
+   return { ...decisions, [setId]: normalized };
 };
 
 export const getDeletedImagePaths = (decision: ImageSetDecision): Set<string> => new Set(decision.deletedImages);
@@ -62,34 +51,8 @@ export const getImageSetDecision = (imageSet: ImageSet, deletedPaths: Set<string
 
 const isImageSetSeen = (decision: ImageSetDecision | undefined): boolean => decision?.seen === true;
 
-export const getPatchPreview = (imageSets: ImageSet[], decisions: Decisions): PatchPreview => {
-   let totalDeletes = 0;
-   let totalKeptImages = 0;
-   let reviewedImageSets = 0;
-   let deleteBytes = 0;
-
-   for (const imageSet of imageSets) {
-      const decision = decisions[imageSet.id];
-      if (decision === undefined || !isImageSetSeen(decision)) {
-         totalKeptImages += imageSet.images.length;
-         continue;
-      }
-
-      reviewedImageSets += 1;
-
-      const deletedPaths = getDeletedImagesForSet(imageSet, decision);
-      totalKeptImages += Math.max(0, imageSet.images.length - deletedPaths.size);
-
-      for (const image of imageSet.images) {
-         if (deletedPaths.has(image.originalPath)) {
-            totalDeletes += 1;
-            deleteBytes += image.size;
-         }
-      }
-   }
-
-   return { totalDeletes, totalKeptImages, reviewedImageSets, deleteBytes };
-};
+export const getReviewedSetCount = (imageSets: ImageSet[], decisions: Decisions): number =>
+   imageSets.filter((imageSet) => isImageSetSeen(decisions[imageSet.id])).length;
 
 const getMovePreviewByStatus = (imageSets: ImageSet[], decisions: Decisions, sourceStatus: ImageItem["sourceStatus"]): MovePreview[] => {
    const rows: MovePreview[] = [];
@@ -102,7 +65,7 @@ const getMovePreviewByStatus = (imageSets: ImageSet[], decisions: Decisions, sou
       const deletedPaths = sourceStatus === "available" && decision !== undefined ? getDeletedImagesForSet(imageSet, decision) : null;
       for (const image of imageSet.images) {
          if (image.sourceStatus === sourceStatus && (deletedPaths === null || deletedPaths.has(image.originalPath))) {
-            rows.push({ groupId: imageSet.id, file: image.file, previewUrl: image.previewUrl, size: image.size });
+            rows.push({ setId: imageSet.id, file: image.file, originalPath: image.originalPath, previewUrl: image.previewUrl, size: image.size });
          }
       }
    }
@@ -164,10 +127,14 @@ export const getImageSetLabel = (imageSet: ImageSet, decision: ImageSetDecision)
 export const getImageDeleteState = (decision: ImageSetDecision, image: ImageItem): ImageDeleteState =>
    getDeletedImagePaths(decision).has(image.originalPath) ? "deleted" : "active";
 
-export const getDetectionNumber = (groupId: string): string => groupId.replace(/^detection_0*/u, "#");
+export const getSetNumber = (setId: string): string => setId.replace(/^(?:detection|set)_0*/u, "#");
 
 export const getSimilarityLabel = (similarity: number): string => similarity.toFixed(1);
 
+/**
+ * Band color by average pixel difference: violet for near-identical sets,
+ * warming through mauve and amber into green at the match limit.
+ */
 const similarityColorStops = [
    { distance: 0, color: [174, 140, 255] },
    { distance: 3.25, color: [205, 132, 218] },
@@ -198,53 +165,28 @@ export const getSimilarityBands = (groups: ImageSet[]): SimilarityBand[] => {
          return;
       }
 
-      bands.push({ label, groups: [{ imageSet, index }] });
+      bands.push({ label, distance: imageSet.similarity, groups: [{ imageSet, index }] });
    });
 
    return bands;
 };
 
-export const getResumeIndex = (groups: ImageSet[], currentGroupId: string | null): number => {
-   if (groups.length === 0 || currentGroupId === null) return 0;
-   const savedIndex = groups.findIndex((imageSet) => imageSet.id === currentGroupId);
+export const getResumeIndex = (groups: ImageSet[], currentSetId: string | null): number => {
+   if (groups.length === 0 || currentSetId === null) return 0;
+   const savedIndex = groups.findIndex((imageSet) => imageSet.id === currentSetId);
    return savedIndex < 0 ? 0 : savedIndex;
 };
 
-const hasLetters = (value: string): boolean => /[a-z]/iu.test(value);
-
-const getAutoPickScore = (image: ImageItem): number => {
-   const basename = image.file.replace(/\.[^.]+$/u, "");
-   const lowerName = basename.toLowerCase();
-   let score = 0;
-
-   if (basename.length > 8 && basename.length < 32) {
-      score += 70;
-   } else {
-      score -= Math.abs(20 - basename.length);
-   }
-
-   if (hasLetters(basename)) {
-      score += 30;
-   } else {
-      score -= 80;
-   }
-
-   if (lowerName.includes("anonymous") || lowerName.includes("artist_request")) {
-      score -= 120;
-   }
-
-   score -= (basename.match(/[_-]/gu)?.length ?? 0) * 2;
-   score += Math.min(24, image.width / 120);
-   score += Math.min(24, image.height / 120);
-
-   return score;
-};
-
-export const getAutoPick = (imageSet: ImageSet): ImageItem => {
-   const sortedImages = [...imageSet.images].sort((a, b) => getAutoPickScore(b) - getAutoPickScore(a) || a.file.localeCompare(b.file));
+/**
+ * The auto-keep pick: the largest copy by pixel count, then by file size, then by
+ * name for stability. Deliberately ignores filenames beyond tie-breaking so the
+ * choice is always explainable as "kept the largest copy".
+ */
+export const getLargestImage = (imageSet: ImageSet): ImageItem => {
+   const sortedImages = [...imageSet.images].sort((a, b) => b.width * b.height - a.width * a.height || b.size - a.size || a.file.localeCompare(b.file));
    const firstImage = sortedImages[0];
    if (firstImage === undefined) {
-      throw new Error(`Image set ${imageSet.id} has no images to auto-pick`);
+      throw new Error(`Image set ${imageSet.id} has no images to pick from`);
    }
 
    return firstImage;
@@ -270,73 +212,21 @@ export const getFolderName = (folderPath: string | null): string => (folderPath 
 
 export const clamp = (value: number, min: number, max: number): number => Math.max(min, Math.min(max, value));
 
-export const getContextMenuSize = (kind: ContextMenuKind): { width: number; height: number } => {
-   if (kind === "image") {
-      return { width: 430, height: 358 };
-   }
-
-   if (kind === "imageSet") {
-      return { width: 430, height: 208 };
-   }
-
-   return { width: 430, height: 280 };
-};
-
-export const getAnchoredPosition = (x: number, y: number, width: number, height: number): { x: number; y: number } => {
-   const margin = 12;
-   const preferredX = x + width + margin > window.innerWidth ? x - width : x;
-   const preferredY = y + height + margin > window.innerHeight ? y - height : y;
-   return {
-      x: clamp(preferredX, margin, Math.max(margin, window.innerWidth - width - margin)),
-      y: clamp(preferredY, margin, Math.max(margin, window.innerHeight - height - margin)),
-   };
-};
-
-export const getButtonMenuPosition = (rect: DOMRect, width: number, height: number): { x: number; y: number } => {
-   const margin = 12;
-   const gap = 8;
-   const preferredX = rect.left + width + margin > window.innerWidth ? rect.right - width : rect.left;
-   const preferredY = rect.bottom + gap + height + margin > window.innerHeight ? rect.top - height - gap : rect.bottom + gap;
-   return {
-      x: clamp(preferredX, margin, Math.max(margin, window.innerWidth - width - margin)),
-      y: clamp(preferredY, margin, Math.max(margin, window.innerHeight - height - margin)),
-   };
-};
-
-export const getTooltipPosition = (rect: DOMRect): Pick<TooltipState, "x" | "y" | "placement"> => {
-   const margin = 18;
-   const tooltipWidth = Math.min(260, window.innerWidth - margin * 2);
-   const tooltipHeight = 132;
-   const x = clamp(rect.left + rect.width / 2 - tooltipWidth / 2, margin, window.innerWidth - margin - tooltipWidth);
-   const canFitAbove = rect.top - tooltipHeight - 10 >= margin;
-   const canFitBelow = rect.bottom + tooltipHeight + 10 <= window.innerHeight - margin;
-   if (!canFitAbove && canFitBelow) {
-      return { x, y: rect.bottom + 10, placement: "bottom" };
-   }
-
-   return { x, y: clamp(rect.top - 10, margin + tooltipHeight, window.innerHeight - margin), placement: "top" };
-};
-
-export const getDroppedFolderPath = (event: DragEvent): string | null => {
-   const firstFile = event.dataTransfer.files.item(0);
-   return firstFile === null ? null : ((firstFile as { path?: string }).path ?? null);
-};
-
-export const createConfirmAction = (kind: ConfirmKind): ConfirmAction => {
-   if (kind === "deleteAll") {
+export const createConfirmAction = (kind: ConfirmKind, folderPath?: string): ConfirmAction => {
+   if (kind === "markSet") {
       return {
          kind,
-         title: "Mark this set for deletion?",
-         body: "Every image in the current set will be marked for deletion. You can undo it before finishing.",
-         confirmLabel: "Mark all",
+         title: "Mark this set for removal?",
+         body: "Every image in the current set will be marked for removal. You can undo this before anything is moved.",
+         confirmLabel: "Mark set",
       };
    }
 
    if (kind === "trashDuplicate") {
       return {
          kind,
-         title: "Recycle moved images?",
-         body: "The app-managed duplicate folder will be moved to the Recycle Bin. This can no longer be undone from this app.",
+         title: "Recycle the duplicate folder?",
+         body: "Everything in the managed duplicate folder moves to the Recycle Bin. This app cannot restore it afterwards.",
          confirmLabel: "Recycle folder",
       };
    }
@@ -345,14 +235,24 @@ export const createConfirmAction = (kind: ConfirmKind): ConfirmAction => {
       return {
          kind,
          title: "Rescan this folder?",
-         body: "The scan results and all review choices will be replaced. Images already moved must be restored or recycled first.",
+         body: "Scan results and every review choice will be replaced. Move or recycle the duplicate folder contents first if any exist.",
          confirmLabel: "Rescan",
+      };
+   }
+
+   if (kind === "switchFolder") {
+      return {
+         kind,
+         title: "Scan a different folder?",
+         body: "Opening a new folder replaces the current scan results and all review choices. Source files are never touched.",
+         confirmLabel: "Scan folder",
+         ...(folderPath === undefined ? {} : { folderPath }),
       };
    }
 
    return {
       kind,
-      title: "Reset every choice?",
+      title: "Clear every choice?",
       body: "All review choices for this scan will be cleared. Source files stay untouched.",
       confirmLabel: "Clear all",
    };

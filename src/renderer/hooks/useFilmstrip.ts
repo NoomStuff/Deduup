@@ -1,10 +1,13 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import type { PatchView } from "../appTypes.js";
+import type { AppView } from "../appTypes.js";
 
-interface FilmstripEdges {
-   left: boolean;
-   right: boolean;
-}
+const centerTarget = (filmstrip: HTMLElement, active: HTMLElement): number => {
+   const stripRect = filmstrip.getBoundingClientRect();
+   const activeRect = active.getBoundingClientRect();
+   const activeCenter = activeRect.left - stripRect.left + filmstrip.scrollLeft + activeRect.width / 2;
+   const maxScroll = Math.max(0, filmstrip.scrollWidth - filmstrip.clientWidth);
+   return Math.max(0, Math.min(maxScroll, activeCenter - filmstrip.clientWidth / 2));
+};
 
 export const useFilmstrip = ({
    currentIndex,
@@ -19,13 +22,13 @@ export const useFilmstrip = ({
    isScanning: boolean;
    isStartupOpen: boolean;
    loading: boolean;
-   view: PatchView;
+   view: AppView;
 }) => {
    const filmstripRef = useRef<HTMLElement | null>(null);
+   const [fade, setFade] = useState({ left: false, right: false });
    const targetRef = useRef<number | null>(null);
    const animationRef = useRef<number | null>(null);
    const positionedRef = useRef(false);
-   const [edges, setEdges] = useState<FilmstripEdges>({ left: false, right: false });
 
    const animate = useCallback((): void => {
       if (animationRef.current !== null) return;
@@ -48,6 +51,7 @@ export const useFilmstrip = ({
       animationRef.current = window.requestAnimationFrame(tick);
    }, []);
 
+   // Fresh scan: the next placement should snap instead of gliding.
    useEffect(() => {
       positionedRef.current = false;
       targetRef.current = null;
@@ -56,42 +60,41 @@ export const useFilmstrip = ({
    }, [groupCount]);
 
    useEffect(() => {
+      if (view !== "review") {
+         positionedRef.current = false;
+         return;
+      }
       const filmstrip = filmstripRef.current;
-      if (filmstrip === null || view !== "review") return;
+      if (filmstrip === null) return;
+      const updateFade = (): void => {
+         const max = Math.max(0, filmstrip.scrollWidth - filmstrip.clientWidth);
+         setFade({ left: filmstrip.scrollLeft > 2, right: filmstrip.scrollLeft < max - 2 });
+      };
+      updateFade();
+      filmstrip.addEventListener("scroll", updateFade, { passive: true });
+      const resizeObserver = new ResizeObserver(updateFade);
+      resizeObserver.observe(filmstrip);
+      // React only to the set changing (or the strip (re)mounting). Manual
+      // scrolling is never corrected or fought.
       const frame = window.requestAnimationFrame(() => {
          const active = filmstrip.querySelector<HTMLElement>(".filmstrip__item--active");
          if (active === null) return;
-         const filmstripRect = filmstrip.getBoundingClientRect();
-         const activeRect = active.getBoundingClientRect();
-         const activeCenter = activeRect.left - filmstripRect.left + filmstrip.scrollLeft + activeRect.width / 2;
-         targetRef.current = Math.max(0, Math.min(filmstrip.scrollWidth - filmstrip.clientWidth, activeCenter - filmstrip.clientWidth / 2));
+         const target = centerTarget(filmstrip, active);
+         if (Math.abs(target - filmstrip.scrollLeft) < 1) return;
+         targetRef.current = target;
          if (!positionedRef.current) {
-            filmstrip.scrollLeft = targetRef.current;
+            filmstrip.scrollLeft = target;
             positionedRef.current = true;
          } else {
             animate();
          }
       });
-      return () => window.cancelAnimationFrame(frame);
-   }, [animate, currentIndex, groupCount, isScanning, isStartupOpen, loading, view]);
-
-   useEffect(() => {
-      const filmstrip = filmstripRef.current;
-      if (filmstrip === null || view !== "review") return;
-      const update = (): void => {
-         const maxScroll = Math.max(0, filmstrip.scrollWidth - filmstrip.clientWidth);
-         const next = { left: filmstrip.scrollLeft > 2, right: filmstrip.scrollLeft < maxScroll - 2 };
-         setEdges((current) => (current.left === next.left && current.right === next.right ? current : next));
-      };
-      const frame = window.requestAnimationFrame(update);
-      filmstrip.addEventListener("scroll", update, { passive: true });
-      window.addEventListener("resize", update);
       return () => {
          window.cancelAnimationFrame(frame);
-         filmstrip.removeEventListener("scroll", update);
-         window.removeEventListener("resize", update);
+         filmstrip.removeEventListener("scroll", updateFade);
+         resizeObserver.disconnect();
       };
-   }, [groupCount, isScanning, isStartupOpen, loading, view]);
+   }, [animate, currentIndex, isScanning, isStartupOpen, loading, view]);
 
    useEffect(
       () => () => {
@@ -100,5 +103,5 @@ export const useFilmstrip = ({
       []
    );
 
-   return { edges, filmstripRef };
+   return { fade, filmstripRef };
 };

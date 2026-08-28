@@ -3,16 +3,18 @@ import path from "node:path";
 import { pathToFileURL } from "node:url";
 
 const devServerUrl = process.env["VITE_DEV_SERVER_URL"] ?? "http://127.0.0.1:5173";
-const isDev = !app.isPackaged;
+// Running from sources normally means the vite dev server; the smoke test sets
+// IMAGE_DEDUPLICATOR_PROD=1 to load the built dist instead.
+const isDev = !app.isPackaged && process.env["IMAGE_DEDUPLICATOR_PROD"] !== "1";
 
-export const createWindow = (): void => {
+export const createWindow = (): BrowserWindow => {
    const iconPath = path.join(app.getAppPath(), isDev ? "public" : "dist", "favicon.ico");
    const window = new BrowserWindow({
       width: 1500,
       height: 940,
       minWidth: 1100,
       minHeight: 720,
-      backgroundColor: "#000000",
+      backgroundColor: "#0e0e14",
       icon: iconPath,
       webPreferences: {
          preload: path.join(app.getAppPath(), "dist-electron", "preload", "index.cjs"),
@@ -33,4 +35,5 @@ export const createWindow = (): void => {
 
    if (isDev) void window.loadURL(devServerUrl);
    else void window.loadFile(path.join(app.getAppPath(), "dist", "index.html"));
+   return window;
 };

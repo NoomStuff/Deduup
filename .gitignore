@@ -2,6 +2,7 @@ node_modules/
 .cache/
 dist/
 dist-electron/
+dist-test/
 release/
 *.tsbuildinfo
 bun.lockb

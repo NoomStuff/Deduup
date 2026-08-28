@@ -53,15 +53,17 @@ export const CompareOverlay = ({ compare, onClose, onKeep }: { compare: CompareS
       <div aria-labelledby="compare-title" aria-modal="true" className="compare" role="dialog">
          <div className="compare__header">
             <div>
-               <p className="sectionLabel">Compare</p>
-               <h2 id="compare-title">Choose the image to keep</h2>
+               <p className="overlayLabel">Compare</p>
+               <h2 id="compare-title">Pick the copy to keep</h2>
+               <p className="compare__hint">Drag across the stage to wipe between the two copies.</p>
             </div>
-            <button aria-label="Close comparison" className="iconButton" onClick={onClose} title="Close comparison" type="button">
+            <button aria-label="Close comparison" className="iconButton" onClick={onClose} type="button">
                <X aria-hidden="true" />
             </button>
          </div>
          <div className="compare__content">
             <button
+               autoFocus
                className="compare__action compare__action--left"
                onClick={() => onKeep(compare.left)}
                onBlur={() => setFocusedSide(null)}
@@ -75,6 +77,7 @@ export const CompareOverlay = ({ compare, onClose, onKeep }: { compare: CompareS
                </strong>
                <span>Keep image {compare.leftIndex + 1}</span>
                <small title={compare.left.file}>{compare.left.file}</small>
+               <kbd>←</kbd>
             </button>
             <div
                className="compare__stage"
@@ -99,8 +102,8 @@ export const CompareOverlay = ({ compare, onClose, onKeep }: { compare: CompareS
                   src={compare.right.previewUrl}
                />
                <span className="compare__divider" />
-               <span className="compare__label compare__label--left">{compare.rightIndex + 1}</span>
-               <span className="compare__label compare__label--right">{compare.leftIndex + 1}</span>
+               <span className="compare__label compare__label--left">{compare.leftIndex + 1}</span>
+               <span className="compare__label compare__label--right">{compare.rightIndex + 1}</span>
             </div>
             <button
                className="compare__action compare__action--right"
@@ -116,6 +119,7 @@ export const CompareOverlay = ({ compare, onClose, onKeep }: { compare: CompareS
                </strong>
                <span>Keep image {compare.rightIndex + 1}</span>
                <small title={compare.right.file}>{compare.right.file}</small>
+               <kbd>→</kbd>
             </button>
          </div>
       </div>

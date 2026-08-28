@@ -8,14 +8,15 @@ export interface CompareState {
    reveal: number;
 }
 
-export type PatchView = "review" | "patch";
+export type AppView = "review" | "final";
 export type TravelDirection = "idle" | "left" | "right";
 export type ImageSetState = "open" | "seen" | "someDeleted" | "allDeleted";
 export type ImageDeleteState = "active" | "deleted";
-export type ConfirmKind = "deleteAll" | "clearAll" | "trashDuplicate" | "rescan";
+export type ConfirmKind = "markSet" | "clearAll" | "trashDuplicate" | "rescan" | "switchFolder";
 
 export interface SimilarityBand {
    label: string;
+   distance: number;
    groups: { imageSet: ImageSet; index: number }[];
 }
 
@@ -24,12 +25,14 @@ export interface ConfirmAction {
    title: string;
    body: string;
    confirmLabel: string;
-   groupId?: string;
+   setId?: string;
+   folderPath?: string;
 }
 
 export interface MovePreview {
-   groupId: string;
+   setId: string;
    file: string;
+   originalPath: string;
    previewUrl: string;
    size: number;
 }
@@ -42,21 +45,26 @@ export interface FileWorkflowState {
    missingCount: number;
 }
 
+export interface TooltipAnchor {
+   centerX: number;
+   top: number;
+   bottom: number;
+}
+
 export interface TooltipState {
    title: string;
    body: string;
    hotkey?: string;
-   x: number;
-   y: number;
-   placement: "top" | "bottom";
+   anchor: TooltipAnchor;
 }
 
-export type ContextMenuKind = "image" | "imageSet" | "similarityGroup";
+export type ContextMenuKind = "image" | "imageSet" | "similarityBand";
+
+export type ContextMenuAnchor = { kind: "point"; x: number; y: number } | { kind: "rect"; rect: DOMRect };
 
 export interface ContextMenuState {
-   kind: ContextMenuKind;
+   menuKind: ContextMenuKind;
+   anchor: ContextMenuAnchor;
    imagePath?: string;
-   groupId?: string;
-   x: number;
-   y: number;
+   setId?: string;
 }

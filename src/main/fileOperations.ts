@@ -1,7 +1,7 @@
 import { copyFile, mkdir, readFile, readdir, rename, rm, stat, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { duplicateOwnershipMarkerContents, duplicateOwnershipMarkerName } from "../shared/constants.js";
-import type { PatchMove, PatchResult } from "../shared/types.js";
+import type { MoveResult, PlannedMove } from "../shared/types.js";
 import { isObject } from "../shared/schema.js";
 
 const isMissingPathError = (error: unknown): boolean => isObject(error) && (error["code"] === "ENOENT" || error["code"] === "ENOTDIR");
@@ -67,8 +67,8 @@ export const ensureManagedFolder = async (duplicatePath: string): Promise<void> 
    await writeFile(markerPath(duplicatePath), duplicateOwnershipMarkerContents, { encoding: "utf8", flag: "wx" });
 };
 
-export const applyFileMoves = async (moves: PatchMove[]): Promise<PatchResult> => {
-   const result: PatchResult = { moved: [], skipped: [], errors: [] };
+export const applyFileMoves = async (moves: PlannedMove[]): Promise<MoveResult> => {
+   const result: MoveResult = { moved: [], skipped: [], errors: [] };
    for (const move of moves) {
       try {
          if (!(await pathExists(move.from))) {
@@ -86,15 +86,15 @@ export const applyFileMoves = async (moves: PatchMove[]): Promise<PatchResult> =
    return result;
 };
 
-export const restoreFileMoves = async (expectedMoves: PatchMove[], sourcePaths: string[]): Promise<PatchResult> => {
-   const result: PatchResult = { moved: [], skipped: [], errors: [] };
+export const restoreFileMoves = async (expectedMoves: PlannedMove[], sourcePaths: string[]): Promise<MoveResult> => {
+   const result: MoveResult = { moved: [], skipped: [], errors: [] };
    const expectedByDestination = new Map(expectedMoves.map((move) => [pathKey(move.to), move]));
 
    for (const sourcePath of sourcePaths) {
       const expected = expectedByDestination.get(pathKey(sourcePath));
       if (expected === undefined) {
          result.errors.push({
-            groupId: "unmanaged",
+            setId: "unmanaged",
             file: path.basename(sourcePath),
             from: sourcePath,
             to: sourcePath,
@@ -103,7 +103,7 @@ export const restoreFileMoves = async (expectedMoves: PatchMove[], sourcePaths: 
          continue;
       }
 
-      const move: PatchMove = { groupId: expected.groupId, file: expected.file, from: sourcePath, to: expected.from };
+      const move: PlannedMove = { setId: expected.setId, file: expected.file, from: sourcePath, to: expected.from };
       try {
          if (await pathExists(move.to)) {
             result.skipped.push(move);
@@ -119,7 +119,7 @@ export const restoreFileMoves = async (expectedMoves: PatchMove[], sourcePaths: 
    return result;
 };
 
-export const assertRecyclePlan = async (duplicatePath: string, expectedMoves: PatchMove[], sourcePaths: string[]): Promise<void> => {
+export const assertRecyclePlan = async (duplicatePath: string, expectedMoves: PlannedMove[], sourcePaths: string[]): Promise<void> => {
    await assertManagedFolder(duplicatePath);
    const expectedPaths = new Set(expectedMoves.map((move) => pathKey(move.to)));
    const unmanagedCount = sourcePaths.filter((sourcePath) => !expectedPaths.has(pathKey(sourcePath))).length;

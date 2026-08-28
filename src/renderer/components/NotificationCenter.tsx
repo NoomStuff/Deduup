@@ -7,13 +7,7 @@ const NotificationIcon = ({ tone }: { tone: AppNotification["tone"] }) => {
    return <TriangleAlert aria-hidden="true" />;
 };
 
-export const NotificationCenter = ({
-   notifications,
-   onDismiss,
-}: {
-   notifications: AppNotification[];
-   onDismiss: (id: number) => void;
-}) => (
+export const NotificationCenter = ({ notifications, onDismiss }: { notifications: AppNotification[]; onDismiss: (id: number) => void }) => (
    <aside aria-label="Notifications" className="notificationCenter">
       {notifications.map((notification) => (
          <section
@@ -28,7 +22,12 @@ export const NotificationCenter = ({
                <strong>{notification.title}</strong>
                <span>{notification.message}</span>
             </span>
-            <button aria-label={`Dismiss ${notification.title}`} className="notificationToast__dismiss" onClick={() => onDismiss(notification.id)} type="button">
+            <button
+               aria-label={`Dismiss ${notification.title}`}
+               className="notificationToast__dismiss"
+               onClick={() => onDismiss(notification.id)}
+               type="button"
+            >
                <X aria-hidden="true" />
             </button>
          </section>

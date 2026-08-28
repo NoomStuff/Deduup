@@ -1,5 +1,5 @@
 import { ArrowLeft, Flag, HomeIcon, Redo2, Settings, Undo2 } from "lucide-react";
-import type { PatchView } from "../appTypes.js";
+import type { AppView } from "../appTypes.js";
 import type { TooltipProps } from "../hooks/useTooltip.js";
 
 interface ReviewHeaderProps {
@@ -7,9 +7,10 @@ interface ReviewHeaderProps {
    canUndo: boolean;
    currentNumber: string;
    folderName: string;
+   readyToMoveCount: number;
    reviewPercent: number;
    totalSets: number;
-   view: PatchView;
+   view: AppView;
    getTooltipProps: (title: string, body: string, hotkey?: string) => TooltipProps;
    onOpenSettings: () => void;
    onOpenStartup: () => void;
@@ -21,11 +22,14 @@ interface ReviewHeaderProps {
 export const ReviewHeader = (props: ReviewHeaderProps) => (
    <header className="topbar">
       <div className="topbar__identity">
-         <p className="sectionLabel">{props.folderName}</p>
-         <h1>
+         <span className="folderChip" title={props.folderName}>
+            <HomeIcon aria-hidden="true" />
+            {props.folderName}
+         </span>
+         <p className="topbar__counter">
             {props.currentNumber}
             <span>/{props.totalSets}</span>
-         </h1>
+         </p>
       </div>
       <div className="topbar__actions">
          <button
@@ -62,21 +66,22 @@ export const ReviewHeader = (props: ReviewHeaderProps) => (
             className="iconButton"
             onClick={props.onOpenSettings}
             type="button"
-            {...props.getTooltipProps("Settings", "Review behavior and confirmation preferences.")}
+            {...props.getTooltipProps("Settings", "Review behavior, shortcuts, and safety preferences.")}
          >
             <Settings aria-hidden="true" />
          </button>
          <button
-            className="finalStep"
+            className={`finalStep${props.readyToMoveCount > 0 && props.view === "review" ? " finalStep--hot" : ""}`}
             onClick={props.onToggleView}
             type="button"
             {...props.getTooltipProps(
-               props.view === "patch" ? "Back to selection" : "Final review",
-               props.view === "patch" ? "Return to the image sets without moving files." : "Review the files marked for deletion before anything is moved."
+               props.view === "final" ? "Back to review" : "Final review",
+               props.view === "final" ? "Return to the sets. Nothing has moved yet." : "See everything marked for removal before anything moves."
             )}
          >
-            {props.view === "patch" ? <ArrowLeft aria-hidden="true" /> : <Flag aria-hidden="true" />}
-            {props.view === "patch" ? "Back to selection" : "Final review"}
+            {props.view === "final" ? <ArrowLeft aria-hidden="true" /> : <Flag aria-hidden="true" />}
+            {props.view === "final" ? "Back to review" : "Final review"}
+            {props.view === "review" && props.readyToMoveCount > 0 && <span className="finalStep__badge">{props.readyToMoveCount}</span>}
          </button>
       </div>
       <div className="topbar__progress" aria-label={`${props.reviewPercent}% reviewed`}>

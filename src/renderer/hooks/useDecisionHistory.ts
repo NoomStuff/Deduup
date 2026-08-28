@@ -1,9 +1,51 @@
-import { useCallback, useState } from "react";
+import { useCallback, useReducer } from "react";
 import type { Decisions } from "../../shared/types.js";
 
 const historyLimit = 30;
 
-interface DecisionHistory {
+interface HistoryState {
+   decisions: Decisions;
+   undoStack: Decisions[];
+   redoStack: Decisions[];
+}
+
+type HistoryEvent =
+   | { type: "update"; updater: (current: Decisions) => Decisions }
+   | { type: "replace"; decisions: Decisions }
+   | { type: "undo" }
+   | { type: "redo" }
+   | { type: "clearHistory" };
+
+const pushUndo = (state: HistoryState): Pick<HistoryState, "undoStack" | "redoStack"> => ({
+   undoStack: [state.decisions, ...state.undoStack].slice(0, historyLimit),
+   redoStack: [],
+});
+
+const reducer = (state: HistoryState, event: HistoryEvent): HistoryState => {
+   switch (event.type) {
+      case "update": {
+         const next = event.updater(state.decisions);
+         if (next === state.decisions) return state;
+         return { ...state, decisions: next, ...pushUndo(state) };
+      }
+      case "replace":
+         return { decisions: event.decisions, undoStack: [], redoStack: [] };
+      case "undo": {
+         const [previous, ...remaining] = state.undoStack;
+         if (previous === undefined) return state;
+         return { decisions: previous, undoStack: remaining, redoStack: [state.decisions, ...state.redoStack].slice(0, historyLimit) };
+      }
+      case "redo": {
+         const [next, ...remaining] = state.redoStack;
+         if (next === undefined) return state;
+         return { decisions: next, undoStack: [state.decisions, ...state.undoStack].slice(0, historyLimit), redoStack: remaining };
+      }
+      case "clearHistory":
+         return { ...state, undoStack: [], redoStack: [] };
+   }
+};
+
+export const useDecisionHistory = (): {
    decisions: Decisions;
    canUndo: boolean;
    canRedo: boolean;
@@ -12,65 +54,19 @@ interface DecisionHistory {
    clearHistory: () => void;
    undo: () => void;
    redo: () => void;
-}
+} => {
+   const [state, dispatch] = useReducer(reducer, { decisions: {}, undoStack: [], redoStack: [] });
 
-export const useDecisionHistory = (): DecisionHistory => {
-   const [decisions, setDecisions] = useState<Decisions>({});
-   const [undoStack, setUndoStack] = useState<Decisions[]>([]);
-   const [redoStack, setRedoStack] = useState<Decisions[]>([]);
-
-   const updateDecisions = useCallback((updater: (current: Decisions) => Decisions): void => {
-      setDecisions((current) => {
-         const next = updater(current);
-         if (next !== current) {
-            setUndoStack((history) => [current, ...history].slice(0, historyLimit));
-            setRedoStack([]);
-         }
-         return next;
-      });
-   }, []);
-
-   const replaceDecisions = useCallback((next: Decisions): void => {
-      setDecisions(next);
-      setUndoStack([]);
-      setRedoStack([]);
-   }, []);
-
-   const clearHistory = useCallback((): void => {
-      setUndoStack([]);
-      setRedoStack([]);
-   }, []);
-
-   const undo = useCallback((): void => {
-      setUndoStack((history) => {
-         const [previous, ...remaining] = history;
-         if (previous !== undefined) {
-            setDecisions((current) => {
-               setRedoStack((redoHistory) => [current, ...redoHistory].slice(0, historyLimit));
-               return previous;
-            });
-         }
-         return remaining;
-      });
-   }, []);
-
-   const redo = useCallback((): void => {
-      setRedoStack((history) => {
-         const [next, ...remaining] = history;
-         if (next !== undefined) {
-            setDecisions((current) => {
-               setUndoStack((undoHistory) => [current, ...undoHistory].slice(0, historyLimit));
-               return next;
-            });
-         }
-         return remaining;
-      });
-   }, []);
+   const updateDecisions = useCallback((updater: (current: Decisions) => Decisions): void => dispatch({ type: "update", updater }), []);
+   const replaceDecisions = useCallback((decisions: Decisions): void => dispatch({ type: "replace", decisions }), []);
+   const clearHistory = useCallback((): void => dispatch({ type: "clearHistory" }), []);
+   const undo = useCallback((): void => dispatch({ type: "undo" }), []);
+   const redo = useCallback((): void => dispatch({ type: "redo" }), []);
 
    return {
-      decisions,
-      canUndo: undoStack.length > 0,
-      canRedo: redoStack.length > 0,
+      decisions: state.decisions,
+      canUndo: state.undoStack.length > 0,
+      canRedo: state.redoStack.length > 0,
       updateDecisions,
       replaceDecisions,
       clearHistory,

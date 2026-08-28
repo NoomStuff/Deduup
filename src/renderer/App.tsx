@@ -1,7 +1,7 @@
-﻿import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { DragEvent, MouseEvent } from "react";
 import type { FileActionStatus, ImageSet, ImageItem, LoadDataResult, ScanProgress } from "../shared/types.js";
-import type { CompareState, ConfirmAction, ContextMenuKind, ContextMenuState, PatchView, TravelDirection } from "./appTypes.js";
+import type { AppView, CompareState, ConfirmAction, ContextMenuState, TravelDirection } from "./appTypes.js";
 import { CompareOverlay } from "./components/CompareOverlay.js";
 import { ConfirmDialog } from "./components/ConfirmDialog.js";
 import { FinalReview } from "./components/FinalReview.js";
@@ -11,6 +11,7 @@ import { ReviewContextMenu } from "./components/ReviewContextMenu.js";
 import { ReviewHeader } from "./components/ReviewHeader.js";
 import { ReviewWorkspace } from "./components/ReviewWorkspace.js";
 import { SettingsPanel } from "./components/SidePanels.js";
+import { TooltipBubble } from "./components/TooltipBubble.js";
 import { LoadingScreen, ScanningScreen, StartupScreen } from "./components/AppStatusScreens.js";
 import { useDecisionHistory } from "./hooks/useDecisionHistory.js";
 import { useFilmstrip } from "./hooks/useFilmstrip.js";
@@ -22,28 +23,25 @@ import { createReviewActions } from "./reviewActions.js";
 import {
    createConfirmAction,
    emptyImageSetDecision,
-   getAnchoredPosition,
-   getButtonMenuPosition,
-   getContextMenuSize,
    getDecision,
    getDeletedImagePaths,
-   getDetectionNumber,
    getDuplicatePreview,
-   getDroppedFolderPath,
    getFolderName,
    getFileWorkflowState,
    getMovePreview,
-   getPatchPreview,
+   getReviewedSetCount,
    getResumeIndex,
+   getSetNumber,
    getSimilarityBands,
    setImageSetDecision,
 } from "./reviewModel.js";
-import "./styles.css";
+import "./theme.css";
 import "./workflow.css";
 
 const startupPreferenceKey = "show-start-screen-on-startup";
 
 const getStartupPreference = (): boolean => window.localStorage.getItem(startupPreferenceKey) !== "false";
+
 export const App = () => {
    const [groups, setGroups] = useState<ImageSet[]>([]);
    const {
@@ -62,17 +60,19 @@ export const App = () => {
    const [previewImage, setPreviewImage] = useState<ImageItem | null>(null);
    const [comparePick, setComparePick] = useState<ImageItem | null>(null);
    const [compare, setCompare] = useState<CompareState | null>(null);
-   const [view, setView] = useState<PatchView>("review");
+   const [view, setView] = useState<AppView>("review");
    const [duplicateFolderHasContent, setDuplicateFolderHasContent] = useState(false);
    const [lastFileAction, setLastFileAction] = useState<FileActionStatus>("idle");
    const [travelDirection, setTravelDirection] = useState<TravelDirection>("idle");
    const [scanRoot, setScanRoot] = useState<string | null>(null);
+   const [scanningPath, setScanningPath] = useState<string | null>(null);
    const [duplicateFolderPath, setDuplicateFolderPath] = useState<string | null>(null);
    const [isScanning, setIsScanning] = useState(false);
    const [scanProgress, setScanProgress] = useState<ScanProgress | null>(null);
    const [confirmAction, setConfirmAction] = useState<ConfirmAction | null>(null);
    const [isSettingsOpen, setIsSettingsOpen] = useState(false);
    const [contextMenu, setContextMenu] = useState<ContextMenuState | null>(null);
+   const [isDragOver, setIsDragOver] = useState(false);
    const { tooltip, hideTooltip, getTooltipProps } = useTooltip();
    const { notifications, notify, dismissNotification } = useNotifications();
    const [confirmMajorActions, setConfirmMajorActions] = useState(true);
@@ -80,16 +80,17 @@ export const App = () => {
    const [showStartupOnLaunch, setShowStartupOnLaunch] = useState(getStartupPreference);
    const [isStartupOpen, setIsStartupOpen] = useState(getStartupPreference);
    const contextMenuRef = useRef<HTMLDivElement | null>(null);
+   const overlayReturnFocusRef = useRef<HTMLElement | null>(null);
 
-   const currentGroup = groups[currentIndex] ?? null;
-   const currentDecision = currentGroup === null ? emptyImageSetDecision() : getDecision(decisions, currentGroup.id);
-   const patchPreview = useMemo(() => getPatchPreview(groups, decisions), [decisions, groups]);
+   const currentSet = groups[currentIndex] ?? null;
+   const currentDecision = currentSet === null ? emptyImageSetDecision() : getDecision(decisions, currentSet.id);
+   const reviewedSetCount = useMemo(() => getReviewedSetCount(groups, decisions), [decisions, groups]);
    const movePreview = useMemo(() => getMovePreview(groups, decisions), [decisions, groups]);
    const duplicatePreview = useMemo(() => getDuplicatePreview(groups, decisions), [decisions, groups]);
    const fileWorkflow = useMemo(() => getFileWorkflowState(groups, decisions), [decisions, groups]);
    const similarityBands = useMemo(() => getSimilarityBands(groups), [groups]);
-   const selectedImage = currentGroup?.images.find((image) => image.originalPath === selectedImagePath) ?? null;
-   const { edges: filmstripEdges, filmstripRef } = useFilmstrip({
+   const selectedImage = currentSet?.images.find((image) => image.originalPath === selectedImagePath) ?? null;
+   const { fade: filmstripFade, filmstripRef } = useFilmstrip({
       currentIndex,
       groupCount: groups.length,
       isScanning,
@@ -111,16 +112,48 @@ export const App = () => {
       setLastFileAction(result.lastFileAction);
    }, []);
    const {
-      apply: applyPatch,
+      apply: applyMoves,
       clearResults: clearFileResults,
       isApplying,
       isRestoring: isRestoringDuplicate,
       isTrashing: isTrashingDuplicate,
-      patchResult,
+      moveResult,
       restore: restoreDuplicateFolder,
       restoreResult,
       trash: trashDuplicateFolder,
    } = useFileWorkflowActions({ decisions, clearHistory, notify, onRefresh: refreshFileState, reportError });
+
+   const applyScanResult = useCallback(
+      (result: LoadDataResult): void => {
+         setGroups(result.groups);
+         replaceDecisions(result.decisions);
+         setScanRoot(result.scanRoot);
+         setDuplicateFolderPath(result.duplicateFolderPath);
+         setCurrentIndex(0);
+         setSelectedImagePath(null);
+         setView("review");
+         setIsStartupOpen(false);
+         clearFileResults();
+         setDuplicateFolderHasContent(result.duplicateFolderHasContent);
+         setLastFileAction(result.lastFileAction);
+         notify({
+            tone: result.groups.length === 0 ? "info" : "success",
+            title: result.groups.length === 0 ? "Scan complete" : "Duplicate sets ready",
+            message:
+               result.groups.length === 0
+                  ? "No matching image sets were found."
+                  : `Found ${result.groups.length} set${result.groups.length === 1 ? "" : "s"} of similar images.`,
+         });
+         if (result.scanWarningCount > 0) {
+            notify({
+               tone: "warning",
+               title: "Some items were skipped",
+               message: `${result.scanWarningCount} unreadable image or folder${result.scanWarningCount === 1 ? " was" : "s were"} skipped.`,
+            });
+         }
+      },
+      [clearFileResults, notify, replaceDecisions]
+   );
 
    useEffect(() => {
       const api = window.imageDeduplicator;
@@ -130,7 +163,7 @@ export const App = () => {
             replaceDecisions(result.decisions);
             setScanRoot(result.scanRoot);
             setDuplicateFolderPath(result.duplicateFolderPath);
-            setCurrentIndex(getResumeIndex(result.groups, result.currentGroupId));
+            setCurrentIndex(getResumeIndex(result.groups, result.currentSetId));
             setDuplicateFolderHasContent(result.duplicateFolderHasContent);
             setLastFileAction(result.lastFileAction);
          })
@@ -140,8 +173,19 @@ export const App = () => {
 
    useEffect(() => {
       const api = window.imageDeduplicator;
-      return api.onScanProgress(setScanProgress);
-   }, []);
+      const unsubscribeProgress = api.onScanProgress(setScanProgress);
+      const unsubscribeComplete = api.onScanComplete((result) => {
+         applyScanResult(result);
+         setIsScanning(false);
+         setScanningPath(null);
+      });
+      const unsubscribeError = api.onAppError((message) => notify({ tone: "error", title: "Scan failed", message }));
+      return () => {
+         unsubscribeProgress();
+         unsubscribeComplete();
+         unsubscribeError();
+      };
+   }, [applyScanResult, notify]);
 
    useEffect(() => {
       const api = window.imageDeduplicator;
@@ -158,25 +202,41 @@ export const App = () => {
 
    useEffect(() => {
       const api = window.imageDeduplicator;
-      if (loading || currentGroup === null) return undefined;
+      if (loading || currentSet === null) return undefined;
       const timeout = window.setTimeout(() => {
-         void api.saveCurrentGroup(currentGroup.id).catch((unknownError: unknown) => {
+         void api.saveCurrentSet(currentSet.id).catch((unknownError: unknown) => {
             reportError("Position wasn’t saved", unknownError, "Failed to save the current set");
          });
       }, 150);
       return () => window.clearTimeout(timeout);
-   }, [currentGroup, loading, reportError]);
+   }, [currentSet, loading, reportError]);
 
    useEffect(() => {
-      if (currentGroup === null) {
+      if (currentSet === null) {
          setSelectedImagePath(null);
          return;
       }
 
-      if (selectedImagePath !== null && !currentGroup.images.some((image) => image.originalPath === selectedImagePath)) {
+      if (selectedImagePath !== null && !currentSet.images.some((image) => image.originalPath === selectedImagePath)) {
          setSelectedImagePath(null);
       }
-   }, [currentGroup, selectedImagePath]);
+   }, [currentSet, selectedImagePath]);
+
+   const openOverlay = (open: () => void): void => {
+      overlayReturnFocusRef.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+      open();
+   };
+
+   const restoreOverlayFocus = (): void => {
+      const trigger = overlayReturnFocusRef.current;
+      overlayReturnFocusRef.current = null;
+      if (trigger?.isConnected) trigger.focus();
+   };
+
+   const closeContextMenu = useCallback((): void => {
+      setContextMenu(null);
+      restoreOverlayFocus();
+   }, []);
 
    const goTo = useCallback(
       (index: number): void => {
@@ -185,10 +245,10 @@ export const App = () => {
             return;
          }
 
-         if (currentGroup !== null) {
+         if (currentSet !== null) {
             updateDecisions((existing) => {
-               const decision = getDecision(existing, currentGroup.id);
-               return setImageSetDecision(existing, currentGroup.id, { ...decision, seen: true });
+               const decision = getDecision(existing, currentSet.id);
+               return setImageSetDecision(existing, currentSet.id, { ...decision, seen: true });
             });
          }
          setTravelDirection(nextIndex > currentIndex ? "right" : "left");
@@ -198,7 +258,7 @@ export const App = () => {
          setCurrentIndex(nextIndex);
          window.setTimeout(() => setTravelDirection("idle"), 180);
       },
-      [currentGroup, currentIndex, groups, updateDecisions]
+      [currentSet, currentIndex, groups, updateDecisions]
    );
 
    const goToAdjacentSimilarityBand = useCallback(
@@ -224,24 +284,28 @@ export const App = () => {
    );
 
    const {
-      autoCompleteImageSet,
-      autoCompleteSimilarityGroup,
+      autoSelectImageSet,
+      autoSelectBand,
       clearAllChoices,
       clearImageSetChoices,
-      clearSimilarityGroupChoices,
-      deleteImageSet,
-      deleteSimilarityGroup,
-      markSimilarityGroupSeen,
-      toggleImageDeletion,
+      clearSimilarityBandChoices,
+      markImageSet,
+      markSimilarityBand,
+      markSimilarityBandSeen,
+      toggleImageRemoval,
       toggleOnlyImageKept,
    } = createReviewActions({ currentIndex, decisions, groups, goTo, updateDecisions });
 
-   const requestDeleteImageSet = (imageSet: ImageSet): void => {
+   const autoSelectCurrentBand = (): void => {
+      if (currentSet !== null) autoSelectBand(currentSet);
+   };
+
+   const requestMarkImageSet = (imageSet: ImageSet): void => {
       if (confirmMajorActions) {
-         setConfirmAction({ ...createConfirmAction("deleteAll"), groupId: imageSet.id });
+         openOverlay(() => setConfirmAction({ ...createConfirmAction("markSet"), setId: imageSet.id }));
          return;
       }
-      deleteImageSet(imageSet);
+      markImageSet(imageSet);
    };
 
    const confirmClearAllDecisions = (): void => {
@@ -255,7 +319,7 @@ export const App = () => {
    const openFolder = async (folderPath: string): Promise<void> => {
       const api = window.imageDeduplicator;
       try {
-         await api.openGroupFolder(folderPath);
+         await api.openSetFolder(folderPath);
       } catch (unknownError: unknown) {
          reportError("Couldn’t open the folder", unknownError, "Failed to open the folder");
       }
@@ -279,67 +343,56 @@ export const App = () => {
       }
    };
 
-   const autoCompleteCurrentSimilarity = (): void => {
-      if (currentGroup !== null) {
-         autoCompleteSimilarityGroup(currentGroup);
-      }
-   };
-
-   const openContextMenu = (event: MouseEvent, kind: ContextMenuKind, image?: ImageItem, imageSet?: ImageSet): void => {
+   const openImageContextMenu = (event: MouseEvent, image: ImageItem): void => {
+      if (currentSet === null) return;
       event.preventDefault();
       event.stopPropagation();
-      hideTooltip();
-      if (image !== undefined) {
-         setSelectedImagePath(image.originalPath);
-      }
-      const { width, height } = getContextMenuSize(kind);
-      const position = getAnchoredPosition(event.clientX, event.clientY, width, height);
-      setContextMenu({
-         kind,
-         ...position,
-         ...(image === undefined ? {} : { imagePath: image.originalPath }),
-         ...(imageSet === undefined ? {} : { groupId: imageSet.id }),
-      });
-   };
-
-   const openContextMenuFromButton = (event: MouseEvent, kind: ContextMenuKind, imageSet?: ImageSet): void => {
-      const rect = event.currentTarget.getBoundingClientRect();
-      const { width, height } = getContextMenuSize(kind);
-      const position = getButtonMenuPosition(rect, width, height);
-      setContextMenu({ kind, ...position, ...(imageSet === undefined ? {} : { groupId: imageSet.id }) });
-      hideTooltip();
-   };
-
-   const openImageContextMenuFromButton = (event: MouseEvent, image: ImageItem): void => {
-      event.preventDefault();
-      event.stopPropagation();
-      if (currentGroup === null) {
-         return;
-      }
-
       hideTooltip();
       setSelectedImagePath(image.originalPath);
-      const rect = event.currentTarget.getBoundingClientRect();
-      const { width, height } = getContextMenuSize("image");
-      const position = getButtonMenuPosition(rect, width, height);
-      setContextMenu({ kind: "image", imagePath: image.originalPath, groupId: currentGroup.id, ...position });
+      openOverlay(() =>
+         setContextMenu({
+            menuKind: "image",
+            imagePath: image.originalPath,
+            setId: currentSet.id,
+            anchor: { kind: "point", x: event.clientX, y: event.clientY },
+         })
+      );
    };
 
-   const openImageSetContextMenu = (event: MouseEvent, imageSet: ImageSet): void => {
-      openContextMenu(event, "imageSet", undefined, imageSet);
+   const openImageMenuFromBadge = (event: MouseEvent, image: ImageItem): void => {
+      if (currentSet === null) return;
+      event.preventDefault();
+      event.stopPropagation();
+      hideTooltip();
+      setSelectedImagePath(image.originalPath);
+      openOverlay(() =>
+         setContextMenu({
+            menuKind: "image",
+            imagePath: image.originalPath,
+            setId: currentSet.id,
+            anchor: { kind: "rect", rect: event.currentTarget.getBoundingClientRect() },
+         })
+      );
    };
 
-   const getImageIndex = (image: ImageItem): number => currentGroup?.images.findIndex((item) => item.originalPath === image.originalPath) ?? -1;
+   const openSetContextMenu = (event: MouseEvent, imageSet: ImageSet): void => {
+      event.preventDefault();
+      event.stopPropagation();
+      hideTooltip();
+      openOverlay(() => setContextMenu({ menuKind: "imageSet", setId: imageSet.id, anchor: { kind: "point", x: event.clientX, y: event.clientY } }));
+   };
+
+   const getImageIndex = (image: ImageItem): number => currentSet?.images.findIndex((item) => item.originalPath === image.originalPath) ?? -1;
 
    const openAdjacentCompare = (image: ImageItem): void => {
-      if (currentGroup === null || image.sourceStatus !== "available") {
+      if (currentSet === null || image.sourceStatus !== "available") {
          return;
       }
 
       const imageIndex = getImageIndex(image);
       const adjacentImage =
-         currentGroup.images.slice(imageIndex + 1).find((candidate) => candidate.sourceStatus === "available") ??
-         currentGroup.images
+         currentSet.images.slice(imageIndex + 1).find((candidate) => candidate.sourceStatus === "available") ??
+         currentSet.images
             .slice(0, imageIndex)
             .reverse()
             .find((candidate) => candidate.sourceStatus === "available");
@@ -352,7 +405,7 @@ export const App = () => {
    };
 
    const beginCompare = (image: ImageItem): void => {
-      if (currentGroup === null || image.sourceStatus !== "available") {
+      if (currentSet === null || image.sourceStatus !== "available") {
          return;
       }
 
@@ -369,7 +422,7 @@ export const App = () => {
 
    const handleImageClick = (event: MouseEvent, image: ImageItem): void => {
       setSelectedImagePath(image.originalPath);
-      if (currentGroup === null) {
+      if (currentSet === null) {
          return;
       }
 
@@ -385,7 +438,7 @@ export const App = () => {
       }
 
       if (event.shiftKey) {
-         toggleImageDeletion(currentGroup, image, event.ctrlKey);
+         toggleImageRemoval(currentSet, image, event.ctrlKey);
          return;
       }
    };
@@ -393,40 +446,30 @@ export const App = () => {
    const handleImageDoubleClick = (event: MouseEvent, image: ImageItem): void => {
       event.preventDefault();
       event.stopPropagation();
-      if (image.sourceStatus === "missing" || image.sourceStatus === "recycledByApp") {
-         notify({ tone: "warning", title: "Preview unavailable", message: `${image.file} is no longer available on disk.` });
-         return;
-      }
-      setPreviewImage(image);
-   };
-
-   const handleContextMenu = (event: MouseEvent, image: ImageItem): void => {
-      if (currentGroup === null) {
-         return;
-      }
-
-      if (event.altKey) {
-         event.preventDefault();
-         openAdjacentCompare(image);
-         return;
-      }
-
-      if (event.shiftKey) {
-         event.preventDefault();
-         toggleOnlyImageKept(currentGroup, image, event.ctrlKey);
-         return;
-      }
-
-      openContextMenu(event, "image", image, currentGroup);
+      previewImageOf(image);
    };
 
    const handleImageDeleteToggle = (event: MouseEvent, image: ImageItem): void => {
       event.preventDefault();
       event.stopPropagation();
-      if (currentGroup !== null) {
+      if (currentSet !== null) {
          setSelectedImagePath(image.originalPath);
-         toggleImageDeletion(currentGroup, image, event.ctrlKey);
+         toggleImageRemoval(currentSet, image, event.ctrlKey);
       }
+   };
+
+   const previewImageOf = (image: ImageItem): void => {
+      if (image.sourceStatus === "missing" || image.sourceStatus === "recycledByApp") {
+         notify({ tone: "warning", title: "Preview unavailable", message: `${image.file} is no longer available on disk.` });
+         return;
+      }
+      openOverlay(() => setPreviewImage(image));
+   };
+
+   const keepFromFinalReview = (row: { setId: string; originalPath: string }): void => {
+      const imageSet = groups.find((candidate) => candidate.id === row.setId);
+      const image = imageSet?.images.find((candidate) => candidate.originalPath === row.originalPath);
+      if (imageSet !== undefined && image !== undefined) toggleImageRemoval(imageSet, image, false);
    };
 
    useReviewShortcuts({
@@ -434,36 +477,45 @@ export const App = () => {
       compare,
       confirmOpen: confirmAction !== null,
       contextMenuOpen: contextMenu !== null,
-      hasCurrentGroup: currentGroup !== null,
+      hasCurrentSet: currentSet !== null,
       hasSelectedImage: selectedImage !== null,
       previewOpen: previewImage !== null,
-      onAutoCompleteGroup: autoCompleteCurrentSimilarity,
+      onAutoSelectBand: autoSelectCurrentBand,
       onCloseCompare: () => {
          setCompare(null);
          setComparePick(null);
       },
-      onCloseConfirm: () => setConfirmAction(null),
-      onCloseContextMenu: () => setContextMenu(null),
+      onCloseConfirm: () => {
+         setConfirmAction(null);
+         restoreOverlayFocus();
+      },
+      onCloseContextMenu: closeContextMenu,
       onClosePanels: () => {
          setIsSettingsOpen(false);
       },
       onClosePreview: () => setPreviewImage(null),
       onKeepCompareImage: (side) => {
-         if (currentGroup !== null && compare !== null) toggleOnlyImageKept(currentGroup, compare[side], true);
+         if (currentSet !== null && compare !== null) toggleOnlyImageKept(currentSet, compare[side], true);
          setCompare(null);
       },
       onNavigate: (offset) => goTo(currentIndex + offset),
       onNavigateBand: goToAdjacentSimilarityBand,
+      onCompareSelected: () => {
+         if (selectedImage !== null) openAdjacentCompare(selectedImage);
+      },
+      onPreviewSelected: () => {
+         if (selectedImage !== null) setPreviewImage(selectedImage);
+      },
       onRedo: redoLastDecision,
-      onRequestDeleteCurrentSet: () => {
-         if (currentGroup !== null) requestDeleteImageSet(currentGroup);
+      onRequestMarkCurrentSet: () => {
+         if (currentSet !== null) requestMarkImageSet(currentSet);
       },
       onToggleImageAtIndex: (index, advance) => {
-         const image = currentGroup?.images[index];
-         if (currentGroup !== null && image !== undefined) toggleImageDeletion(currentGroup, image, advance);
+         const image = currentSet?.images[index];
+         if (currentSet !== null && image !== undefined) toggleImageRemoval(currentSet, image, advance);
       },
       onToggleSelectedImage: (advance) => {
-         if (currentGroup !== null && selectedImage !== null) toggleImageDeletion(currentGroup, selectedImage, advance);
+         if (currentSet !== null && selectedImage !== null) toggleImageRemoval(currentSet, selectedImage, advance);
       },
       onUndo: undoLastDecision,
    });
@@ -473,6 +525,12 @@ export const App = () => {
       window.addEventListener("pointerdown", onPointerDown);
       return () => window.removeEventListener("pointerdown", onPointerDown);
    }, []);
+
+   // A tooltip shown via keyboard focus must not survive a context change that
+   // rewrites the focused button's label (e.g. review ↔ final review).
+   useEffect(() => {
+      hideTooltip();
+   }, [hideTooltip, isSettingsOpen, isStartupOpen, view]);
 
    useEffect(() => {
       if (contextMenu === null) return undefined;
@@ -498,8 +556,7 @@ export const App = () => {
    const chooseScanFolder = async (): Promise<string | null> => {
       const api = window.imageDeduplicator;
       try {
-         const selectedPath = await api.chooseFolder();
-         return selectedPath;
+         return await api.chooseFolder();
       } catch (unknownError: unknown) {
          reportError("Couldn’t choose a folder", unknownError, "Failed to choose a folder");
          return null;
@@ -511,46 +568,30 @@ export const App = () => {
       if (rootPath === null) return;
 
       setIsScanning(true);
+      setScanningPath(rootPath);
       setScanProgress({ phase: "discovering", completed: 0, total: 0 });
       try {
-         const result = await api.scanFolder({ rootPath });
-         setGroups(result.groups);
-         replaceDecisions(result.decisions);
-         setScanRoot(result.scanRoot);
-         setDuplicateFolderPath(result.duplicateFolderPath);
-         setCurrentIndex(0);
-         setSelectedImagePath(result.groups[0]?.images[0]?.originalPath ?? null);
-         setView("review");
-         clearFileResults();
-         setDuplicateFolderHasContent(result.duplicateFolderHasContent);
-         setLastFileAction(result.lastFileAction);
-         notify({
-            tone: "success",
-            title: result.groups.length === 0 ? "Scan complete" : "Duplicate sets ready",
-            message: result.groups.length === 0 ? "No matching image sets were found." : `Found ${result.groups.length} duplicate set${result.groups.length === 1 ? "" : "s"}.`,
-         });
-         if (result.scanWarningCount > 0) {
-            notify({
-               tone: "warning",
-               title: "Some items were skipped",
-               message: `${result.scanWarningCount} unreadable image or folder${result.scanWarningCount === 1 ? " was" : "s were"} skipped.`,
-            });
-         }
+         applyScanResult(await api.scanFolder({ rootPath }));
       } catch (unknownError: unknown) {
          reportError("Scan failed", unknownError, "Failed to scan the selected folder");
       } finally {
          setIsScanning(false);
+         setScanningPath(null);
       }
    };
 
-   const openNewFolder = async (): Promise<void> => {
-      const selectedPath = await chooseScanFolder();
-      if (selectedPath === null) {
+   const confirmOrScan = (folderPath: string | null): void => {
+      if (folderPath === null) return;
+      if (groups.length > 0 && confirmMajorActions) {
+         openOverlay(() => setConfirmAction(createConfirmAction("switchFolder", folderPath)));
          return;
       }
-
       setIsStartupOpen(false);
-      await startScan(selectedPath);
+      void startScan(folderPath);
+   };
+
+   const openNewFolder = async (): Promise<void> => {
+      confirmOrScan(await chooseScanFolder());
    };
 
    const updateStartupPreference = (checked: boolean): void => {
@@ -558,13 +599,26 @@ export const App = () => {
       window.localStorage.setItem(startupPreferenceKey, String(checked));
    };
 
+   const handleDragOver = (event: DragEvent): void => {
+      event.preventDefault();
+      setIsDragOver(true);
+   };
+
+   const handleDragLeave = (event: DragEvent): void => {
+      if (event.currentTarget === event.target) setIsDragOver(false);
+   };
+
    const handleDrop = (event: DragEvent): void => {
       event.preventDefault();
-      const folderPath = getDroppedFolderPath(event);
-      if (folderPath !== null) {
-         setIsStartupOpen(false);
-         void startScan(folderPath);
+      setIsDragOver(false);
+      const file = event.dataTransfer.files.item(0);
+      if (file === null) return;
+      const folderPath = window.imageDeduplicator.getPathForFile(file);
+      if (folderPath.length === 0) {
+         notify({ tone: "warning", title: "Nothing to scan", message: "Drop a folder from Explorer to scan it." });
+         return;
       }
+      confirmOrScan(folderPath);
    };
 
    const runConfirmAction = (): void => {
@@ -574,16 +628,18 @@ export const App = () => {
 
       const { kind } = confirmAction;
       setConfirmAction(null);
-      if (kind === "deleteAll") {
-         const targetGroup =
-            confirmAction.groupId === undefined ? currentGroup : (groups.find((imageSet) => imageSet.id === confirmAction.groupId) ?? currentGroup);
-         if (targetGroup !== null) {
-            deleteImageSet(targetGroup);
+      if (kind === "markSet") {
+         const targetSet = confirmAction.setId === undefined ? currentSet : (groups.find((imageSet) => imageSet.id === confirmAction.setId) ?? currentSet);
+         if (targetSet !== null) {
+            markImageSet(targetSet);
          }
       } else if (kind === "clearAll") {
          confirmClearAllDecisions();
       } else if (kind === "trashDuplicate") {
          void trashDuplicateFolder();
+      } else if (kind === "switchFolder") {
+         setIsStartupOpen(false);
+         void startScan(confirmAction.folderPath);
       } else {
          setIsStartupOpen(false);
          void startScan();
@@ -602,23 +658,27 @@ export const App = () => {
    if (isScanning) {
       return (
          <>
-            <ScanningScreen progress={scanProgress} />
+            <ScanningScreen folderName={getFolderName(scanningPath)} folderPath={scanningPath} progress={scanProgress} />
             <NotificationCenter notifications={notifications} onDismiss={dismissNotification} />
          </>
       );
    }
 
-   if (isStartupOpen || currentGroup === null) {
+   if (isStartupOpen || currentSet === null) {
       return (
          <>
             <StartupScreen
                canRescan={scanRoot !== null}
                hasSavedReview={groups.length > 0}
+               savedSetCount={groups.length}
+               isDragOver={isDragOver}
                onContinue={() => setIsStartupOpen(false)}
+               onDragLeave={handleDragLeave}
+               onDragOver={handleDragOver}
                onDrop={handleDrop}
                onOpenFolder={() => void openNewFolder()}
                onRescan={() => {
-                  if (confirmMajorActions) setConfirmAction(createConfirmAction("rescan"));
+                  if (confirmMajorActions) openOverlay(() => setConfirmAction(createConfirmAction("rescan")));
                   else {
                      setIsStartupOpen(false);
                      void startScan();
@@ -627,74 +687,77 @@ export const App = () => {
                onShowOnLaunchChange={updateStartupPreference}
                showOnLaunch={showStartupOnLaunch}
             />
-            {confirmAction !== null && <ConfirmDialog action={confirmAction} onCancel={() => setConfirmAction(null)} onConfirm={runConfirmAction} />}
+            {confirmAction !== null && (
+               <ConfirmDialog
+                  action={confirmAction}
+                  onCancel={() => {
+                     setConfirmAction(null);
+                     restoreOverlayFocus();
+                  }}
+                  onConfirm={runConfirmAction}
+               />
+            )}
             <NotificationCenter notifications={notifications} onDismiss={dismissNotification} />
          </>
       );
    }
 
-   const totalGroups = groups.length;
-   const reviewedGroups = patchPreview.reviewedImageSets;
-   const reviewProgress = totalGroups === 0 ? 0 : reviewedGroups / totalGroups;
-   const reviewPercent = Math.round(reviewProgress * 100);
+   const reviewPercent = groups.length === 0 ? 0 : Math.round((reviewedSetCount / groups.length) * 100);
    const folderName = getFolderName(scanRoot);
    const duplicateDestination = duplicateFolderPath ?? "No managed duplicate folder";
-   const contextImageSet = contextMenu?.groupId === undefined ? currentGroup : (groups.find((imageSet) => imageSet.id === contextMenu.groupId) ?? currentGroup);
-   const contextImageSetDecision = getDecision(decisions, contextImageSet.id);
+   const contextSet = contextMenu?.setId === undefined ? currentSet : (groups.find((imageSet) => imageSet.id === contextMenu.setId) ?? currentSet);
+   const contextSetDecision = getDecision(decisions, contextSet.id);
    const contextImage =
-      contextMenu?.imagePath === undefined
-         ? selectedImage
-         : (contextImageSet.images.find((image) => image.originalPath === contextMenu.imagePath) ?? selectedImage);
-   const contextDeletedPaths = getDeletedImagePaths(contextImageSetDecision);
+      contextMenu?.imagePath === undefined ? selectedImage : (contextSet.images.find((image) => image.originalPath === contextMenu.imagePath) ?? selectedImage);
+   const contextDeletedPaths = getDeletedImagePaths(contextSetDecision);
    const contextImageIsDeleted = contextImage === null ? false : contextDeletedPaths.has(contextImage.originalPath);
    const contextOnlyImageKept =
       contextImage !== null &&
       !contextImageIsDeleted &&
-      contextImageSet.images.every((image) => image.originalPath === contextImage.originalPath || contextDeletedPaths.has(image.originalPath));
-
+      contextSet.images.every((image) => image.originalPath === contextImage.originalPath || contextDeletedPaths.has(image.originalPath));
    return (
       <main className={`shell${wrapImageShelf ? " shell--wrapShelf" : ""}`}>
          <ReviewHeader
             canRedo={canRedo}
             canUndo={canUndo}
-            currentNumber={getDetectionNumber(currentGroup.id)}
+            currentNumber={getSetNumber(currentSet.id)}
             folderName={folderName}
+            readyToMoveCount={fileWorkflow.readyToMoveCount}
+            reviewPercent={reviewPercent}
+            totalSets={groups.length}
+            view={view}
             getTooltipProps={getTooltipProps}
-            onOpenSettings={() => setIsSettingsOpen(true)}
+            onOpenSettings={() => openOverlay(() => setIsSettingsOpen(true))}
             onOpenStartup={() => {
                setIsSettingsOpen(false);
                setIsStartupOpen(true);
             }}
             onRedo={redoLastDecision}
-            onToggleView={() => setView(view === "review" ? "patch" : "review")}
+            onToggleView={() => setView(view === "review" ? "final" : "review")}
             onUndo={undoLastDecision}
-            reviewPercent={reviewPercent}
-            totalSets={groups.length}
-            view={view}
          />
 
          {view === "review" ? (
             <ReviewWorkspace
                comparePick={comparePick}
                currentDecision={currentDecision}
-               currentGroup={currentGroup}
+               currentSet={currentSet}
                currentIndex={currentIndex}
                decisions={decisions}
-               filmstripEdges={filmstripEdges}
                filmstripRef={filmstripRef}
+               filmstripFade={filmstripFade}
                getTooltipProps={getTooltipProps}
-               onImageBadgeClick={openImageContextMenuFromButton}
-               onImageClick={handleImageClick}
-               onImageContextMenu={handleContextMenu}
-               onImageDoubleClick={handleImageDoubleClick}
-               onImageSetContextMenu={openImageSetContextMenu}
-               onImageToggleDelete={handleImageDeleteToggle}
-               onNavigate={goTo}
-               onOpenContextMenu={openContextMenu}
-               onOpenContextMenuFromButton={openContextMenuFromButton}
                selectedImagePath={selectedImagePath}
                similarityBands={similarityBands}
                travelDirection={travelDirection}
+               onImageBadgeClick={openImageMenuFromBadge}
+               onImageClick={handleImageClick}
+               onImageContextMenu={openImageContextMenu}
+               onImageDoubleClick={handleImageDoubleClick}
+               onImageSetContextMenu={openSetContextMenu}
+               onImageToggleDelete={handleImageDeleteToggle}
+               onNavigate={goTo}
+               onOpenContextMenu={(state) => openOverlay(() => setContextMenu(state))}
             />
          ) : (
             <FinalReview
@@ -707,11 +770,12 @@ export const App = () => {
                isTrashing={isTrashingDuplicate}
                lastFileAction={lastFileAction}
                movePreview={movePreview}
-               onApply={() => void applyPatch()}
-               onOpenFolder={() => void openFolder(currentGroup.folderPath)}
+               moveResult={moveResult}
+               onApply={() => void applyMoves()}
+               onKeepImage={keepFromFinalReview}
+               onOpenFolder={() => void openFolder(currentSet.folderPath)}
                onRestore={() => void restoreDuplicateFolder()}
-               onTrash={() => (confirmMajorActions ? setConfirmAction(createConfirmAction("trashDuplicate")) : void trashDuplicateFolder())}
-               patchResult={patchResult}
+               onTrash={() => (confirmMajorActions ? openOverlay(() => setConfirmAction(createConfirmAction("trashDuplicate"))) : void trashDuplicateFolder())}
                restoreResult={restoreResult}
                workflow={fileWorkflow}
             />
@@ -720,8 +784,11 @@ export const App = () => {
          {isSettingsOpen && (
             <SettingsPanel
                confirmMajorActions={confirmMajorActions}
-               onClear={() => setConfirmAction(createConfirmAction("clearAll"))}
-               onClose={() => setIsSettingsOpen(false)}
+               onClear={() => openOverlay(() => setConfirmAction(createConfirmAction("clearAll")))}
+               onClose={() => {
+                  setIsSettingsOpen(false);
+                  restoreOverlayFocus();
+               }}
                onConfirmChange={setConfirmMajorActions}
                onStartupChange={updateStartupPreference}
                onWrapChange={setWrapImageShelf}
@@ -736,49 +803,58 @@ export const App = () => {
                image={contextImage}
                imageIsDeleted={contextImageIsDeleted}
                menuRef={contextMenuRef}
-               onAutoCompleteImageSet={() => autoCompleteImageSet(contextImageSet)}
-               onAutoCompleteSimilarityGroup={() => autoCompleteSimilarityGroup(contextImageSet)}
+               onAutoSelectImageSet={() => autoSelectImageSet(contextSet)}
+               onAutoSelectBand={() => autoSelectBand(contextSet)}
                onBeginCompare={() => {
                   if (contextImage !== null) beginCompare(contextImage);
                }}
-               onClearImageSet={() => clearImageSetChoices(contextImageSet)}
-               onClearSimilarityGroup={() => clearSimilarityGroupChoices(contextImageSet)}
-               onClose={() => setContextMenu(null)}
-               onDeleteImageSet={() => requestDeleteImageSet(contextImageSet)}
-               onDeleteSimilarityGroup={() => deleteSimilarityGroup(contextImageSet)}
-               onMarkSimilarityGroupSeen={() => markSimilarityGroupSeen(contextImageSet)}
+               onClearImageSet={() => clearImageSetChoices(contextSet)}
+               onClearBand={() => clearSimilarityBandChoices(contextSet)}
+               onClose={closeContextMenu}
+               onMarkImageSet={() => requestMarkImageSet(contextSet)}
+               onMarkBand={() => markSimilarityBand(contextSet)}
+               onMarkBandSeen={() => markSimilarityBandSeen(contextSet)}
                onOpenImage={() => {
                   if (contextImage !== null) void openImage(contextImage);
+               }}
+               onPreviewImage={() => {
+                  if (contextImage !== null) previewImageOf(contextImage);
                }}
                onShowImage={() => {
                   if (contextImage !== null) void showImage(contextImage);
                }}
                onToggleImage={() => {
-                  if (contextImage !== null) toggleImageDeletion(contextImageSet, contextImage, false);
+                  if (contextImage !== null) toggleImageRemoval(contextSet, contextImage, false);
                }}
                onToggleOtherImages={() => {
-                  if (contextImage !== null) toggleOnlyImageKept(contextImageSet, contextImage, false);
+                  if (contextImage !== null) toggleOnlyImageKept(contextSet, contextImage, false);
                }}
                onlyImageIsKept={contextOnlyImageKept}
             />
          )}
 
-         {tooltip !== null && (
-            <div className={`tooltipBubble tooltipBubble--${tooltip.placement}`} style={{ left: tooltip.x, top: tooltip.y }} role="tooltip">
-               <strong>{tooltip.title}</strong>
-               <span>{tooltip.body}</span>
-               {tooltip.hotkey !== undefined && <kbd>{tooltip.hotkey}</kbd>}
-            </div>
-         )}
+         {tooltip !== null && <TooltipBubble tooltip={tooltip} />}
 
-         {confirmAction !== null && <ConfirmDialog action={confirmAction} onCancel={() => setConfirmAction(null)} onConfirm={runConfirmAction} />}
+         {confirmAction !== null && (
+            <ConfirmDialog
+               action={confirmAction}
+               onCancel={() => {
+                  setConfirmAction(null);
+                  restoreOverlayFocus();
+               }}
+               onConfirm={runConfirmAction}
+            />
+         )}
 
          {compare !== null && (
             <CompareOverlay
                compare={compare}
-               onClose={() => setCompare(null)}
+               onClose={() => {
+                  setCompare(null);
+                  setComparePick(null);
+               }}
                onKeep={(image) => {
-                  toggleOnlyImageKept(currentGroup, image, false);
+                  toggleOnlyImageKept(currentSet, image, false);
                   setCompare(null);
                }}
             />

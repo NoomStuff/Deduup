@@ -39,3 +39,9 @@ Use these terms consistently in code, UI, tests, and documentation. Avoid callin
 Every feature should make review or deduplication faster, easier, or more trustworthy. This is not a general photo manager.
 
 Prefer clean, minimal, strictly typed changes that preserve intentional flows. Keep the design extensible when there is a concrete need, but do not introduce abstraction for its own sake. Performance must scale to large libraries without freezing the workflow or compromising detection quality.
+
+## Verifying changes
+
+Agents should always run `bun run test` (typecheck plus unit tests) and `bun run lint` before claiming an outcome. For anything that touches the renderer, run `bun run test:ui` as well: it builds the app, launches it in Electron against an isolated profile, generates a deterministic fixture library (`scripts/makeFixtures.mjs`), and walks the core flows through the real DOM. Screenshots from that run land in `.cache/ui-smoke/` — inspect them when a change is visual.
+
+To explore the app manually without touching real scan data, launch the built app with `--user-data-dir=<isolated folder>` plus `--scan=<folder>` (and `IMAGE_DEDUPLICATOR_PROD=1` when running from sources); the scan hook starts the scan without the native folder dialog. Never point a test scan at the real `%APPDATA%` profile: a scan replaces all saved review choices.

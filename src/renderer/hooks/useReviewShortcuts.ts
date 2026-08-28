@@ -2,6 +2,7 @@ import { useEffect } from "react";
 import type { CompareState } from "../appTypes.js";
 
 const editableTargetSelector = "input,textarea,select,[contenteditable='true']";
+const activatableTargetSelector = "button,a,input,textarea,select,[contenteditable='true'],[role='menuitem']";
 
 const isEditableShortcut = (event: KeyboardEvent): boolean => {
    const editable = event.target instanceof HTMLElement && event.target.closest(editableTargetSelector) !== null;
@@ -10,15 +11,18 @@ const isEditableShortcut = (event: KeyboardEvent): boolean => {
    return !((event.ctrlKey || event.metaKey) && (key === "z" || key === "y"));
 };
 
+const isOnActivatableControl = (event: KeyboardEvent): boolean =>
+   event.target instanceof HTMLElement && event.target.closest(activatableTargetSelector) !== null;
+
 interface ReviewShortcuts {
    blocked: boolean;
    compare: CompareState | null;
    confirmOpen: boolean;
    contextMenuOpen: boolean;
-   hasCurrentGroup: boolean;
+   hasCurrentSet: boolean;
    hasSelectedImage: boolean;
    previewOpen: boolean;
-   onAutoCompleteGroup: () => void;
+   onAutoSelectBand: () => void;
    onCloseCompare: () => void;
    onCloseConfirm: () => void;
    onCloseContextMenu: () => void;
@@ -27,8 +31,10 @@ interface ReviewShortcuts {
    onKeepCompareImage: (side: "left" | "right") => void;
    onNavigate: (offset: number) => void;
    onNavigateBand: (direction: -1 | 1) => void;
+   onPreviewSelected: () => void;
+   onCompareSelected: () => void;
    onRedo: () => void;
-   onRequestDeleteCurrentSet: () => void;
+   onRequestMarkCurrentSet: () => void;
    onToggleImageAtIndex: (index: number, advance: boolean) => void;
    onToggleSelectedImage: (advance: boolean) => void;
    onUndo: () => void;
@@ -90,16 +96,22 @@ export const useReviewShortcuts = (options: ReviewShortcuts): void => {
          } else if (event.key === "ArrowRight" || event.key === " " || key === "d") {
             event.preventDefault();
             options.onNavigate(1);
-         } else if (key === "x" && options.hasCurrentGroup) {
+         } else if (key === "x" && options.hasCurrentSet) {
             event.preventDefault();
-            options.onRequestDeleteCurrentSet();
-         } else if (key === "v") {
+            options.onRequestMarkCurrentSet();
+         } else if (key === "v" && options.hasCurrentSet) {
             event.preventDefault();
-            options.onAutoCompleteGroup();
+            options.onAutoSelectBand();
+         } else if (key === "c" && options.hasSelectedImage) {
+            event.preventDefault();
+            options.onCompareSelected();
+         } else if (event.key === "Enter" && options.hasSelectedImage && !isOnActivatableControl(event)) {
+            event.preventDefault();
+            options.onPreviewSelected();
          } else if ((event.key === "Delete" || event.key === "Backspace") && options.hasSelectedImage) {
             event.preventDefault();
             options.onToggleSelectedImage(event.ctrlKey);
-         } else if (/^[1-9]$/u.test(event.key) && options.hasCurrentGroup) {
+         } else if (/^[1-9]$/u.test(event.key) && options.hasCurrentSet) {
             event.preventDefault();
             options.onToggleImageAtIndex(Number.parseInt(event.key, 10) - 1, event.ctrlKey);
          }

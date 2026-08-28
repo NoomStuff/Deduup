@@ -40,7 +40,10 @@ export const useNotifications = (): {
          setNotifications((current) => [...current.slice(-3), notification]);
          const timeoutMs = input.timeoutMs ?? (input.tone === "error" ? 9_000 : 5_000);
          if (timeoutMs > 0) {
-            timersRef.current.set(id, window.setTimeout(() => dismissNotification(id), timeoutMs));
+            timersRef.current.set(
+               id,
+               window.setTimeout(() => dismissNotification(id), timeoutMs)
+            );
          }
       },
       [dismissNotification]

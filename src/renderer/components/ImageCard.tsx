@@ -30,10 +30,10 @@ export const ImageCard = memo(function ImageCard({
 }) {
    const isMutable = image.sourceStatus === "available";
    const unavailableTitle =
-      image.sourceStatus === "movedByApp" ? "Moved by the app" : image.sourceStatus === "recycledByApp" ? "Moved to the Recycle Bin" : "Source unavailable";
+      image.sourceStatus === "movedByApp" ? "In the duplicate folder" : image.sourceStatus === "recycledByApp" ? "Recycled" : "Source unavailable";
    const unavailableDescription =
       image.sourceStatus === "movedByApp"
-         ? "Stored in the duplicate folder"
+         ? "Moved here by the app — undoable"
          : image.sourceStatus === "recycledByApp"
            ? "The duplicate folder was recycled"
            : "Couldn’t find the original file";
@@ -49,18 +49,19 @@ export const ImageCard = memo(function ImageCard({
             {index + 1}
          </button>
          <button
-            aria-label={state === "deleted" ? `Restore ${image.file}` : `Mark ${image.file} for deletion`}
+            aria-label={state === "deleted" ? `Keep ${image.file}` : `Mark ${image.file} for removal`}
             className="imageCard__deleteToggle"
             disabled={!isMutable}
             onClick={(event) => onToggleDelete(event, image)}
             type="button"
+            title={state === "deleted" ? "Keep this image" : "Mark for removal"}
          >
             <Trash2 aria-hidden="true" />
          </button>
-         {isComparePick && <span className="imageCard__compareCount">1/2 selected</span>}
+         {isComparePick && <span className="imageCard__chip imageCard__chip--compare">1/2 picked</span>}
          {state === "deleted" && image.sourceStatus === "available" && (
-            <span className="imageCard__reviewState">
-               <Trash2 aria-hidden="true" /> Marked for deletion
+            <span className="imageCard__chip imageCard__chip--marked">
+               <Trash2 aria-hidden="true" /> Marked
             </span>
          )}
          {image.sourceStatus === "available" ? (
@@ -73,9 +74,9 @@ export const ImageCard = memo(function ImageCard({
             </div>
          )}
          <span className="imageCard__meta">
-            <strong>{image.file}</strong>
+            <strong title={image.file}>{image.file}</strong>
             <span>
-               {image.width}x{image.height} / {formatBytes(image.size)}
+               {image.width}x{image.height} · {formatBytes(image.size)}
             </span>
          </span>
       </article>

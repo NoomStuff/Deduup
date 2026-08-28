@@ -12,7 +12,7 @@ const typedTypeCheckedConfigs = [...tseslint.configs.strictTypeChecked, ...tsesl
 
 export default tseslint.config(
    {
-      ignores: [".cache", "dist", "dist-electron", "release", "node_modules"],
+      ignores: [".cache", "dist", "dist-electron", "dist-test", "release", "node_modules"],
    },
    js.configs.recommended,
    ...typedTypeCheckedConfigs,
@@ -64,7 +64,10 @@ export default tseslint.config(
    {
       files: ["scripts/**/*.mjs"],
       languageOptions: {
-         globals: globals.node,
+         globals: { ...globals.node, ...globals.browser },
+      },
+      rules: {
+         "no-console": "off",
       },
    },
    prettierConfig

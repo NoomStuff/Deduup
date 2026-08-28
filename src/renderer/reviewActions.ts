@@ -1,12 +1,5 @@
 import type { Decisions, ImageItem, ImageSet, ImageSetDecision } from "../shared/types.js";
-import {
-   getAutoPick,
-   getDecision,
-   getDeletedImagePaths,
-   getImageSetDecision,
-   getSimilarityLabel,
-   setImageSetDecision,
-} from "./reviewModel.js";
+import { getDecision, getDeletedImagePaths, getImageSetDecision, getLargestImage, getSimilarityLabel, setImageSetDecision } from "./reviewModel.js";
 
 interface ReviewActionOptions {
    currentIndex: number;
@@ -16,11 +9,11 @@ interface ReviewActionOptions {
    updateDecisions: (updater: (current: Decisions) => Decisions) => void;
 }
 
-const availableImagesDecision = (imageSet: ImageSet, source: Decisions, markForDeletion: boolean): ImageSetDecision => {
+const availableImagesDecision = (imageSet: ImageSet, source: Decisions, markForRemoval: boolean): ImageSetDecision => {
    const deletedPaths = getDeletedImagePaths(getDecision(source, imageSet.id));
    for (const image of imageSet.images) {
       if (image.sourceStatus !== "available") continue;
-      if (markForDeletion) deletedPaths.add(image.originalPath);
+      if (markForRemoval) deletedPaths.add(image.originalPath);
       else deletedPaths.delete(image.originalPath);
    }
    return getImageSetDecision(imageSet, deletedPaths, true);
@@ -37,7 +30,7 @@ const clearedDecision = (imageSet: ImageSet, source: Decisions): ImageSetDecisio
 const autoSelectedDecision = (imageSet: ImageSet, source: Decisions): ImageSetDecision => {
    const availableImages = imageSet.images.filter((image) => image.sourceStatus === "available");
    if (availableImages.length === 0) return availableImagesDecision(imageSet, source, false);
-   const pick = getAutoPick({ ...imageSet, images: availableImages });
+   const pick = getLargestImage({ ...imageSet, images: availableImages });
    const deletedPaths = getDeletedImagePaths(getDecision(source, imageSet.id));
    for (const image of availableImages) {
       if (image.originalPath === pick.originalPath) deletedPaths.delete(image.originalPath);
@@ -59,16 +52,12 @@ export const createReviewActions = ({ currentIndex, decisions, groups, goTo, upd
       window.requestAnimationFrame(() => goTo((index === -1 ? currentIndex : index) + 1));
    };
 
-   const updateDeletedPaths = (
-      imageSet: ImageSet,
-      getNext: (existing: Set<string>) => Set<string>,
-      advance: boolean
-   ): void => {
+   const updateDeletedPaths = (imageSet: ImageSet, getNext: (existing: Set<string>) => Set<string>, advance: boolean): void => {
       decide(imageSet, getImageSetDecision(imageSet, getNext(getDeletedImagePaths(getDecision(decisions, imageSet.id))), true));
       if (advance) advanceFromImageSet(imageSet);
    };
 
-   const toggleImageDeletion = (imageSet: ImageSet, image: ImageItem, advance: boolean): void => {
+   const toggleImageRemoval = (imageSet: ImageSet, image: ImageItem, advance: boolean): void => {
       if (image.sourceStatus !== "available") return;
       updateDeletedPaths(
          imageSet,
@@ -101,11 +90,8 @@ export const createReviewActions = ({ currentIndex, decisions, groups, goTo, upd
       );
    };
 
-   const updateSimilarityGroup = (
-      baseGroup: ImageSet,
-      getNext: (imageSet: ImageSet, source: Decisions) => ImageSetDecision
-   ): void => {
-      const similarity = getSimilarityLabel(baseGroup.similarity);
+   const updateSimilarityBand = (baseSet: ImageSet, getNext: (imageSet: ImageSet, source: Decisions) => ImageSetDecision): void => {
+      const similarity = getSimilarityLabel(baseSet.similarity);
       updateDecisions((existing) =>
          groups.reduce(
             (next, imageSet) =>
@@ -115,29 +101,27 @@ export const createReviewActions = ({ currentIndex, decisions, groups, goTo, upd
       );
    };
 
-   const autoCompleteSimilarityGroup = (baseGroup: ImageSet): void => {
-      const similarity = getSimilarityLabel(baseGroup.similarity);
+   const autoSelectBand = (baseSet: ImageSet): void => {
+      const similarity = getSimilarityLabel(baseSet.similarity);
       const indexes = groups.flatMap((imageSet, index) => (getSimilarityLabel(imageSet.similarity) === similarity ? [index] : []));
-      updateSimilarityGroup(baseGroup, autoSelectedDecision);
+      updateSimilarityBand(baseSet, autoSelectedDecision);
       const lastIndex = indexes.at(-1) ?? currentIndex;
       if (lastIndex >= currentIndex && lastIndex + 1 < groups.length) window.setTimeout(() => goTo(lastIndex + 1), 80);
    };
 
    return {
       advanceFromImageSet,
-      autoCompleteImageSet: (imageSet: ImageSet): void => decide(imageSet, autoSelectedDecision(imageSet, decisions)),
-      autoCompleteSimilarityGroup,
+      autoSelectImageSet: (imageSet: ImageSet): void => decide(imageSet, autoSelectedDecision(imageSet, decisions)),
+      autoSelectBand,
       clearAllChoices: (): void =>
          updateDecisions((existing) => groups.reduce((next, imageSet) => setImageSetDecision(next, imageSet.id, clearedDecision(imageSet, next)), existing)),
       clearImageSetChoices: (imageSet: ImageSet): void =>
          updateDecisions((existing) => setImageSetDecision(existing, imageSet.id, clearedDecision(imageSet, existing))),
-      clearSimilarityGroupChoices: (imageSet: ImageSet): void => updateSimilarityGroup(imageSet, clearedDecision),
-      deleteImageSet: (imageSet: ImageSet): void => decide(imageSet, availableImagesDecision(imageSet, decisions, true)),
-      deleteSimilarityGroup: (imageSet: ImageSet): void =>
-         updateSimilarityGroup(imageSet, (set, source) => availableImagesDecision(set, source, true)),
-      markSimilarityGroupSeen: (imageSet: ImageSet): void =>
-         updateSimilarityGroup(imageSet, seenDecision),
-      toggleImageDeletion,
+      clearSimilarityBandChoices: (imageSet: ImageSet): void => updateSimilarityBand(imageSet, clearedDecision),
+      markImageSet: (imageSet: ImageSet): void => decide(imageSet, availableImagesDecision(imageSet, decisions, true)),
+      markSimilarityBand: (imageSet: ImageSet): void => updateSimilarityBand(imageSet, (set, source) => availableImagesDecision(set, source, true)),
+      markSimilarityBandSeen: (imageSet: ImageSet): void => updateSimilarityBand(imageSet, seenDecision),
+      toggleImageRemoval,
       toggleOnlyImageKept,
    };
 };

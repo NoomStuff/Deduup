@@ -69,12 +69,22 @@ test("always discovers supported images in nested folders", async () => {
    }
 });
 
-test("keeps connected matches when the group average is above 20", async () => {
+test("splits chains that average beyond the similarity cap", async () => {
    const images = [0n, (1n << 13n) - 1n, (1n << 26n) - 1n, (1n << 39n) - 1n].map(createImage);
    const groups = await groupImages(images, () => undefined);
+   assert.equal(groups.flatMap((group) => group.images).length, images.length);
+   for (const group of groups) {
+      assert.ok(group.images.length >= 2);
+      assert.ok(group.similarity <= 13, `group averaged ${group.similarity}`);
+   }
+});
+
+test("keeps groups whose average stays within the similarity cap", async () => {
+   const images = [0n, (1n << 12n) - 1n, ((1n << 6n) - 1n) | (((1n << 6n) - 1n) << 12n)].map(createImage);
+   const groups = await groupImages(images, () => undefined);
    assert.equal(groups.length, 1);
-   assert.equal(groups[0]?.images.length, images.length);
-   assert.ok((groups[0]?.similarity ?? 0) > 20);
+   assert.equal(groups[0]?.images.length, 3);
+   assert.ok((groups[0]?.similarity ?? 0) <= 13);
 });
 
 test("finds every match inside the distance threshold", async () => {

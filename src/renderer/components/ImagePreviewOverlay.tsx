@@ -19,7 +19,7 @@ export const ImagePreviewOverlay = ({ image, onClose, onOpenFolder }: ImagePrevi
          <section aria-labelledby="image-preview-title" aria-modal="true" className="imagePreviewDialog" role="dialog">
             <header className="imagePreviewDialog__header">
                <div>
-                  <p className="sectionLabel">Image preview</p>
+                  <p className="overlayLabel">Image preview</p>
                   <h2 id="image-preview-title" title={image.file}>
                      {image.file}
                   </h2>
@@ -44,7 +44,9 @@ export const ImagePreviewOverlay = ({ image, onClose, onOpenFolder }: ImagePrevi
                </div>
                <div>
                   <dt>Source</dt>
-                  <dd>{image.sourceStatus === "available" ? "Original folder" : image.sourceStatus === "movedByApp" ? "Managed duplicate folder" : "Unavailable"}</dd>
+                  <dd>
+                     {image.sourceStatus === "available" ? "Original folder" : image.sourceStatus === "movedByApp" ? "Managed duplicate folder" : "Unavailable"}
+                  </dd>
                </div>
                <div className="imagePreviewDialog__location">
                   <dt>Folder</dt>
