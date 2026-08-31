@@ -1,0 +1,66 @@
+.tooltipBubble {
+   position: fixed;
+   z-index: 90;
+   display: grid;
+   gap: 3px;
+   justify-items: start;
+   width: max-content;
+   max-width: 260px;
+   border: 1px solid var(--line-strong);
+   border-radius: var(--radius-md);
+   background: rgba(10, 13, 20, 0.97);
+   box-shadow: var(--shadow);
+   padding: 10px 12px;
+   pointer-events: none;
+   animation: tooltip-in 130ms var(--ease-out);
+}
+
+@keyframes tooltip-in {
+   from {
+      opacity: 0;
+   }
+}
+
+.tooltipBubble--measuring {
+   visibility: hidden;
+}
+
+/* The arrow rides the edge facing the trigger and slides with it. */
+
+.tooltipBubble::after {
+   content: "";
+   position: absolute;
+   left: calc(var(--arrow-x, 50%) - 6px);
+   width: 11px;
+   height: 11px;
+   background: rgba(10, 13, 20, 0.97);
+   transform: rotate(45deg);
+}
+
+.tooltipBubble--below::after {
+   top: -6px;
+   border-left: 1px solid var(--line-strong);
+   border-top: 1px solid var(--line-strong);
+}
+
+.tooltipBubble--above::after {
+   bottom: -6px;
+   border-right: 1px solid var(--line-strong);
+   border-bottom: 1px solid var(--line-strong);
+}
+
+.tooltipBubble strong {
+   font-size: 12.5px;
+   font-weight: 700;
+   color: var(--text-strong);
+}
+
+.tooltipBubble span {
+   color: var(--muted);
+   font-size: 12px;
+   line-height: 1.45;
+}
+
+.tooltipBubble kbd {
+   margin-top: 3px;
+}

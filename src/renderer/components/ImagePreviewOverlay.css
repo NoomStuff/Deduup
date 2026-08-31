@@ -1,0 +1,105 @@
+.imagePreviewOverlay {
+   z-index: 70;
+}
+
+.imagePreviewOverlay__backdrop {
+   background: rgba(5, 7, 12, 0.88);
+   backdrop-filter: blur(8px);
+}
+
+.imagePreviewDialog {
+   display: grid;
+   grid-template-rows: auto 1fr auto;
+   width: min(1100px, 92vw);
+   height: min(860px, 92vh);
+   border: 2px solid var(--line-strong);
+   border-radius: var(--radius-lg);
+   background: rgba(var(--surface-rgb), 0.96);
+   box-shadow: var(--shadow);
+   overflow: hidden;
+}
+
+.imagePreviewDialog__header {
+   display: flex;
+   align-items: center;
+   justify-content: space-between;
+   gap: 14px;
+   border-bottom: 1px solid var(--line);
+   padding: 14px 18px;
+}
+
+.imagePreviewDialog__header h2 {
+   margin: 1px 0 0;
+   overflow: hidden;
+   font-size: 16px;
+   font-weight: 700;
+   white-space: nowrap;
+   text-overflow: ellipsis;
+}
+
+.imagePreviewDialog__stage {
+   display: grid;
+   place-items: center;
+   min-height: 0;
+   margin: 0;
+   background: rgba(5, 7, 12, 0.7);
+}
+
+.imagePreviewDialog__stage img {
+   max-width: 100%;
+   max-height: 100%;
+   object-fit: contain;
+   user-select: none;
+}
+
+.imagePreviewDialog__meta {
+   display: flex;
+   flex-wrap: wrap;
+   gap: 26px;
+   margin: 0;
+   border-top: 1px solid var(--line);
+   padding: 13px 18px;
+}
+
+.imagePreviewDialog__meta dt {
+   color: var(--faint);
+   font-size: 10px;
+   font-weight: 700;
+   letter-spacing: 0.2em;
+   text-transform: uppercase;
+}
+
+.imagePreviewDialog__meta dd {
+   margin: 2px 0 0;
+   font-size: 13px;
+   font-weight: 700;
+}
+
+.imagePreviewDialog__location button {
+   display: flex;
+   align-items: center;
+   gap: 7px;
+   max-width: 340px;
+   border-radius: 8px;
+   color: var(--accent-bright);
+   font-size: 13px;
+   font-weight: 700;
+   padding: 2px 4px;
+}
+
+.imagePreviewDialog__location button:hover {
+   text-decoration: underline;
+}
+
+.imagePreviewDialog__location svg {
+   flex: none;
+   width: 14px;
+   height: 14px;
+}
+
+.imagePreviewDialog__location span {
+   overflow: hidden;
+   direction: rtl;
+   white-space: nowrap;
+   text-overflow: ellipsis;
+}

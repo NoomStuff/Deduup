@@ -1,6 +1,7 @@
-import { ArrowLeft, Flag, HomeIcon, Redo2, Settings, Undo2 } from "lucide-react";
+import { ArrowLeft, Flag, HomeIcon, Info, Redo2, Settings, Undo2 } from "lucide-react";
 import type { AppView } from "../appTypes.js";
 import type { TooltipProps } from "../hooks/useTooltip.js";
+import "./ReviewHeader.css";
 
 interface ReviewHeaderProps {
    canRedo: boolean;
@@ -12,6 +13,7 @@ interface ReviewHeaderProps {
    totalSets: number;
    view: AppView;
    getTooltipProps: (title: string, body: string, hotkey?: string) => TooltipProps;
+   onOpenInfo: () => void;
    onOpenSettings: () => void;
    onOpenStartup: () => void;
    onRedo: () => void;
@@ -62,11 +64,20 @@ export const ReviewHeader = (props: ReviewHeaderProps) => (
             <HomeIcon aria-hidden="true" />
          </button>
          <button
+            aria-label="Open app info"
+            className="iconButton"
+            onClick={props.onOpenInfo}
+            type="button"
+            {...props.getTooltipProps("Info", "How removal works, reading the filmstrip, and every shortcut.")}
+         >
+            <Info aria-hidden="true" />
+         </button>
+         <button
             aria-label="Open app settings"
             className="iconButton"
             onClick={props.onOpenSettings}
             type="button"
-            {...props.getTooltipProps("Settings", "Review behavior, shortcuts, and safety preferences.")}
+            {...props.getTooltipProps("Settings", "Review behavior and safety preferences.")}
          >
             <Settings aria-hidden="true" />
          </button>

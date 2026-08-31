@@ -11,6 +11,7 @@
       "dev": "node ./node_modules/typescript/bin/tsc -b tsconfig.electron.json --force && node ./node_modules/concurrently/dist/bin/concurrently.js -k \"node ./node_modules/vite/bin/vite.js --host 127.0.0.1\" \"node ./node_modules/wait-on/bin/wait-on tcp:5173 && node ./node_modules/electron/cli.js .\"",
       "build": "bun run clean && node ./node_modules/typescript/bin/tsc -b --force && node ./node_modules/vite/bin/vite.js build",
       "dist:win": "CSC_IDENTITY_AUTO_DISCOVERY=false bun run build && node ./node_modules/electron-builder/cli.js --win portable",
+      "open": "node scripts/open.mjs",
       "lint": "node ./node_modules/eslint/bin/eslint.js .",
       "format": "node ./node_modules/prettier/bin/prettier.cjs --write .",
       "test": "bun run typecheck && node ./node_modules/typescript/bin/tsc -p tsconfig.test.json && node --test scripts/scanner.test.mjs scripts/fileOperations.test.mjs scripts/reviewModel.test.mjs",

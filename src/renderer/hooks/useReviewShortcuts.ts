@@ -1,33 +1,18 @@
 import { useEffect } from "react";
 import type { CompareState } from "../appTypes.js";
 
-const editableTargetSelector = "input,textarea,select,[contenteditable='true']";
 const activatableTargetSelector = "button,a,input,textarea,select,[contenteditable='true'],[role='menuitem']";
-
-const isEditableShortcut = (event: KeyboardEvent): boolean => {
-   const editable = event.target instanceof HTMLElement && event.target.closest(editableTargetSelector) !== null;
-   if (!editable) return false;
-   const key = event.key.toLowerCase();
-   return !((event.ctrlKey || event.metaKey) && (key === "z" || key === "y"));
-};
 
 const isOnActivatableControl = (event: KeyboardEvent): boolean =>
    event.target instanceof HTMLElement && event.target.closest(activatableTargetSelector) !== null;
 
 interface ReviewShortcuts {
+   /** True while an overlay, panel, or menu owns the screen: review keys stand down, undo/redo stay live. */
    blocked: boolean;
    compare: CompareState | null;
-   confirmOpen: boolean;
-   contextMenuOpen: boolean;
    hasCurrentSet: boolean;
    hasSelectedImage: boolean;
-   previewOpen: boolean;
    onAutoSelectBand: () => void;
-   onCloseCompare: () => void;
-   onCloseConfirm: () => void;
-   onCloseContextMenu: () => void;
-   onClosePanels: () => void;
-   onClosePreview: () => void;
    onKeepCompareImage: (side: "left" | "right") => void;
    onNavigate: (offset: number) => void;
    onNavigateBand: (direction: -1 | 1) => void;
@@ -40,29 +25,11 @@ interface ReviewShortcuts {
    onUndo: () => void;
 }
 
+/** Review keys. Panels and menus close themselves (OverlayPanel, ReviewContextMenu); this hook only drives the review. */
 export const useReviewShortcuts = (options: ReviewShortcuts): void => {
    useEffect(() => {
       const onKeyDown = (event: KeyboardEvent): void => {
          const key = event.key.toLowerCase();
-         if (event.key === "Escape") {
-            if (options.previewOpen) {
-               event.preventDefault();
-               event.stopPropagation();
-               options.onClosePreview();
-            } else if (options.contextMenuOpen) options.onCloseContextMenu();
-            else if (options.confirmOpen) options.onCloseConfirm();
-            else {
-               options.onCloseCompare();
-               options.onClosePanels();
-            }
-            return;
-         }
-
-         if (options.previewOpen) {
-            event.preventDefault();
-            event.stopPropagation();
-            return;
-         }
 
          if (event.ctrlKey && ((event.shiftKey && key === "z") || key === "y")) {
             event.preventDefault();
@@ -74,7 +41,7 @@ export const useReviewShortcuts = (options: ReviewShortcuts): void => {
             options.onUndo();
             return;
          }
-         if (isEditableShortcut(event) || options.blocked) return;
+         if (options.blocked) return;
 
          if (options.compare !== null) {
             if (event.key === "ArrowLeft" || event.key === "ArrowRight") {

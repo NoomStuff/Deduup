@@ -1,0 +1,48 @@
+/* Shared modal plumbing. Component CSS skins the backdrop and surface by adding
+   its own class next to the base ones; keyframes live in theme.css. */
+
+.overlay-panel {
+   position: fixed;
+   inset: 0;
+}
+
+.overlay-panel--center {
+   display: grid;
+   place-items: center;
+}
+
+.overlay-panel--right {
+   display: flex;
+   justify-content: flex-end;
+}
+
+.overlay-panel[data-closing="true"] {
+   pointer-events: none;
+}
+
+.overlay-panel__backdrop {
+   position: absolute;
+   inset: 0;
+   appearance: none;
+   border: 0;
+   border-radius: 0;
+   padding: 0;
+   cursor: pointer;
+   animation: overlay-fade-in 200ms ease both;
+}
+
+.overlay-panel[data-closing="true"] .overlay-panel__backdrop {
+   animation: overlay-fade-out 200ms ease both;
+}
+
+.overlay-panel__surface {
+   position: relative;
+   z-index: 1;
+   min-width: 0;
+   outline: none;
+   animation: overlay-rise 300ms var(--ease-out) both;
+}
+
+.overlay-panel[data-closing="true"] .overlay-panel__surface {
+   animation: overlay-drop 200ms ease both;
+}

@@ -26,6 +26,7 @@
    font-size: 17px;
    font-weight: 700;
    pointer-events: none;
+   animation: overlay-fade-in 180ms ease both;
 }
 
 .startupDropHint svg {
@@ -43,6 +44,7 @@
    box-shadow: var(--shadow);
    backdrop-filter: blur(12px);
    padding: 38px 42px 26px;
+   animation: overlay-rise 380ms var(--ease-out) both;
 }
 
 .startupPanel__heading {
@@ -192,6 +194,7 @@
    background: rgba(var(--surface-rgb), 0.9);
    box-shadow: var(--shadow);
    padding: 30px 34px;
+   animation: overlay-rise 320ms var(--ease-out) both;
 }
 
 .scanLoadingPanel > div > h1 {
@@ -251,6 +254,7 @@
    background: rgba(var(--surface-rgb), 0.9);
    box-shadow: var(--shadow);
    padding: 22px 28px;
+   animation: overlay-fade-in 180ms ease both;
 }
 
 .loadingCard strong {

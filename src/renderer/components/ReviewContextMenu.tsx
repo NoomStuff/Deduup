@@ -1,16 +1,16 @@
-import { useLayoutEffect, useRef, useState } from "react";
-import type { MouseEventHandler, RefObject } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
+import type { MouseEventHandler } from "react";
 import { Check, Eraser, FolderOpen, Image as ImageIcon, Search, Sparkles, Trash2 } from "lucide-react";
 import type { ImageItem } from "../../shared/types.js";
 import type { ContextMenuState } from "../appTypes.js";
 import { clamp } from "../reviewModel.js";
+import "./ReviewContextMenu.css";
 
 interface ReviewContextMenuProps {
    context: ContextMenuState;
    image: ImageItem | null;
    imageIsDeleted: boolean;
    onlyImageIsKept: boolean;
-   menuRef: RefObject<HTMLDivElement | null>;
    onAutoSelectImageSet: () => void;
    onAutoSelectBand: () => void;
    onBeginCompare: () => void;
@@ -37,16 +37,13 @@ const command =
       close();
    };
 
-/**
- * Positions itself against the anchor after measuring its real size, so the JS
- * side never has to hardcode menu dimensions.
- */
+/** Positions itself against the anchor after measuring its real size, so the JS side never hardcodes menu dimensions. */
 export const ReviewContextMenu = (props: ReviewContextMenuProps) => {
-   const localRef = useRef<HTMLDivElement | null>(null);
+   const menuRef = useRef<HTMLDivElement | null>(null);
    const [position, setPosition] = useState<{ left: number; top: number; ready: boolean }>({ left: 0, top: 0, ready: false });
 
    useLayoutEffect(() => {
-      const menu = props.menuRef.current ?? localRef.current;
+      const menu = menuRef.current;
       if (menu === null) return;
       const width = menu.offsetWidth;
       const height = menu.offsetHeight;
@@ -66,17 +63,38 @@ export const ReviewContextMenu = (props: ReviewContextMenuProps) => {
          top: clamp(preferredY, margin, Math.max(margin, window.innerHeight - height - margin)),
          ready: true,
       });
-   }, [props.context, props.menuRef]);
+   }, [props.context]);
+
+   useEffect(() => {
+      const previouslyFocused = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+      const frame = window.requestAnimationFrame(() => menuRef.current?.querySelector<HTMLButtonElement>("button:not(:disabled)")?.focus());
+      const onKeyDown = (event: KeyboardEvent): void => {
+         if (event.key !== "Escape" || event.defaultPrevented || event.isComposing) return;
+         event.preventDefault();
+         event.stopImmediatePropagation();
+         props.onClose();
+      };
+      const onPointerDown = (event: globalThis.PointerEvent): void => {
+         if (event.target instanceof Element && menuRef.current?.contains(event.target)) return;
+         props.onClose();
+      };
+      document.addEventListener("keydown", onKeyDown);
+      document.addEventListener("pointerdown", onPointerDown, true);
+      return () => {
+         window.cancelAnimationFrame(frame);
+         document.removeEventListener("keydown", onKeyDown);
+         document.removeEventListener("pointerdown", onPointerDown, true);
+         if (previouslyFocused?.isConnected) previouslyFocused.focus();
+      };
+      // The menu is mounted fresh per open; the listeners belong to that instance.
+      // eslint-disable-next-line react-hooks/exhaustive-deps
+   }, []);
 
    return (
       <div
          aria-label="Actions"
          className={`contextMenu${position.ready ? "" : " contextMenu--measuring"}`}
-         onPointerDown={(event) => event.stopPropagation()}
-         ref={(node) => {
-            localRef.current = node;
-            if (typeof props.menuRef === "object") props.menuRef.current = node;
-         }}
+         ref={menuRef}
          role="menu"
          style={{ left: position.left, top: position.top }}
       >

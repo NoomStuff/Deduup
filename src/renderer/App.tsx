@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import type { DragEvent, MouseEvent } from "react";
 import type { FileActionStatus, ImageSet, ImageItem, LoadDataResult, ScanProgress } from "../shared/types.js";
 import type { AppView, CompareState, ConfirmAction, ContextMenuState, TravelDirection } from "./appTypes.js";
@@ -6,11 +6,12 @@ import { CompareOverlay } from "./components/CompareOverlay.js";
 import { ConfirmDialog } from "./components/ConfirmDialog.js";
 import { FinalReview } from "./components/FinalReview.js";
 import { ImagePreviewOverlay } from "./components/ImagePreviewOverlay.js";
+import { InfoPanel } from "./components/InfoPanel.js";
 import { NotificationCenter } from "./components/NotificationCenter.js";
 import { ReviewContextMenu } from "./components/ReviewContextMenu.js";
 import { ReviewHeader } from "./components/ReviewHeader.js";
 import { ReviewWorkspace } from "./components/ReviewWorkspace.js";
-import { SettingsPanel } from "./components/SidePanels.js";
+import { SettingsPanel } from "./components/SettingsPanel.js";
 import { TooltipBubble } from "./components/TooltipBubble.js";
 import { LoadingScreen, ScanningScreen, StartupScreen } from "./components/AppStatusScreens.js";
 import { useDecisionHistory } from "./hooks/useDecisionHistory.js";
@@ -35,8 +36,6 @@ import {
    getSimilarityBands,
    setImageSetDecision,
 } from "./reviewModel.js";
-import "./theme.css";
-import "./workflow.css";
 
 const startupPreferenceKey = "show-start-screen-on-startup";
 
@@ -71,6 +70,7 @@ export const App = () => {
    const [scanProgress, setScanProgress] = useState<ScanProgress | null>(null);
    const [confirmAction, setConfirmAction] = useState<ConfirmAction | null>(null);
    const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+   const [isInfoOpen, setIsInfoOpen] = useState(false);
    const [contextMenu, setContextMenu] = useState<ContextMenuState | null>(null);
    const [isDragOver, setIsDragOver] = useState(false);
    const { tooltip, hideTooltip, getTooltipProps } = useTooltip();
@@ -79,8 +79,6 @@ export const App = () => {
    const [wrapImageShelf, setWrapImageShelf] = useState(true);
    const [showStartupOnLaunch, setShowStartupOnLaunch] = useState(getStartupPreference);
    const [isStartupOpen, setIsStartupOpen] = useState(getStartupPreference);
-   const contextMenuRef = useRef<HTMLDivElement | null>(null);
-   const overlayReturnFocusRef = useRef<HTMLElement | null>(null);
 
    const currentSet = groups[currentIndex] ?? null;
    const currentDecision = currentSet === null ? emptyImageSetDecision() : getDecision(decisions, currentSet.id);
@@ -222,26 +220,17 @@ export const App = () => {
       }
    }, [currentSet, selectedImagePath]);
 
-   const openOverlay = (open: () => void): void => {
-      overlayReturnFocusRef.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
-      open();
-   };
-
-   const restoreOverlayFocus = (): void => {
-      const trigger = overlayReturnFocusRef.current;
-      overlayReturnFocusRef.current = null;
-      if (trigger?.isConnected) trigger.focus();
-   };
-
-   const closeContextMenu = useCallback((): void => {
-      setContextMenu(null);
-      restoreOverlayFocus();
-   }, []);
-
    const goTo = useCallback(
       (index: number): void => {
          const nextIndex = Math.max(0, Math.min(groups.length - 1, index));
          if (nextIndex === currentIndex) {
+            // Pressing next on the last set still counts as having seen it.
+            if (index > currentIndex && currentSet !== null) {
+               updateDecisions((existing) => {
+                  const decision = getDecision(existing, currentSet.id);
+                  return setImageSetDecision(existing, currentSet.id, { ...decision, seen: true });
+               });
+            }
             return;
          }
 
@@ -302,7 +291,7 @@ export const App = () => {
 
    const requestMarkImageSet = (imageSet: ImageSet): void => {
       if (confirmMajorActions) {
-         openOverlay(() => setConfirmAction({ ...createConfirmAction("markSet"), setId: imageSet.id }));
+         setConfirmAction({ ...createConfirmAction("markSet"), setId: imageSet.id });
          return;
       }
       markImageSet(imageSet);
@@ -349,14 +338,12 @@ export const App = () => {
       event.stopPropagation();
       hideTooltip();
       setSelectedImagePath(image.originalPath);
-      openOverlay(() =>
-         setContextMenu({
-            menuKind: "image",
-            imagePath: image.originalPath,
-            setId: currentSet.id,
-            anchor: { kind: "point", x: event.clientX, y: event.clientY },
-         })
-      );
+      setContextMenu({
+         menuKind: "image",
+         imagePath: image.originalPath,
+         setId: currentSet.id,
+         anchor: { kind: "point", x: event.clientX, y: event.clientY },
+      });
    };
 
    const openImageMenuFromBadge = (event: MouseEvent, image: ImageItem): void => {
@@ -365,21 +352,19 @@ export const App = () => {
       event.stopPropagation();
       hideTooltip();
       setSelectedImagePath(image.originalPath);
-      openOverlay(() =>
-         setContextMenu({
-            menuKind: "image",
-            imagePath: image.originalPath,
-            setId: currentSet.id,
-            anchor: { kind: "rect", rect: event.currentTarget.getBoundingClientRect() },
-         })
-      );
+      setContextMenu({
+         menuKind: "image",
+         imagePath: image.originalPath,
+         setId: currentSet.id,
+         anchor: { kind: "rect", rect: event.currentTarget.getBoundingClientRect() },
+      });
    };
 
    const openSetContextMenu = (event: MouseEvent, imageSet: ImageSet): void => {
       event.preventDefault();
       event.stopPropagation();
       hideTooltip();
-      openOverlay(() => setContextMenu({ menuKind: "imageSet", setId: imageSet.id, anchor: { kind: "point", x: event.clientX, y: event.clientY } }));
+      setContextMenu({ menuKind: "imageSet", setId: imageSet.id, anchor: { kind: "point", x: event.clientX, y: event.clientY } });
    };
 
    const getImageIndex = (image: ImageItem): number => currentSet?.images.findIndex((item) => item.originalPath === image.originalPath) ?? -1;
@@ -463,7 +448,7 @@ export const App = () => {
          notify({ tone: "warning", title: "Preview unavailable", message: `${image.file} is no longer available on disk.` });
          return;
       }
-      openOverlay(() => setPreviewImage(image));
+      setPreviewImage(image);
    };
 
    const keepFromFinalReview = (row: { setId: string; originalPath: string }): void => {
@@ -473,27 +458,11 @@ export const App = () => {
    };
 
    useReviewShortcuts({
-      blocked: isStartupOpen || isSettingsOpen || contextMenu !== null || confirmAction !== null || view !== "review",
+      blocked: isStartupOpen || isSettingsOpen || isInfoOpen || contextMenu !== null || confirmAction !== null || previewImage !== null || view !== "review",
       compare,
-      confirmOpen: confirmAction !== null,
-      contextMenuOpen: contextMenu !== null,
       hasCurrentSet: currentSet !== null,
       hasSelectedImage: selectedImage !== null,
-      previewOpen: previewImage !== null,
       onAutoSelectBand: autoSelectCurrentBand,
-      onCloseCompare: () => {
-         setCompare(null);
-         setComparePick(null);
-      },
-      onCloseConfirm: () => {
-         setConfirmAction(null);
-         restoreOverlayFocus();
-      },
-      onCloseContextMenu: closeContextMenu,
-      onClosePanels: () => {
-         setIsSettingsOpen(false);
-      },
-      onClosePreview: () => setPreviewImage(null),
       onKeepCompareImage: (side) => {
          if (currentSet !== null && compare !== null) toggleOnlyImageKept(currentSet, compare[side], true);
          setCompare(null);
@@ -504,7 +473,7 @@ export const App = () => {
          if (selectedImage !== null) openAdjacentCompare(selectedImage);
       },
       onPreviewSelected: () => {
-         if (selectedImage !== null) setPreviewImage(selectedImage);
+         if (selectedImage !== null) previewImageOf(selectedImage);
       },
       onRedo: redoLastDecision,
       onRequestMarkCurrentSet: () => {
@@ -520,25 +489,29 @@ export const App = () => {
       onUndo: undoLastDecision,
    });
 
-   useEffect(() => {
-      const onPointerDown = (): void => setContextMenu(null);
-      window.addEventListener("pointerdown", onPointerDown);
-      return () => window.removeEventListener("pointerdown", onPointerDown);
-   }, []);
-
    // A tooltip shown via keyboard focus must not survive a context change that
    // rewrites the focused button's label (e.g. review ↔ final review).
    useEffect(() => {
       hideTooltip();
-   }, [hideTooltip, isSettingsOpen, isStartupOpen, view]);
+   }, [hideTooltip, isInfoOpen, isSettingsOpen, isStartupOpen, view]);
+
+   // Mouse back/forward navigates only while the plain review is interactive;
+   // firing under overlays would mark sets seen behind the startup screen or
+   // leave a preview showing an image from a set that is no longer current.
+   const reviewNavigationActive =
+      !loading &&
+      !isScanning &&
+      !isStartupOpen &&
+      !isSettingsOpen &&
+      !isInfoOpen &&
+      view === "review" &&
+      contextMenu === null &&
+      confirmAction === null &&
+      previewImage === null &&
+      compare === null;
 
    useEffect(() => {
-      if (contextMenu === null) return undefined;
-      const frame = window.requestAnimationFrame(() => contextMenuRef.current?.querySelector<HTMLButtonElement>("button:not(:disabled)")?.focus());
-      return () => window.cancelAnimationFrame(frame);
-   }, [contextMenu]);
-
-   useEffect(() => {
+      if (!reviewNavigationActive) return undefined;
       const onMouseUp = (event: globalThis.MouseEvent): void => {
          if (event.button === 3) {
             event.preventDefault();
@@ -551,7 +524,7 @@ export const App = () => {
 
       window.addEventListener("mouseup", onMouseUp);
       return () => window.removeEventListener("mouseup", onMouseUp);
-   }, [currentIndex, goTo]);
+   }, [reviewNavigationActive, currentIndex, goTo]);
 
    const chooseScanFolder = async (): Promise<string | null> => {
       const api = window.imageDeduplicator;
@@ -583,7 +556,7 @@ export const App = () => {
    const confirmOrScan = (folderPath: string | null): void => {
       if (folderPath === null) return;
       if (groups.length > 0 && confirmMajorActions) {
-         openOverlay(() => setConfirmAction(createConfirmAction("switchFolder", folderPath)));
+         setConfirmAction(createConfirmAction("switchFolder", folderPath));
          return;
       }
       setIsStartupOpen(false);
@@ -627,7 +600,6 @@ export const App = () => {
       }
 
       const { kind } = confirmAction;
-      setConfirmAction(null);
       if (kind === "markSet") {
          const targetSet = confirmAction.setId === undefined ? currentSet : (groups.find((imageSet) => imageSet.id === confirmAction.setId) ?? currentSet);
          if (targetSet !== null) {
@@ -678,7 +650,7 @@ export const App = () => {
                onDrop={handleDrop}
                onOpenFolder={() => void openNewFolder()}
                onRescan={() => {
-                  if (confirmMajorActions) openOverlay(() => setConfirmAction(createConfirmAction("rescan")));
+                  if (confirmMajorActions) setConfirmAction(createConfirmAction("rescan"));
                   else {
                      setIsStartupOpen(false);
                      void startScan();
@@ -687,16 +659,7 @@ export const App = () => {
                onShowOnLaunchChange={updateStartupPreference}
                showOnLaunch={showStartupOnLaunch}
             />
-            {confirmAction !== null && (
-               <ConfirmDialog
-                  action={confirmAction}
-                  onCancel={() => {
-                     setConfirmAction(null);
-                     restoreOverlayFocus();
-                  }}
-                  onConfirm={runConfirmAction}
-               />
-            )}
+            {confirmAction !== null && <ConfirmDialog action={confirmAction} onClose={() => setConfirmAction(null)} onConfirm={runConfirmAction} />}
             <NotificationCenter notifications={notifications} onDismiss={dismissNotification} />
          </>
       );
@@ -727,9 +690,11 @@ export const App = () => {
             totalSets={groups.length}
             view={view}
             getTooltipProps={getTooltipProps}
-            onOpenSettings={() => openOverlay(() => setIsSettingsOpen(true))}
+            onOpenInfo={() => setIsInfoOpen(true)}
+            onOpenSettings={() => setIsSettingsOpen(true)}
             onOpenStartup={() => {
                setIsSettingsOpen(false);
+               setIsInfoOpen(false);
                setIsStartupOpen(true);
             }}
             onRedo={redoLastDecision}
@@ -757,7 +722,7 @@ export const App = () => {
                onImageSetContextMenu={openSetContextMenu}
                onImageToggleDelete={handleImageDeleteToggle}
                onNavigate={goTo}
-               onOpenContextMenu={(state) => openOverlay(() => setContextMenu(state))}
+               onOpenContextMenu={setContextMenu}
             />
          ) : (
             <FinalReview
@@ -773,9 +738,11 @@ export const App = () => {
                moveResult={moveResult}
                onApply={() => void applyMoves()}
                onKeepImage={keepFromFinalReview}
-               onOpenFolder={() => void openFolder(currentSet.folderPath)}
+               onOpenFolder={() => {
+                  if (duplicateFolderPath !== null) void openFolder(duplicateFolderPath);
+               }}
                onRestore={() => void restoreDuplicateFolder()}
-               onTrash={() => (confirmMajorActions ? openOverlay(() => setConfirmAction(createConfirmAction("trashDuplicate"))) : void trashDuplicateFolder())}
+               onTrash={() => (confirmMajorActions ? setConfirmAction(createConfirmAction("trashDuplicate")) : void trashDuplicateFolder())}
                restoreResult={restoreResult}
                workflow={fileWorkflow}
             />
@@ -784,11 +751,8 @@ export const App = () => {
          {isSettingsOpen && (
             <SettingsPanel
                confirmMajorActions={confirmMajorActions}
-               onClear={() => openOverlay(() => setConfirmAction(createConfirmAction("clearAll")))}
-               onClose={() => {
-                  setIsSettingsOpen(false);
-                  restoreOverlayFocus();
-               }}
+               onClear={() => setConfirmAction(createConfirmAction("clearAll"))}
+               onClose={() => setIsSettingsOpen(false)}
                onConfirmChange={setConfirmMajorActions}
                onStartupChange={updateStartupPreference}
                onWrapChange={setWrapImageShelf}
@@ -797,12 +761,13 @@ export const App = () => {
             />
          )}
 
+         {isInfoOpen && <InfoPanel onClose={() => setIsInfoOpen(false)} />}
+
          {contextMenu !== null && (
             <ReviewContextMenu
                context={contextMenu}
                image={contextImage}
                imageIsDeleted={contextImageIsDeleted}
-               menuRef={contextMenuRef}
                onAutoSelectImageSet={() => autoSelectImageSet(contextSet)}
                onAutoSelectBand={() => autoSelectBand(contextSet)}
                onBeginCompare={() => {
@@ -810,7 +775,7 @@ export const App = () => {
                }}
                onClearImageSet={() => clearImageSetChoices(contextSet)}
                onClearBand={() => clearSimilarityBandChoices(contextSet)}
-               onClose={closeContextMenu}
+               onClose={() => setContextMenu(null)}
                onMarkImageSet={() => requestMarkImageSet(contextSet)}
                onMarkBand={() => markSimilarityBand(contextSet)}
                onMarkBandSeen={() => markSimilarityBandSeen(contextSet)}
@@ -835,16 +800,7 @@ export const App = () => {
 
          {tooltip !== null && <TooltipBubble tooltip={tooltip} />}
 
-         {confirmAction !== null && (
-            <ConfirmDialog
-               action={confirmAction}
-               onCancel={() => {
-                  setConfirmAction(null);
-                  restoreOverlayFocus();
-               }}
-               onConfirm={runConfirmAction}
-            />
-         )}
+         {confirmAction !== null && <ConfirmDialog action={confirmAction} onClose={() => setConfirmAction(null)} onConfirm={runConfirmAction} />}
 
          {compare !== null && (
             <CompareOverlay

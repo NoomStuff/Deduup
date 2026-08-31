@@ -403,66 +403,88 @@ img {
    }
 }
 
-/* --- Tooltip ------------------------------------------------------------- */
+/* --- Shared overlay motion -------------------------------------------------
+   One vocabulary for every surface that appears over the app: backdrops fade,
+   cards rise in and drop out, drawers slide. OverlayPanel and the root screens
+   all animate with these. */
 
-.tooltipBubble {
-   position: fixed;
-   z-index: 90;
-   display: grid;
-   gap: 3px;
-   justify-items: start;
-   width: max-content;
-   max-width: 260px;
-   border: 1px solid var(--line-strong);
-   border-radius: var(--radius-md);
-   background: rgba(10, 13, 20, 0.97);
-   box-shadow: var(--shadow);
-   padding: 10px 12px;
-   pointer-events: none;
+@keyframes overlay-fade-in {
+   from {
+      opacity: 0;
+   }
 }
 
-.tooltipBubble--measuring {
-   visibility: hidden;
+@keyframes overlay-fade-out {
+   to {
+      opacity: 0;
+   }
 }
 
-/* The arrow rides the edge facing the trigger and slides with it. */
-
-.tooltipBubble::after {
-   content: "";
-   position: absolute;
-   left: calc(var(--arrow-x, 50%) - 6px);
-   width: 11px;
-   height: 11px;
-   background: rgba(10, 13, 20, 0.97);
-   transform: rotate(45deg);
+@keyframes overlay-rise {
+   from {
+      opacity: 0;
+      transform: translateY(26px) scale(0.985);
+   }
 }
 
-.tooltipBubble--below::after {
-   top: -6px;
-   border-left: 1px solid var(--line-strong);
-   border-top: 1px solid var(--line-strong);
+@keyframes overlay-drop {
+   to {
+      opacity: 0;
+      transform: translateY(18px) scale(0.99);
+   }
 }
 
-.tooltipBubble--above::after {
-   bottom: -6px;
-   border-right: 1px solid var(--line-strong);
-   border-bottom: 1px solid var(--line-strong);
+@keyframes drawer-in {
+   from {
+      opacity: 0;
+      transform: translateX(46px);
+   }
 }
 
-.tooltipBubble strong {
-   font-size: 12.5px;
+@keyframes drawer-out {
+   to {
+      opacity: 0;
+      transform: translateX(46px);
+   }
+}
+
+@keyframes soft-rise {
+   from {
+      opacity: 0;
+      transform: translateY(14px);
+   }
+}
+
+/* --- Side panel content ----------------------------------------------------- */
+
+/* Header and labeled groups shared by the settings and info panels. */
+
+.panelHeader {
+   display: flex;
+   align-items: center;
+   justify-content: space-between;
+   gap: 12px;
+}
+
+.panelHeader h2 {
+   margin: 1px 0 0;
+   font-size: 19px;
    font-weight: 700;
    color: var(--text-strong);
 }
 
-.tooltipBubble span {
-   color: var(--muted);
-   font-size: 12px;
-   line-height: 1.45;
+.panelGroup {
+   display: grid;
+   gap: 12px;
 }
 
-.tooltipBubble kbd {
-   margin-top: 3px;
+.panelGroup__label {
+   margin: 0;
+   color: var(--faint);
+   font-size: 10.5px;
+   font-weight: 700;
+   letter-spacing: 0.24em;
+   text-transform: uppercase;
 }
 
 @media (prefers-reduced-motion: reduce) {

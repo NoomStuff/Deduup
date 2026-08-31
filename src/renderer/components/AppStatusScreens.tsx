@@ -2,6 +2,7 @@ import type { DragEventHandler } from "react";
 import { FolderOpen, Image as ImageIcon, LoaderCircle, Redo2, RotateCw } from "lucide-react";
 import type { ScanProgress } from "../../shared/types.js";
 import { Toggle } from "./Toggle.js";
+import "./AppStatusScreens.css";
 
 const getScanPhaseLabel = (phase: ScanProgress["phase"] | undefined): string => {
    if (phase === "discovering") return "Finding image files";

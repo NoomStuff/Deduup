@@ -4,6 +4,8 @@ import { X } from "lucide-react";
 import type { ImageItem } from "../../shared/types.js";
 import type { CompareState } from "../appTypes.js";
 import { clamp } from "../reviewModel.js";
+import { OverlayPanel } from "./OverlayPanel.js";
+import "./CompareOverlay.css";
 
 export const CompareOverlay = ({ compare, onClose, onKeep }: { compare: CompareState; onClose: () => void; onKeep: (image: ImageItem) => void }) => {
    const [focusedSide, setFocusedSide] = useState<"left" | "right" | null>(null);
@@ -50,12 +52,19 @@ export const CompareOverlay = ({ compare, onClose, onKeep }: { compare: CompareS
    }, [updateRevealFromClientX]);
 
    return (
-      <div aria-labelledby="compare-title" aria-modal="true" className="compare" role="dialog">
+      <OverlayPanel
+         backdropClassName="compare__backdrop"
+         closeLabel="Close comparison"
+         labelledBy="compare-title"
+         rootClassName="compare"
+         surfaceClassName="compare__surface"
+         onClose={onClose}
+      >
          <div className="compare__header">
             <div>
                <p className="overlayLabel">Compare</p>
                <h2 id="compare-title">Pick the copy to keep</h2>
-               <p className="compare__hint">Drag across the stage to wipe between the two copies.</p>
+               <p className="compare__hint">Move across the stage to wipe between the two copies.</p>
             </div>
             <button aria-label="Close comparison" className="iconButton" onClick={onClose} type="button">
                <X aria-hidden="true" />
@@ -63,7 +72,6 @@ export const CompareOverlay = ({ compare, onClose, onKeep }: { compare: CompareS
          </div>
          <div className="compare__content">
             <button
-               autoFocus
                className="compare__action compare__action--left"
                onClick={() => onKeep(compare.left)}
                onBlur={() => setFocusedSide(null)}
@@ -122,6 +130,6 @@ export const CompareOverlay = ({ compare, onClose, onKeep }: { compare: CompareS
                <kbd>→</kbd>
             </button>
          </div>
-      </div>
+      </OverlayPanel>
    );
 };

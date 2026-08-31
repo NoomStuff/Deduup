@@ -40,6 +40,14 @@ Every feature should make review or deduplication faster, easier, or more trustw
 
 Prefer clean, minimal, strictly typed changes that preserve intentional flows. Keep the design extensible when there is a concrete need, but do not introduce abstraction for its own sake. Performance must scale to large libraries without freezing the workflow or compromising detection quality.
 
+## Renderer conventions
+
+- Each component owns its CSS in a co-located `.css` file it imports itself. `theme.css` (imported in `main.tsx`) holds tokens, base styles, shared controls, and the shared overlay keyframes.
+- Modals and drawers are built on `components/OverlayPanel.tsx`: it handles the portal, backdrop, focus trap and focus return, stack-aware Escape, and open/close animations. A dialog is content plus a skin class; it never manages its own closing state.
+- The context menu and panels close themselves (outside click, Escape). `useReviewShortcuts` only drives review keys; it does not close overlays.
+- Animations are part of the design: every surface that appears animates in and out, using the shared keyframes in `theme.css` where possible.
+- Reference project for architecture and interaction feel: `C:\Users\NoomS\Coding\Web\Osiris-but-better`.
+
 ## Verifying changes
 
 Agents should always run `bun run test` (typecheck plus unit tests) and `bun run lint` before claiming an outcome. For anything that touches the renderer, run `bun run test:ui` as well: it builds the app, launches it in Electron against an isolated profile, generates a deterministic fixture library (`scripts/makeFixtures.mjs`), and walks the core flows through the real DOM. Screenshots from that run land in `.cache/ui-smoke/` — inspect them when a change is visual.

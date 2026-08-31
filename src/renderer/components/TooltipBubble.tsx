@@ -3,6 +3,7 @@ import { createPortal } from "react-dom";
 import type { CSSProperties } from "react";
 import type { TooltipState } from "../appTypes.js";
 import { clamp } from "../reviewModel.js";
+import "./TooltipBubble.css";
 
 interface Placement {
    left: number;

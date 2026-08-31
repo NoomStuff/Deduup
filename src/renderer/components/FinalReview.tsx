@@ -3,6 +3,7 @@ import type { FileActionStatus, MoveResult } from "../../shared/types.js";
 import type { FileWorkflowState, MovePreview } from "../appTypes.js";
 import type { TooltipProps } from "../hooks/useTooltip.js";
 import { formatBytes, getSetNumber } from "../reviewModel.js";
+import "./FinalReview.css";
 
 interface FinalReviewProps {
    movePreview: MovePreview[];

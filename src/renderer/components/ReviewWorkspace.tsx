@@ -5,6 +5,7 @@ import type { ContextMenuState, SimilarityBand, TravelDirection } from "../appTy
 import type { TooltipProps } from "../hooks/useTooltip.js";
 import { getDecision, getSetNumber, getImageDeleteState, getImageSetLabel, getImageSetState, getSimilarityColor } from "../reviewModel.js";
 import { ImageCard } from "./ImageCard.js";
+import "./ReviewWorkspace.css";
 
 interface ReviewWorkspaceProps {
    comparePick: ImageItem | null;
