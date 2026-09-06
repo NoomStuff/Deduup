@@ -3,6 +3,7 @@ import type { MouseEventHandler } from "react";
 import { Check, Eraser, FolderOpen, Image as ImageIcon, Search, Sparkles, Trash2 } from "lucide-react";
 import type { ImageItem } from "../../shared/types.js";
 import type { ContextMenuState } from "../appTypes.js";
+import { getShortcutKeys } from "../appShortcuts.js";
 import { clamp } from "../reviewModel.js";
 import "./ReviewContextMenu.css";
 
@@ -108,7 +109,7 @@ export const ReviewContextMenu = (props: ReviewContextMenuProps) => {
                >
                   <Trash2 aria-hidden="true" />
                   <span>{props.imageIsDeleted ? "Keep image" : "Mark for removal"}</span>
-                  <kbd>Shift Click</kbd>
+                  <kbd>{getShortcutKeys("toggleImagePointer")}</kbd>
                </button>
                <button
                   className="contextMenu__command contextMenu__command--danger contextMenu__command--important"
@@ -118,7 +119,7 @@ export const ReviewContextMenu = (props: ReviewContextMenuProps) => {
                >
                   <Trash2 aria-hidden="true" />
                   <span>{props.onlyImageIsKept ? "Restore the others" : "Keep only this"}</span>
-                  <kbd>Shift Right Click</kbd>
+                  <kbd>{getShortcutKeys("keepOnlyThisPointer")}</kbd>
                </button>
                <div className="contextMenu__divider" />
                <button
@@ -129,7 +130,7 @@ export const ReviewContextMenu = (props: ReviewContextMenuProps) => {
                >
                   <Search aria-hidden="true" />
                   <span>Compare</span>
-                  <kbd>Alt Click</kbd>
+                  <kbd>{getShortcutKeys("comparePointer")}</kbd>
                </button>
                <button
                   className="contextMenu__command"
@@ -139,7 +140,7 @@ export const ReviewContextMenu = (props: ReviewContextMenuProps) => {
                >
                   <ImageIcon aria-hidden="true" />
                   <span>Preview</span>
-                  <kbd>Enter</kbd>
+                  <kbd>{getShortcutKeys("previewSelected")}</kbd>
                </button>
                <div className="contextMenu__divider" />
                <button className="contextMenu__command" onClick={command(props.onShowImage, props.onClose)} type="button">
@@ -161,7 +162,7 @@ export const ReviewContextMenu = (props: ReviewContextMenuProps) => {
                >
                   <Trash2 aria-hidden="true" />
                   <span>Mark whole set</span>
-                  <kbd>X</kbd>
+                  <kbd>{getShortcutKeys("markSet")}</kbd>
                </button>
                <button className="contextMenu__command contextMenu__command--accent" onClick={command(props.onAutoSelectImageSet, props.onClose)} type="button">
                   <Sparkles aria-hidden="true" />
@@ -195,7 +196,7 @@ export const ReviewContextMenu = (props: ReviewContextMenuProps) => {
                <button className="contextMenu__command contextMenu__command--accent" onClick={command(props.onAutoSelectBand, props.onClose)} type="button">
                   <Sparkles aria-hidden="true" />
                   <span>Autoselect all</span>
-                  <kbd>V</kbd>
+                  <kbd>{getShortcutKeys("autoSelectBand")}</kbd>
                </button>
                <button className="contextMenu__command" onClick={command(props.onClearBand, props.onClose)} type="button">
                   <Eraser aria-hidden="true" />

@@ -3,6 +3,7 @@ import test from "node:test";
 import {
    emptyImageSetDecision,
    formatBytes,
+   formatDate,
    getDecision,
    getFileWorkflowState,
    getImageSetLabel,
@@ -26,6 +27,7 @@ const image = (name, width, height, size) => ({
    width,
    height,
    size,
+   modifiedAt: 0,
    previewUrl: "preview://x",
    fullPreviewUrl: "preview://x/full",
    exists: true,
@@ -158,4 +160,8 @@ test("bytes format for every magnitude", () => {
    assert.equal(formatBytes(1536), "1.50 KB");
    assert.equal(formatBytes(5 * 1024 * 1024), "5.00 MB");
    assert.equal(formatBytes(3.5 * 1024 ** 4), "3.50 TB");
+});
+
+test("modified dates render a short locale date", () => {
+   assert.match(formatDate(new Date(2024, 2, 9).getTime()), /2024/u);
 });

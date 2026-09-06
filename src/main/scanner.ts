@@ -22,11 +22,26 @@ export interface GroupedImages {
 export type ScanProgressReporter = (progress: ScanProgress) => void;
 export type ScanWarningReporter = (filePath: string) => void;
 
+export class ScanCancelledError extends Error {
+   constructor() {
+      super("Scan cancelled");
+      this.name = "ScanCancelledError";
+   }
+}
+
 const supportedExtensions = new Set([".jpg", ".jpeg", ".png", ".webp", ".bmp", ".gif", ".avif", ".tif", ".tiff"]);
 const hashDistanceThreshold = 13;
 const groupingYieldInterval = 256;
 const exactSimilarityLimit = 96;
 const similaritySampleLimit = 4096;
+/**
+ * Over-cap splitting builds a full distance matrix and runs an O(n^3) exile
+ * loop, both only acceptable for small groups. Huge folders routinely chain
+ * tens of thousands of similar images into one connected group, so anything
+ * above this limit is hash-sorted into bounded chunks and re-clustered instead
+ * of being fed to the matrix.
+ */
+const splitWorkLimit = 256;
 
 /** Groups whose average pairwise distance exceeds this are split before review. */
 const similarityCap = hashDistanceThreshold;
@@ -51,12 +66,13 @@ const createPartitionMasks = (): number[] => {
 
 const partitionMasks = createPartitionMasks();
 
-export const collectImagePaths = async (rootPath: string, reportWarning?: ScanWarningReporter): Promise<string[]> => {
+export const collectImagePaths = async (rootPath: string, reportWarning?: ScanWarningReporter, signal?: AbortSignal): Promise<string[]> => {
    const collected: string[] = [];
    const normalizedRoot = path.resolve(rootPath);
    const duplicateOutputPath = path.join(normalizedRoot, duplicateContainerFolderName, managedDuplicateFolderName);
 
    const visit = async (folderPath: string, isRoot = false): Promise<void> => {
+      if (signal?.aborted) throw new ScanCancelledError();
       const normalizedFolderPath = path.resolve(folderPath);
       if (!isRoot && normalizedFolderPath === duplicateOutputPath) {
          return;
@@ -118,14 +134,23 @@ const scanImage = async (filePath: string, reportWarning?: ScanWarningReporter):
    }
 };
 
-export const scanImages = async (paths: string[], reportProgress: ScanProgressReporter, reportWarning?: ScanWarningReporter): Promise<ScannedImage[]> => {
+export const scanImages = async (
+   paths: string[],
+   reportProgress: ScanProgressReporter,
+   reportWarning?: ScanWarningReporter,
+   signal?: AbortSignal
+): Promise<ScannedImage[]> => {
    const results: (ScannedImage | null)[] = Array.from({ length: paths.length }, () => null);
    let nextIndex = 0;
    let completed = 0;
    const workerCount = Math.min(8, Math.max(1, paths.length));
+   // Huge folders would otherwise flood the renderer with one IPC message per
+   // file; ~500 updates keep the progress bar just as smooth.
+   const progressStride = Math.max(1, Math.ceil(paths.length / 500));
 
    const worker = async (): Promise<void> => {
       while (nextIndex < paths.length) {
+         if (signal?.aborted) throw new ScanCancelledError();
          const index = nextIndex;
          nextIndex += 1;
          const filePath = paths[index];
@@ -134,7 +159,9 @@ export const scanImages = async (paths: string[], reportProgress: ScanProgressRe
          }
          results[index] = await scanImage(filePath, reportWarning);
          completed += 1;
-         reportProgress({ phase: "hashing", completed, total: paths.length, currentFile: path.basename(filePath) });
+         if (completed % progressStride === 0 || completed === paths.length) {
+            reportProgress({ phase: "hashing", completed, total: paths.length, currentFile: path.basename(filePath) });
+         }
       }
    };
 
@@ -284,7 +311,7 @@ const findAndIndexMatches = (
 
 const yieldToMainLoop = (): Promise<void> => new Promise((resolve) => setImmediate(resolve));
 
-const getConnectedGroups = async (images: ScannedImage[], reportProgress: ScanProgressReporter): Promise<ScannedImage[][]> => {
+const getConnectedGroups = async (images: ScannedImage[], reportProgress: ScanProgressReporter, signal?: AbortSignal): Promise<ScannedImage[][]> => {
    const parent = images.map((_, index) => index);
    const hashValues = images.map((image) => BigInt(`0x${image.hash}`));
    const find = (index: number): number => {
@@ -308,6 +335,7 @@ const getConnectedGroups = async (images: ScannedImage[], reportProgress: ScanPr
    const exactHashRepresentatives = new Map<bigint, number>();
    reportProgress({ phase: "grouping", completed: 0, total: images.length });
    for (let imageIndex = 0; imageIndex < images.length; imageIndex += 1) {
+      if (signal?.aborted) throw new ScanCancelledError();
       const hash = hashValues[imageIndex];
       if (hash !== undefined) {
          const exactRepresentative = exactHashRepresentatives.get(hash);
@@ -337,15 +365,31 @@ const getConnectedGroups = async (images: ScannedImage[], reportProgress: ScanPr
    return [...groupsByRoot.values()];
 };
 
-export const groupImages = async (images: ScannedImage[], reportProgress: ScanProgressReporter): Promise<GroupedImages[]> => {
+export const groupImages = async (images: ScannedImage[], reportProgress: ScanProgressReporter, signal?: AbortSignal): Promise<GroupedImages[]> => {
    const results: GroupedImages[] = [];
    let pending: ScannedImage[][] = [];
 
-   const admit = (group: ScannedImage[]): void => {
+   const admit = async (group: ScannedImage[]): Promise<void> => {
+      if (signal?.aborted) throw new ScanCancelledError();
       if (group.length < 2) return;
       const similarity = getGroupSimilarity(group);
       if (similarity <= similarityCap) {
          results.push({ similarity, images: group });
+         return;
+      }
+      if (group.length > splitWorkLimit) {
+         // Too big for the exile algorithm. Hash-sorted slices keep the most
+         // similar images together (fixed-width hex sorts numerically), each
+         // slice is re-connected at the match threshold, and every component
+         // is at most slice-sized, so the recursive admit always lands in the
+         // bounded exile path below.
+         const sorted = [...group].sort((left, right) => (left.hash < right.hash ? -1 : left.hash > right.hash ? 1 : 0));
+         for (let offset = 0; offset < sorted.length; offset += splitWorkLimit) {
+            const chunk = sorted.slice(offset, offset + splitWorkLimit);
+            for (const component of await getConnectedGroups(chunk, () => undefined, signal)) {
+               await admit(component);
+            }
+         }
          return;
       }
       const { kept, exiled } = splitOverCapGroup(group);
@@ -353,14 +397,15 @@ export const groupImages = async (images: ScannedImage[], reportProgress: ScanPr
       if (exiled.length >= 2) pending.push(exiled);
    };
 
-   for (const group of await getConnectedGroups(images, reportProgress)) {
-      admit(group);
+   for (const group of await getConnectedGroups(images, reportProgress, signal)) {
+      await admit(group);
    }
    while (pending.length > 0) {
+      if (signal?.aborted) throw new ScanCancelledError();
       const pool = pending.flatMap((group) => group);
       pending = [];
-      for (const group of await getConnectedGroups(pool, () => undefined)) {
-         admit(group);
+      for (const group of await getConnectedGroups(pool, () => undefined, signal)) {
+         await admit(group);
       }
    }
 

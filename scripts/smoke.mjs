@@ -9,6 +9,8 @@
  *   - marking, X-confirm, autoselect, undo
  *   - final review: move list, per-image "Keep this", disabled recycle
  *   - drag-and-drop API surface (getPathForFile bridge)
+ *   - persistent scan-warning banner (dismissable)
+ *   - preview zoom via the wheel, neutral theme toggle + persistence
  *
  * Screenshots land in .cache/ui-smoke/ so a human (or agent) can inspect them.
  */
@@ -52,6 +54,10 @@ const run = async () => {
    });
 
    try {
+      // With the --scan hook the renderer sits on the loading card (spinner plus
+      // the three shimmer bars) until the scan completes; capture it for review.
+      await window.screenshot({ path: path.join(artifactsDir, "00-loading.png") });
+
       // Scan runs automatically; the review workspace replaces the start screen.
       try {
          await window.waitForSelector(".filmstrip__item", { timeout: 90_000 });
@@ -61,6 +67,16 @@ const run = async () => {
          throw error;
       }
       await window.screenshot({ path: path.join(artifactsDir, "01-review.png") });
+
+      // The fixture library contains one unreadable file, so its skip warning
+      // must surface as a persistent banner rather than a fleeting toast.
+      const warningBanner = window.locator(".scanWarnings");
+      await warningBanner.waitFor({ timeout: 5_000 });
+      const bannerText = await warningBanner.textContent();
+      check("scan warning banner lists skipped items", /skipped/i.test(bannerText ?? ""), bannerText ?? "missing");
+      await warningBanner.locator("button.iconButton").click();
+      await warningBanner.waitFor({ state: "detached", timeout: 5_000 });
+      check("scan warning banner can be dismissed", true);
 
       const headerCounter = await window.textContent(".topbar__counter");
       check("review header shows set counter", /#\d+\s*\/\s*\d+/.test(headerCounter ?? ""), headerCounter ?? "missing");
@@ -92,6 +108,38 @@ const run = async () => {
       await window.keyboard.press("Control+z");
       await window.waitForTimeout(200);
       check("undo clears the mark", (await window.locator(".imageCard__chip--marked").count()) === 0);
+
+      // Preview opens for the selected image and wheel-zooms via the native listener.
+      await window.locator(".imageCard").first().click();
+      await window.keyboard.press("Enter");
+      await window.waitForSelector(".imagePreviewDialog__stage", { timeout: 5_000 });
+      await window.screenshot({ path: path.join(artifactsDir, "07-preview.png") });
+      await window.mouse.move(720, 430);
+      await window.mouse.wheel(0, -600);
+      await window.waitForTimeout(150);
+      const zoomLabel = await window.textContent(".imagePreviewDialog__zoom");
+      check("preview wheel zoom raises the zoom level", zoomLabel !== "100%" && Number.parseInt(zoomLabel ?? "100", 10) > 100, zoomLabel ?? "missing");
+      await window.screenshot({ path: path.join(artifactsDir, "08-preview-zoomed.png") });
+      await window.keyboard.press("Escape");
+      await window.waitForSelector(".imagePreviewDialog__stage", { state: "detached", timeout: 5_000 });
+
+      // The neutral gray theme applies instantly and persists its preference.
+      await window.getByRole("button", { name: /open app settings/i }).click();
+      await window.waitForSelector(".settingsPanel", { timeout: 5_000 });
+      const themeToggle = window.getByRole("button", { name: /neutral gray theme/i });
+      await themeToggle.click();
+      const appliedTheme = await window.evaluate(() => document.documentElement.getAttribute("data-theme"));
+      check("neutral theme applies to the document root", appliedTheme === "slate", appliedTheme ?? "missing");
+      const storedTheme = await window.evaluate(() => window.localStorage.getItem("neutral-gray-theme"));
+      check("neutral theme preference persists", storedTheme === "true", storedTheme ?? "missing");
+      await window.screenshot({ path: path.join(artifactsDir, "09-neutral-theme.png") });
+      await themeToggle.click();
+      // The backdrop is also a "Close settings" button; target the dialog's own control.
+      await window
+         .getByRole("dialog", { name: /settings/i })
+         .getByRole("button", { name: /close settings/i })
+         .click();
+      await window.waitForSelector(".settingsPanel", { state: "detached", timeout: 5_000 });
 
       // Final review reflects the workflow state.
       await window.getByRole("button", { name: /final review/i }).click();

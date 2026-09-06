@@ -2,6 +2,7 @@ import type { CSSProperties, MouseEvent, RefObject } from "react";
 import { ChevronLeft, ChevronRight, MousePointer2 } from "lucide-react";
 import type { Decisions, ImageItem, ImageSet, ImageSetDecision } from "../../shared/types.js";
 import type { ContextMenuState, SimilarityBand, TravelDirection } from "../appTypes.js";
+import { getShortcutKeys } from "../appShortcuts.js";
 import type { TooltipProps } from "../hooks/useTooltip.js";
 import { getDecision, getSetNumber, getImageDeleteState, getImageSetLabel, getImageSetState, getSimilarityColor } from "../reviewModel.js";
 import { ImageCard } from "./ImageCard.js";
@@ -66,7 +67,7 @@ export const ReviewWorkspace = (props: ReviewWorkspaceProps) => (
             className="setNav"
             onClick={() => props.onNavigate(props.currentIndex - 1)}
             type="button"
-            {...props.getTooltipProps("Previous set", "Move to the previous set.", "Left arrow")}
+            {...props.getTooltipProps("Previous set", "Move to the previous set.", getShortcutKeys("navigatePrevious"))}
          >
             <ChevronLeft aria-hidden="true" />
          </button>
@@ -131,7 +132,7 @@ export const ReviewWorkspace = (props: ReviewWorkspaceProps) => (
             className="setNav"
             onClick={() => props.onNavigate(props.currentIndex + 1)}
             type="button"
-            {...props.getTooltipProps("Next set", "Move to the next set.", "Right arrow")}
+            {...props.getTooltipProps("Next set", "Move to the next set.", getShortcutKeys("navigateNext"))}
          >
             <ChevronRight aria-hidden="true" />
          </button>

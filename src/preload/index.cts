@@ -6,6 +6,9 @@ const api: AppApi = {
    loadData: async (): Promise<LoadDataResult> => ipcRenderer.invoke("data:load") as Promise<LoadDataResult>,
    chooseFolder: async (): Promise<string | null> => ipcRenderer.invoke("scan:choose-folder") as Promise<string | null>,
    scanFolder: async (request: ScanRequest): Promise<LoadDataResult> => ipcRenderer.invoke("scan:start", request) as Promise<LoadDataResult>,
+   cancelScan: async (): Promise<void> => {
+      await ipcRenderer.invoke("scan:cancel");
+   },
    onScanProgress: (listener: (progress: ScanProgress) => void): (() => void) => {
       const handler = (_event: Electron.IpcRendererEvent, progress: ScanProgress): void => listener(progress);
       ipcRenderer.on("scan:progress", handler);

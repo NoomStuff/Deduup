@@ -1,5 +1,6 @@
 import { ArrowLeft, Flag, HomeIcon, Info, Redo2, Settings, Undo2 } from "lucide-react";
 import type { AppView } from "../appTypes.js";
+import { getShortcutKeys } from "../appShortcuts.js";
 import type { TooltipProps } from "../hooks/useTooltip.js";
 import "./ReviewHeader.css";
 
@@ -40,7 +41,7 @@ export const ReviewHeader = (props: ReviewHeaderProps) => (
             disabled={!props.canUndo}
             onClick={props.onUndo}
             type="button"
-            {...props.getTooltipProps("Undo", "Restore the previous review choice.", "Ctrl Z")}
+            {...props.getTooltipProps("Undo", "Restore the previous review choice.", getShortcutKeys("undo"))}
          >
             <Undo2 aria-hidden="true" />
          </button>
@@ -50,7 +51,7 @@ export const ReviewHeader = (props: ReviewHeaderProps) => (
             disabled={!props.canRedo}
             onClick={props.onRedo}
             type="button"
-            {...props.getTooltipProps("Redo", "Reapply a choice you just undid.", "Ctrl Shift Z")}
+            {...props.getTooltipProps("Redo", "Reapply a choice you just undid.", getShortcutKeys("redo"))}
          >
             <Redo2 aria-hidden="true" />
          </button>

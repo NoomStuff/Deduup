@@ -6,7 +6,10 @@ import { isObject, normalizeDecisions } from "../shared/schema.js";
 import type { LoadDataResult, ScanProgress, ScanRequest } from "../shared/types.js";
 import { getDuplicateFolderStatus, getLoadResult, getSetting, saveCurrentSetId, saveDecisions, saveScan, setSetting } from "./database.js";
 import { moveMarkedImages, assertDuplicateFolderCanBeRecycled, restoreDuplicateFolder } from "./fileActions.js";
-import { collectImagePaths, groupImages, scanImages } from "./scanner.js";
+import { ScanCancelledError, collectImagePaths, groupImages, scanImages } from "./scanner.js";
+
+/** The scan the UI can cancel; the renderer blocks re-entry, so one slot is enough. */
+let activeScanController: AbortController | null = null;
 
 const isNonEmptyString = (value: unknown): value is string => typeof value === "string" && value.trim().length > 0;
 
@@ -27,24 +30,27 @@ const openPath = async (targetPath: string): Promise<void> => {
    if (message.length > 0) throw new Error(message);
 };
 
-export const runScan = async (rootPath: string, sender: WebContents): Promise<LoadDataResult> => {
+export const runScan = async (rootPath: string, sender: WebContents, signal?: AbortSignal): Promise<LoadDataResult> => {
    if (await getDuplicateFolderStatus()) {
       throw new Error("Restore or recycle the currently moved duplicates before starting another scan.");
    }
    if (!(await stat(rootPath)).isDirectory()) throw new Error("The selected path is not a directory");
    const report = (progress: ScanProgress): void => sender.send("scan:progress", progress);
    let scanWarningCount = 0;
-   const reportWarning = (): void => {
+   const scanWarningPaths: string[] = [];
+   const reportWarning = (filePath: string): void => {
       scanWarningCount += 1;
+      if (scanWarningPaths.length < 5) scanWarningPaths.push(filePath);
    };
    report({ phase: "discovering", completed: 0, total: 0 });
-   const paths = await collectImagePaths(rootPath, reportWarning);
+   const paths = await collectImagePaths(rootPath, reportWarning, signal);
    report({ phase: "discovering", completed: paths.length, total: paths.length });
-   const groups = await groupImages(await scanImages(paths, report, reportWarning), report);
+   const groups = await groupImages(await scanImages(paths, report, reportWarning, signal), report, signal);
    report({ phase: "saving", completed: 0, total: groups.length });
+   if (signal?.aborted) throw new ScanCancelledError();
    saveScan(rootPath, groups);
    report({ phase: "saving", completed: groups.length, total: groups.length });
-   return { ...(await getLoadResult()), scanWarningCount };
+   return { ...(await getLoadResult()), scanWarningCount, scanWarningPaths };
 };
 
 export const registerIpcHandlers = (): void => {
@@ -55,7 +61,16 @@ export const registerIpcHandlers = (): void => {
    });
    ipcMain.handle("scan:start", async (event, rawRequest: unknown): Promise<LoadDataResult> => {
       const request = normalizeScanRequest(rawRequest);
-      return runScan(request.rootPath, event.sender);
+      const controller = new AbortController();
+      activeScanController = controller;
+      try {
+         return await runScan(request.rootPath, event.sender, controller.signal);
+      } finally {
+         if (activeScanController === controller) activeScanController = null;
+      }
+   });
+   ipcMain.handle("scan:cancel", (): void => {
+      activeScanController?.abort();
    });
    ipcMain.handle("decisions:save", (_event, rawDecisions: unknown): void => saveDecisions(normalizeDecisions(rawDecisions)));
    ipcMain.handle("sets:save-position", (_event, setId: unknown): void => {

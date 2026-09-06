@@ -21,7 +21,8 @@ const pushUndo = (state: HistoryState): Pick<HistoryState, "undoStack" | "redoSt
    redoStack: [],
 });
 
-const reducer = (state: HistoryState, event: HistoryEvent): HistoryState => {
+/** Exported for unit tests; use the hook below in components. */
+export const decisionHistoryReducer = (state: HistoryState, event: HistoryEvent): HistoryState => {
    switch (event.type) {
       case "update": {
          const next = event.updater(state.decisions);
@@ -55,7 +56,7 @@ export const useDecisionHistory = (): {
    undo: () => void;
    redo: () => void;
 } => {
-   const [state, dispatch] = useReducer(reducer, { decisions: {}, undoStack: [], redoStack: [] });
+   const [state, dispatch] = useReducer(decisionHistoryReducer, { decisions: {}, undoStack: [], redoStack: [] });
 
    const updateDecisions = useCallback((updater: (current: Decisions) => Decisions): void => dispatch({ type: "update", updater }), []);
    const replaceDecisions = useCallback((decisions: Decisions): void => dispatch({ type: "replace", decisions }), []);

@@ -1,6 +1,7 @@
 import type { DragEventHandler } from "react";
-import { FolderOpen, Image as ImageIcon, LoaderCircle, Redo2, RotateCw } from "lucide-react";
+import { FolderOpen, Image as ImageIcon, LoaderCircle, Redo2, RotateCw, TriangleAlert, X } from "lucide-react";
 import type { ScanProgress } from "../../shared/types.js";
+import type { ScanWarnings } from "../appTypes.js";
 import { Toggle } from "./Toggle.js";
 import "./AppStatusScreens.css";
 
@@ -20,11 +21,26 @@ export const LoadingScreen = () => (
             <strong>Loading your library</strong>
             <small>Reading the saved scan from disk.</small>
          </div>
+         <div className="loadingBars" aria-hidden="true">
+            <span />
+            <span />
+            <span />
+         </div>
       </div>
    </main>
 );
 
-export const ScanningScreen = ({ folderName, folderPath, progress }: { folderName: string; folderPath: string | null; progress: ScanProgress | null }) => {
+export const ScanningScreen = ({
+   folderName,
+   folderPath,
+   progress,
+   onCancel,
+}: {
+   folderName: string;
+   folderPath: string | null;
+   progress: ScanProgress | null;
+   onCancel: () => void;
+}) => {
    const progressPercent = progress === null || progress.total === 0 ? 0 : Math.round((progress.completed / progress.total) * 100);
    return (
       <main className="scanLoadingShell">
@@ -51,10 +67,40 @@ export const ScanningScreen = ({ folderName, folderPath, progress }: { folderNam
                </div>
                <strong>{progressPercent}%</strong>
             </div>
+            <button className="ghostButton scanLoadingPanel__cancel" onClick={onCancel} type="button">
+               <X aria-hidden="true" />
+               Cancel scan
+            </button>
          </section>
       </main>
    );
 };
+
+export const ScanWarningsBanner = ({ warnings, onDismiss }: { warnings: ScanWarnings; onDismiss: () => void }) => (
+   <section aria-label="Skipped items" className="scanWarnings" role="status">
+      <TriangleAlert aria-hidden="true" />
+      <div className="scanWarnings__body">
+         <strong>
+            {warnings.count} unreadable item{warnings.count === 1 ? "" : "s"} skipped
+         </strong>
+         <span>These files or folders could not be read, so they are not part of this review.</span>
+         {warnings.paths.length > 0 && (
+            <details>
+               <summary>Show paths</summary>
+               <ul>
+                  {warnings.paths.map((filePath) => (
+                     <li key={filePath}>{filePath}</li>
+                  ))}
+                  {warnings.count > warnings.paths.length && <li>and {warnings.count - warnings.paths.length} more…</li>}
+               </ul>
+            </details>
+         )}
+      </div>
+      <button aria-label="Dismiss skipped-items warning" className="iconButton" onClick={onDismiss} type="button">
+         <X aria-hidden="true" />
+      </button>
+   </section>
+);
 
 interface StartupScreenProps {
    hasSavedReview: boolean;

@@ -3,7 +3,7 @@ import type { MouseEvent } from "react";
 import { FolderOpen, ImageOff, Trash2 } from "lucide-react";
 import type { ImageItem } from "../../shared/types.js";
 import type { ImageDeleteState } from "../appTypes.js";
-import { formatBytes } from "../reviewModel.js";
+import { formatBytes, formatDate } from "../reviewModel.js";
 
 export const ImageCard = memo(function ImageCard({
    image,
@@ -76,7 +76,7 @@ export const ImageCard = memo(function ImageCard({
          <span className="imageCard__meta">
             <strong title={image.file}>{image.file}</strong>
             <span>
-               {image.width}x{image.height} · {formatBytes(image.size)}
+               {image.width}x{image.height} · {formatBytes(image.size)} · {formatDate(image.modifiedAt)}
             </span>
          </span>
       </article>

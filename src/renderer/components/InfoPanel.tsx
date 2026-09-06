@@ -1,22 +1,7 @@
 import { Info, Keyboard, ShieldCheck, X } from "lucide-react";
+import { shortcutHelp } from "../appShortcuts.js";
 import { OverlayPanel } from "./OverlayPanel.js";
 import "./InfoPanel.css";
-
-const shortcuts: { keys: string; action: string }[] = [
-   { keys: "← → / A D / Space", action: "Previous or next set" },
-   { keys: "Ctrl ← →", action: "Jump between similarity bands" },
-   { keys: "1–9", action: "Mark or keep the Nth image (Ctrl to advance)" },
-   { keys: "Delete / Backspace", action: "Mark or keep the selected image" },
-   { keys: "Enter", action: "Preview the selected image" },
-   { keys: "C", action: "Compare the selected image with a neighbour" },
-   { keys: "X", action: "Mark the whole set" },
-   { keys: "V", action: "Autoselect the band" },
-   { keys: "Alt Click", action: "Start a two-image compare" },
-   { keys: "Shift Click", action: "Mark or keep an image" },
-   { keys: "Ctrl Z / Ctrl Shift Z", action: "Undo or redo" },
-   { keys: "Mouse 4 / 5", action: "Back or forward between sets" },
-   { keys: "Esc", action: "Close the topmost panel or menu" },
-];
 
 const removalSteps = [
    "Mark removal candidates while reviewing. Nothing has moved yet.",
@@ -68,7 +53,7 @@ export const InfoPanel = ({ onClose }: { onClose: () => void }) => (
       <section className="panelGroup">
          <p className="panelGroup__label">Shortcuts</p>
          <dl className="shortcutList">
-            {shortcuts.map((shortcut) => (
+            {shortcutHelp.map((shortcut) => (
                <div key={shortcut.keys}>
                   <dt>
                      <kbd>{shortcut.keys}</kbd>
@@ -76,6 +61,12 @@ export const InfoPanel = ({ onClose }: { onClose: () => void }) => (
                   <dd>{shortcut.action}</dd>
                </div>
             ))}
+            <div key="esc">
+               <dt>
+                  <kbd>Esc</kbd>
+               </dt>
+               <dd>Close the topmost panel or menu</dd>
+            </div>
          </dl>
          <p className="shortcutHint">
             <Keyboard aria-hidden="true" /> Right-clicking images, sets, and band tags also opens their actions.

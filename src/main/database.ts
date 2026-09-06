@@ -24,6 +24,7 @@ interface ImageRow {
    width: number;
    height: number;
    size: number;
+   modifiedAt: number;
 }
 interface DecisionRow {
    setId: string;
@@ -234,6 +235,7 @@ const buildImageItem = async (row: ImageRow, decisions: Decisions, scanRoot: str
       width: row.width,
       height: row.height,
       size: row.size,
+      modifiedAt: row.modifiedAt,
       previewUrl: createPreviewUrl(previewPath),
       fullPreviewUrl: createPreviewUrl(previewPath, "full"),
       exists,
@@ -265,7 +267,9 @@ export const loadGroups = async (
       .prepare("SELECT id, similarity, folder_path AS folderPath FROM duplicate_groups ORDER BY sort_index")
       .all() as unknown as GroupRow[];
    const imageRows = getDatabase()
-      .prepare("SELECT set_id AS setId, file_name AS file, original_path AS originalPath, hash, width, height, size FROM images ORDER BY set_id, original_path")
+      .prepare(
+         "SELECT set_id AS setId, file_name AS file, original_path AS originalPath, hash, width, height, size, modified_at AS modifiedAt FROM images ORDER BY set_id, original_path"
+      )
       .all() as unknown as ImageRow[];
    resetPreviewAccess();
 
@@ -302,5 +306,6 @@ export const getLoadResult = async (): Promise<LoadDataResult> => {
       duplicateFolderHasContent: await getDuplicateFolderStatus(),
       lastFileAction,
       scanWarningCount: 0,
+      scanWarningPaths: [],
    };
 };

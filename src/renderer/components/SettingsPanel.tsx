@@ -7,9 +7,11 @@ interface SettingsPanelProps {
    wrapImageShelf: boolean;
    confirmMajorActions: boolean;
    showStartupOnLaunch: boolean;
+   neutralTheme: boolean;
    onWrapChange: (checked: boolean) => void;
    onConfirmChange: (checked: boolean) => void;
    onStartupChange: (checked: boolean) => void;
+   onNeutralChange: (checked: boolean) => void;
    onClear: () => void;
    onClose: () => void;
 }
@@ -32,6 +34,10 @@ export const SettingsPanel = (props: SettingsPanelProps) => (
          <button aria-label="Close settings" className="iconButton" onClick={props.onClose} type="button">
             <X aria-hidden="true" />
          </button>
+      </div>
+      <div className="panelGroup">
+         <p className="panelGroup__label">Appearance</p>
+         <Toggle checked={props.neutralTheme} label="Neutral gray theme" onChange={props.onNeutralChange} />
       </div>
       <div className="panelGroup">
          <p className="panelGroup__label">Review</p>

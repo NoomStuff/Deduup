@@ -7,11 +7,32 @@ import { clamp } from "../reviewModel.js";
 import { OverlayPanel } from "./OverlayPanel.js";
 import "./CompareOverlay.css";
 
+const minScale = 1;
+const maxScale = 8;
+
+interface ViewTransform {
+   scale: number;
+   x: number;
+   y: number;
+}
+
+const identityTransform: ViewTransform = { scale: 1, x: 0, y: 0 };
+
+const clampOffset = (value: number, scale: number, span: number): number => {
+   const limit = Math.max(0, (span * (scale - 1)) / 2);
+   return clamp(value, -limit, limit);
+};
+
+const asCssTransform = ({ scale, x, y }: ViewTransform): string => `translate(${x}px, ${y}px) scale(${scale})`;
+
 export const CompareOverlay = ({ compare, onClose, onKeep }: { compare: CompareState; onClose: () => void; onKeep: (image: ImageItem) => void }) => {
    const [focusedSide, setFocusedSide] = useState<"left" | "right" | null>(null);
+   const [transform, setTransform] = useState<ViewTransform>(identityTransform);
+   const [isPanning, setIsPanning] = useState(false);
    const stageRef = useRef<HTMLDivElement | null>(null);
    const revealFrameRef = useRef<number | null>(null);
    const revealTargetRef = useRef<{ target: HTMLElement; value: number } | null>(null);
+   const panRef = useRef<{ pointerId: number; startX: number; startY: number; baseX: number; baseY: number } | null>(null);
 
    const flushReveal = useCallback((): void => {
       const next = revealTargetRef.current;
@@ -32,24 +53,63 @@ export const CompareOverlay = ({ compare, onClose, onKeep }: { compare: CompareS
    );
 
    const updateRevealFromPointer = (event: PointerEvent<HTMLElement>): void => {
+      // While drag-panning a zoomed stage the wipe stays put.
+      if (panRef.current !== null) return;
       updateRevealFromClientX(event.currentTarget, event.clientX);
    };
 
    useEffect(() => {
-      const followPointer = (event: globalThis.PointerEvent): void => {
-         if (stageRef.current !== null) {
-            updateRevealFromClientX(stageRef.current, event.clientX);
-         }
+      // Native listener so wheel zoom can preventDefault (React's is passive).
+      const stage = stageRef.current;
+      if (stage === null) return undefined;
+      const onWheel = (event: WheelEvent): void => {
+         event.preventDefault();
+         const rect = stage.getBoundingClientRect();
+         setTransform((current) => {
+            const scale = clamp(current.scale * Math.exp(-event.deltaY * 0.0015), minScale, maxScale);
+            if (scale === current.scale) return current;
+            const ratio = scale / current.scale;
+            const cursorX = event.clientX - (rect.left + rect.width / 2);
+            const cursorY = event.clientY - (rect.top + rect.height / 2);
+            return {
+               scale,
+               x: clampOffset(cursorX - (cursorX - current.x) * ratio, scale, rect.width),
+               y: clampOffset(cursorY - (cursorY - current.y) * ratio, scale, rect.height),
+            };
+         });
       };
+      stage.addEventListener("wheel", onWheel, { passive: false });
+      return () => stage.removeEventListener("wheel", onWheel);
+   }, []);
 
-      window.addEventListener("pointermove", followPointer);
-      return () => {
-         window.removeEventListener("pointermove", followPointer);
-         if (revealFrameRef.current !== null) {
-            window.cancelAnimationFrame(revealFrameRef.current);
-         }
-      };
-   }, [updateRevealFromClientX]);
+   const startPan = (event: PointerEvent<HTMLDivElement>): void => {
+      if (event.button !== 0 || transform.scale <= minScale) return;
+      event.currentTarget.setPointerCapture(event.pointerId);
+      panRef.current = { pointerId: event.pointerId, startX: event.clientX, startY: event.clientY, baseX: transform.x, baseY: transform.y };
+      setIsPanning(true);
+   };
+
+   const movePan = (event: PointerEvent<HTMLDivElement>): void => {
+      const pan = panRef.current;
+      const stage = stageRef.current;
+      if (pan === null || stage === null || event.pointerId !== pan.pointerId) return;
+      const rect = stage.getBoundingClientRect();
+      setTransform((current) => ({
+         ...current,
+         x: clampOffset(pan.baseX + (event.clientX - pan.startX), current.scale, rect.width),
+         y: clampOffset(pan.baseY + (event.clientY - pan.startY), current.scale, rect.height),
+      }));
+   };
+
+   const endPan = (event: PointerEvent<HTMLDivElement>): void => {
+      if (panRef.current?.pointerId !== event.pointerId) return;
+      panRef.current = null;
+      setIsPanning(false);
+   };
+
+   // Thumbnails while at 1:1; full images only once the user zooms in.
+   const sourceFor = (image: ImageItem): string => (transform.scale > minScale ? image.fullPreviewUrl : image.previewUrl);
+   const cssTransform = asCssTransform(transform);
 
    return (
       <OverlayPanel
@@ -64,7 +124,7 @@ export const CompareOverlay = ({ compare, onClose, onKeep }: { compare: CompareS
             <div>
                <p className="overlayLabel">Compare</p>
                <h2 id="compare-title">Pick the copy to keep</h2>
-               <p className="compare__hint">Move across the stage to wipe between the two copies.</p>
+               <p className="compare__hint">Move across the stage to wipe between the two copies. Scroll to zoom, drag to pan while zoomed.</p>
             </div>
             <button aria-label="Close comparison" className="iconButton" onClick={onClose} type="button">
                <X aria-hidden="true" />
@@ -88,9 +148,15 @@ export const CompareOverlay = ({ compare, onClose, onKeep }: { compare: CompareS
                <kbd>←</kbd>
             </button>
             <div
-               className="compare__stage"
+               className={`compare__stage${transform.scale > minScale ? " compare__stage--zoomable" : ""}${isPanning ? " compare__stage--panning" : ""}`}
+               onPointerCancel={endPan}
+               onPointerDown={startPan}
                onPointerEnter={updateRevealFromPointer}
-               onPointerMove={updateRevealFromPointer}
+               onPointerMove={(event) => {
+                  movePan(event);
+                  updateRevealFromPointer(event);
+               }}
+               onPointerUp={endPan}
                ref={stageRef}
                style={
                   {
@@ -99,16 +165,22 @@ export const CompareOverlay = ({ compare, onClose, onKeep }: { compare: CompareS
                   } as CSSProperties
                }
             >
-               <img
-                  alt={compare.left.file}
-                  className={"compare__bottom" + (focusedSide === "left" ? " compare__image--focused" : "")}
-                  src={compare.left.previewUrl}
-               />
-               <img
-                  alt={compare.right.file}
-                  className={"compare__top" + (focusedSide === "right" ? " compare__image--focused" : "")}
-                  src={compare.right.previewUrl}
-               />
+               <div className="compare__layer">
+                  <img
+                     alt={compare.left.file}
+                     className={"compare__bottom" + (focusedSide === "left" ? " compare__image--focused" : "")}
+                     src={sourceFor(compare.left)}
+                     style={{ transform: cssTransform }}
+                  />
+               </div>
+               <div className="compare__layer compare__layer--top">
+                  <img
+                     alt={compare.right.file}
+                     className={"compare__top" + (focusedSide === "right" ? " compare__image--focused" : "")}
+                     src={sourceFor(compare.right)}
+                     style={{ transform: cssTransform }}
+                  />
+               </div>
                <span className="compare__divider" />
                <span className="compare__label compare__label--left">{compare.leftIndex + 1}</span>
                <span className="compare__label compare__label--right">{compare.rightIndex + 1}</span>

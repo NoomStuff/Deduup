@@ -45,6 +45,11 @@ export interface FileWorkflowState {
    missingCount: number;
 }
 
+export interface ScanWarnings {
+   count: number;
+   paths: string[];
+}
+
 export interface TooltipAnchor {
    centerX: number;
    top: number;

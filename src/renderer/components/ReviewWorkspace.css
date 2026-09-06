@@ -272,7 +272,7 @@
 }
 
 .imageCard__fallback--movedByApp {
-   background: repeating-linear-gradient(-45deg, transparent 0 10px, rgba(169, 184, 255, 0.02) 10px 20px);
+   background: repeating-linear-gradient(-45deg, transparent 0 10px, rgba(var(--hairline-rgb), 0.02) 10px 20px);
 }
 
 .imageCard__meta {

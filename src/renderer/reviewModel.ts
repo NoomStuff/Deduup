@@ -208,6 +208,9 @@ export const formatBytes = (bytes: number): string => {
    return `${value.toFixed(value >= 10 ? 1 : 2)} ${units[unitIndex] ?? "TB"}`;
 };
 
+export const formatDate = (modifiedAt: number): string =>
+   new Date(modifiedAt).toLocaleDateString(undefined, { day: "numeric", month: "short", year: "numeric" });
+
 export const getFolderName = (folderPath: string | null): string => (folderPath === null ? "No folder" : (folderPath.split(/[\\/]/u).at(-1) ?? folderPath));
 
 export const clamp = (value: number, min: number, max: number): number => Math.max(min, Math.min(max, value));

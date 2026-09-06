@@ -8,7 +8,7 @@
    max-width: 260px;
    border: 1px solid var(--line-strong);
    border-radius: var(--radius-md);
-   background: rgba(10, 13, 20, 0.97);
+   background: var(--popover-bg);
    box-shadow: var(--shadow);
    padding: 10px 12px;
    pointer-events: none;
@@ -33,7 +33,7 @@
    left: calc(var(--arrow-x, 50%) - 6px);
    width: 11px;
    height: 11px;
-   background: rgba(10, 13, 20, 0.97);
+   background: var(--popover-bg);
    transform: rotate(45deg);
 }
 

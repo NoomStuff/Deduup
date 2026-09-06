@@ -246,15 +246,22 @@
 /* --- Loading screen ------------------------------------------------------------ */
 
 .loadingCard {
-   display: flex;
+   display: grid;
+   width: min(420px, calc(100vw - 48px));
+   grid-template-columns: auto 1fr;
+   grid-template-rows: auto auto;
+   gap: 12px 16px;
    align-items: center;
-   gap: 14px;
    border: 2px solid var(--line);
    border-radius: var(--radius-lg);
    background: rgba(var(--surface-rgb), 0.9);
    box-shadow: var(--shadow);
    padding: 22px 28px;
    animation: overlay-fade-in 180ms ease both;
+}
+
+.loadingCard > .spinner {
+   grid-row: span 2;
 }
 
 .loadingCard strong {
@@ -266,4 +273,93 @@
 .loadingCard small {
    color: var(--faint);
    font-size: 12.5px;
+}
+
+/* Three shimmering bars, staggered — the loading signature from the first release. */
+
+.loadingBars {
+   grid-column: span 2;
+   display: grid;
+   gap: 6px;
+}
+
+.loadingBars span {
+   height: 5px;
+   border-radius: 999px;
+   background: linear-gradient(90deg, #ffffff0e, rgba(var(--accent-rgb), 0.34), #ffffff0e);
+   background-size: 200% 100%;
+   animation: shimmer 1.2s ease infinite;
+}
+
+.loadingBars span:nth-child(2) {
+   animation-delay: 0.12s;
+}
+
+.loadingBars span:nth-child(3) {
+   animation-delay: 0.24s;
+}
+
+/* --- Scan cancel ------------------------------------------------------------- */
+
+.scanLoadingPanel__cancel {
+   justify-self: center;
+   margin-top: -4px;
+}
+
+/* --- Scan warnings banner ------------------------------------------------------ */
+
+.scanWarnings {
+   display: flex;
+   align-items: flex-start;
+   gap: 12px;
+   margin: 0 2px 14px;
+   border: 2px solid rgba(255, 191, 105, 0.45);
+   border-radius: var(--radius-md);
+   background: rgba(255, 191, 105, 0.08);
+   padding: 12px 14px;
+}
+
+.scanWarnings > svg {
+   flex: none;
+   width: 17px;
+   height: 17px;
+   margin-top: 2px;
+   color: var(--warning);
+}
+
+.scanWarnings__body {
+   display: grid;
+   flex: 1;
+   gap: 3px;
+   font-size: 12.5px;
+}
+
+.scanWarnings__body strong {
+   color: var(--text-strong);
+   font-size: 13px;
+}
+
+.scanWarnings__body > span {
+   color: var(--muted);
+}
+
+.scanWarnings__body summary {
+   color: var(--warning);
+   cursor: pointer;
+   font-weight: 700;
+}
+
+.scanWarnings__body ul {
+   margin: 6px 0 0;
+   padding-left: 18px;
+   color: var(--muted);
+   font-size: 12px;
+   line-height: 1.5;
+   word-break: break-all;
+}
+
+.scanWarnings .iconButton {
+   flex: none;
+   width: 28px;
+   height: 28px;
 }

@@ -18,8 +18,8 @@ Removal is deliberately staged:
 
 1. The user marks **removal candidates** while reviewing.
 2. They see those choices in a final review and explicitly confirm them.
-3. Candidates move to the app-owned quarantine folder.
-4. The user may then move that quarantine folder to the Recycle Bin.
+3. Candidates move to the managed duplicate folder inside the scan root.
+4. The user may then move that duplicate folder to the Recycle Bin.
 
 Preserve this clear, reversible path. Never blur a proposed action with one that has already changed a file.
 
@@ -30,7 +30,7 @@ Preserve this clear, reversible path. Never blur a proposed action with one that
 - **Similarity group**: sets sharing a displayed similarity score. Used as user facing a navigation and bulk-action aid.
 - **Similarity band**: the container that has all owns all the sets that share a displayed similarity score and the sets contained within them.
 - **Removal candidate**: an image selected for removal that remains at its source.
-- **Quarantined image**: a removal candidate moved into the app-managed duplicate folder.
+- **Moved image**: a removal candidate now living in the managed duplicate folder. The UI says "in the duplicate folder"; it is still recoverable until the folder is recycled.
 
 Use these terms consistently in code, UI, tests, and documentation. Avoid calling a removal candidate "deleted" before it has actually left its source.
 
@@ -48,8 +48,12 @@ Prefer clean, minimal, strictly typed changes that preserve intentional flows. K
 - Animations are part of the design: every surface that appears animates in and out, using the shared keyframes in `theme.css` where possible.
 - Reference project for architecture and interaction feel: `C:\Users\NoomS\Coding\Web\Osiris-but-better`.
 
+## Detection scope
+
+The scanner hashes image layout (a 64-bit difference hash), so it groups near-identical copies: exact duplicates, resizes, re-encodes, and light edits. Rotated, cropped, or mirrored variants are out of scope by design. Do not trade scan speed or grouping precision for broader matching without a concrete need.
+
 ## Verifying changes
 
-Agents should always run `bun run test` (typecheck plus unit tests) and `bun run lint` before claiming an outcome. For anything that touches the renderer, run `bun run test:ui` as well: it builds the app, launches it in Electron against an isolated profile, generates a deterministic fixture library (`scripts/makeFixtures.mjs`), and walks the core flows through the real DOM. Screenshots from that run land in `.cache/ui-smoke/` — inspect them when a change is visual.
+Agents should always run `bun run verify` (format check, lint, typecheck plus unit tests, and the UI smoke test) or at minimum `bun run test` and `bun run lint` before claiming an outcome. The same checks run in GitHub Actions on every push. For anything that touches the renderer, run `bun run test:ui` as well: it builds the app, launches it in Electron against an isolated profile, generates a deterministic fixture library (`scripts/makeFixtures.mjs`), and walks the core flows through the real DOM. Screenshots from that run land in `.cache/ui-smoke/` — inspect them when a change is visual.
 
 To explore the app manually without touching real scan data, launch the built app with `--user-data-dir=<isolated folder>` plus `--scan=<folder>` (and `IMAGE_DEDUPLICATOR_PROD=1` when running from sources); the scan hook starts the scan without the native folder dialog. Never point a test scan at the real `%APPDATA%` profile: a scan replaces all saved review choices.

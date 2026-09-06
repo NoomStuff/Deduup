@@ -1,7 +1,7 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { DragEvent, MouseEvent } from "react";
-import type { FileActionStatus, ImageSet, ImageItem, LoadDataResult, ScanProgress } from "../shared/types.js";
-import type { AppView, CompareState, ConfirmAction, ContextMenuState, TravelDirection } from "./appTypes.js";
+import type { FileActionStatus, ImageSet, ImageItem, LoadDataResult } from "../shared/types.js";
+import type { AppView, ConfirmAction, ContextMenuState, ScanWarnings, TravelDirection } from "./appTypes.js";
 import { CompareOverlay } from "./components/CompareOverlay.js";
 import { ConfirmDialog } from "./components/ConfirmDialog.js";
 import { FinalReview } from "./components/FinalReview.js";
@@ -13,11 +13,14 @@ import { ReviewHeader } from "./components/ReviewHeader.js";
 import { ReviewWorkspace } from "./components/ReviewWorkspace.js";
 import { SettingsPanel } from "./components/SettingsPanel.js";
 import { TooltipBubble } from "./components/TooltipBubble.js";
-import { LoadingScreen, ScanningScreen, StartupScreen } from "./components/AppStatusScreens.js";
+import { LoadingScreen, ScanWarningsBanner, ScanningScreen, StartupScreen } from "./components/AppStatusScreens.js";
+import { useCompareController } from "./hooks/useCompareController.js";
 import { useDecisionHistory } from "./hooks/useDecisionHistory.js";
-import { useFilmstrip } from "./hooks/useFilmstrip.js";
 import { useFileWorkflowActions } from "./hooks/useFileWorkflowActions.js";
+import { useFilmstrip } from "./hooks/useFilmstrip.js";
 import { useNotifications } from "./hooks/useNotifications.js";
+import { preferenceKeys, usePreference } from "./hooks/usePreference.js";
+import { useScanController } from "./hooks/useScanController.js";
 import { useReviewShortcuts } from "./hooks/useReviewShortcuts.js";
 import { useTooltip } from "./hooks/useTooltip.js";
 import { createReviewActions } from "./reviewActions.js";
@@ -37,10 +40,6 @@ import {
    setImageSetDecision,
 } from "./reviewModel.js";
 
-const startupPreferenceKey = "show-start-screen-on-startup";
-
-const getStartupPreference = (): boolean => window.localStorage.getItem(startupPreferenceKey) !== "false";
-
 export const App = () => {
    const [groups, setGroups] = useState<ImageSet[]>([]);
    const {
@@ -57,28 +56,26 @@ export const App = () => {
    const [loading, setLoading] = useState(true);
    const [selectedImagePath, setSelectedImagePath] = useState<string | null>(null);
    const [previewImage, setPreviewImage] = useState<ImageItem | null>(null);
-   const [comparePick, setComparePick] = useState<ImageItem | null>(null);
-   const [compare, setCompare] = useState<CompareState | null>(null);
    const [view, setView] = useState<AppView>("review");
    const [duplicateFolderHasContent, setDuplicateFolderHasContent] = useState(false);
    const [lastFileAction, setLastFileAction] = useState<FileActionStatus>("idle");
    const [travelDirection, setTravelDirection] = useState<TravelDirection>("idle");
    const [scanRoot, setScanRoot] = useState<string | null>(null);
-   const [scanningPath, setScanningPath] = useState<string | null>(null);
    const [duplicateFolderPath, setDuplicateFolderPath] = useState<string | null>(null);
-   const [isScanning, setIsScanning] = useState(false);
-   const [scanProgress, setScanProgress] = useState<ScanProgress | null>(null);
+   const [scanWarnings, setScanWarnings] = useState<ScanWarnings | null>(null);
+   const [scanWarningsDismissed, setScanWarningsDismissed] = useState(false);
    const [confirmAction, setConfirmAction] = useState<ConfirmAction | null>(null);
    const [isSettingsOpen, setIsSettingsOpen] = useState(false);
    const [isInfoOpen, setIsInfoOpen] = useState(false);
    const [contextMenu, setContextMenu] = useState<ContextMenuState | null>(null);
    const [isDragOver, setIsDragOver] = useState(false);
+   const [confirmMajorActions, setConfirmMajorActions] = usePreference(preferenceKeys.confirmMajorActions, true);
+   const [wrapImageShelf, setWrapImageShelf] = usePreference(preferenceKeys.wrapImageShelf, true);
+   const [showStartupOnLaunch, setShowStartupOnLaunch] = usePreference(preferenceKeys.showStartupOnLaunch, true);
+   const [neutralTheme, setNeutralTheme] = usePreference(preferenceKeys.neutralTheme, false);
+   const [isStartupOpen, setIsStartupOpen] = useState(showStartupOnLaunch);
    const { tooltip, hideTooltip, getTooltipProps } = useTooltip();
    const { notifications, notify, dismissNotification } = useNotifications();
-   const [confirmMajorActions, setConfirmMajorActions] = useState(true);
-   const [wrapImageShelf, setWrapImageShelf] = useState(true);
-   const [showStartupOnLaunch, setShowStartupOnLaunch] = useState(getStartupPreference);
-   const [isStartupOpen, setIsStartupOpen] = useState(getStartupPreference);
 
    const currentSet = groups[currentIndex] ?? null;
    const currentDecision = currentSet === null ? emptyImageSetDecision() : getDecision(decisions, currentSet.id);
@@ -88,14 +85,11 @@ export const App = () => {
    const fileWorkflow = useMemo(() => getFileWorkflowState(groups, decisions), [decisions, groups]);
    const similarityBands = useMemo(() => getSimilarityBands(groups), [groups]);
    const selectedImage = currentSet?.images.find((image) => image.originalPath === selectedImagePath) ?? null;
-   const { fade: filmstripFade, filmstripRef } = useFilmstrip({
-      currentIndex,
-      groupCount: groups.length,
-      isScanning,
-      isStartupOpen,
-      loading,
-      view,
-   });
+
+   useEffect(() => {
+      if (neutralTheme) document.documentElement.setAttribute("data-theme", "slate");
+      else document.documentElement.removeAttribute("data-theme");
+   }, [neutralTheme]);
 
    const reportError = useCallback(
       (title: string, unknownError: unknown, fallback: string): void => {
@@ -134,6 +128,8 @@ export const App = () => {
          clearFileResults();
          setDuplicateFolderHasContent(result.duplicateFolderHasContent);
          setLastFileAction(result.lastFileAction);
+         setScanWarnings(result.scanWarningCount > 0 ? { count: result.scanWarningCount, paths: result.scanWarningPaths } : null);
+         setScanWarningsDismissed(false);
          notify({
             tone: result.groups.length === 0 ? "info" : "success",
             title: result.groups.length === 0 ? "Scan complete" : "Duplicate sets ready",
@@ -142,16 +138,23 @@ export const App = () => {
                   ? "No matching image sets were found."
                   : `Found ${result.groups.length} set${result.groups.length === 1 ? "" : "s"} of similar images.`,
          });
-         if (result.scanWarningCount > 0) {
-            notify({
-               tone: "warning",
-               title: "Some items were skipped",
-               message: `${result.scanWarningCount} unreadable image or folder${result.scanWarningCount === 1 ? " was" : "s were"} skipped.`,
-            });
-         }
       },
       [clearFileResults, notify, replaceDecisions]
    );
+   const { cancelScan, isScanning, scanProgress, scanningPath, startScan } = useScanController({
+      notify,
+      onScanApplied: applyScanResult,
+      reportError,
+   });
+
+   const { fade: filmstripFade, filmstripRef } = useFilmstrip({
+      currentIndex,
+      groupCount: groups.length,
+      isScanning,
+      isStartupOpen,
+      loading,
+      view,
+   });
 
    useEffect(() => {
       const api = window.imageDeduplicator;
@@ -168,22 +171,6 @@ export const App = () => {
          .catch((unknownError: unknown) => reportError("Couldn’t load the review", unknownError, "Failed to load duplicate sets"))
          .finally(() => setLoading(false));
    }, [notify, replaceDecisions, reportError]);
-
-   useEffect(() => {
-      const api = window.imageDeduplicator;
-      const unsubscribeProgress = api.onScanProgress(setScanProgress);
-      const unsubscribeComplete = api.onScanComplete((result) => {
-         applyScanResult(result);
-         setIsScanning(false);
-         setScanningPath(null);
-      });
-      const unsubscribeError = api.onAppError((message) => notify({ tone: "error", title: "Scan failed", message }));
-      return () => {
-         unsubscribeProgress();
-         unsubscribeComplete();
-         unsubscribeError();
-      };
-   }, [applyScanResult, notify]);
 
    useEffect(() => {
       const api = window.imageDeduplicator;
@@ -220,6 +207,15 @@ export const App = () => {
       }
    }, [currentSet, selectedImagePath]);
 
+   // The compare controller sits above the review actions in the dependency
+   // chain (goTo closes it, its keep uses the actions), so the keep callback is
+   // wired through a ref once the actions exist below.
+   const keepImageRef = useRef<(image: ImageItem, advance: boolean) => void>(() => undefined);
+   const { beginCompare, closeCompare, compare, comparePick, keepCompareImage, openAdjacentCompare } = useCompareController({
+      currentSet,
+      onKeep: (image, advance) => keepImageRef.current(image, advance),
+   });
+
    const goTo = useCallback(
       (index: number): void => {
          const nextIndex = Math.max(0, Math.min(groups.length - 1, index));
@@ -241,13 +237,12 @@ export const App = () => {
             });
          }
          setTravelDirection(nextIndex > currentIndex ? "right" : "left");
-         setCompare(null);
-         setComparePick(null);
+         closeCompare();
          setSelectedImagePath(null);
          setCurrentIndex(nextIndex);
          window.setTimeout(() => setTravelDirection("idle"), 180);
       },
-      [currentSet, currentIndex, groups, updateDecisions]
+      [closeCompare, currentSet, currentIndex, groups, updateDecisions]
    );
 
    const goToAdjacentSimilarityBand = useCallback(
@@ -285,6 +280,12 @@ export const App = () => {
       toggleOnlyImageKept,
    } = createReviewActions({ currentIndex, decisions, groups, goTo, updateDecisions });
 
+   useEffect(() => {
+      keepImageRef.current = (image, advance) => {
+         if (currentSet !== null) toggleOnlyImageKept(currentSet, image, advance);
+      };
+   });
+
    const autoSelectCurrentBand = (): void => {
       if (currentSet !== null) autoSelectBand(currentSet);
    };
@@ -300,8 +301,7 @@ export const App = () => {
    const confirmClearAllDecisions = (): void => {
       clearAllChoices();
       clearFileResults();
-      setCompare(null);
-      setComparePick(null);
+      closeCompare();
       setCurrentIndex(getResumeIndex(groups, null));
    };
 
@@ -367,44 +367,6 @@ export const App = () => {
       setContextMenu({ menuKind: "imageSet", setId: imageSet.id, anchor: { kind: "point", x: event.clientX, y: event.clientY } });
    };
 
-   const getImageIndex = (image: ImageItem): number => currentSet?.images.findIndex((item) => item.originalPath === image.originalPath) ?? -1;
-
-   const openAdjacentCompare = (image: ImageItem): void => {
-      if (currentSet === null || image.sourceStatus !== "available") {
-         return;
-      }
-
-      const imageIndex = getImageIndex(image);
-      const adjacentImage =
-         currentSet.images.slice(imageIndex + 1).find((candidate) => candidate.sourceStatus === "available") ??
-         currentSet.images
-            .slice(0, imageIndex)
-            .reverse()
-            .find((candidate) => candidate.sourceStatus === "available");
-      if (adjacentImage === undefined) {
-         return;
-      }
-
-      setCompare({ left: image, right: adjacentImage, leftIndex: imageIndex, rightIndex: getImageIndex(adjacentImage), reveal: 0.5 });
-      setComparePick(null);
-   };
-
-   const beginCompare = (image: ImageItem): void => {
-      if (currentSet === null || image.sourceStatus !== "available") {
-         return;
-      }
-
-      if (comparePick === null) {
-         setComparePick(image);
-         return;
-      }
-
-      if (comparePick.originalPath !== image.originalPath) {
-         setCompare({ left: comparePick, right: image, leftIndex: getImageIndex(comparePick), rightIndex: getImageIndex(image), reveal: 0.5 });
-         setComparePick(null);
-      }
-   };
-
    const handleImageClick = (event: MouseEvent, image: ImageItem): void => {
       setSelectedImagePath(image.originalPath);
       if (currentSet === null) {
@@ -464,8 +426,7 @@ export const App = () => {
       hasSelectedImage: selectedImage !== null,
       onAutoSelectBand: autoSelectCurrentBand,
       onKeepCompareImage: (side) => {
-         if (currentSet !== null && compare !== null) toggleOnlyImageKept(currentSet, compare[side], true);
-         setCompare(null);
+         if (compare !== null) keepCompareImage(compare[side], true);
       },
       onNavigate: (offset) => goTo(currentIndex + offset),
       onNavigateBand: goToAdjacentSimilarityBand,
@@ -536,23 +497,6 @@ export const App = () => {
       }
    };
 
-   const startScan = async (rootPath = scanRoot): Promise<void> => {
-      const api = window.imageDeduplicator;
-      if (rootPath === null) return;
-
-      setIsScanning(true);
-      setScanningPath(rootPath);
-      setScanProgress({ phase: "discovering", completed: 0, total: 0 });
-      try {
-         applyScanResult(await api.scanFolder({ rootPath }));
-      } catch (unknownError: unknown) {
-         reportError("Scan failed", unknownError, "Failed to scan the selected folder");
-      } finally {
-         setIsScanning(false);
-         setScanningPath(null);
-      }
-   };
-
    const confirmOrScan = (folderPath: string | null): void => {
       if (folderPath === null) return;
       if (groups.length > 0 && confirmMajorActions) {
@@ -565,11 +509,6 @@ export const App = () => {
 
    const openNewFolder = async (): Promise<void> => {
       confirmOrScan(await chooseScanFolder());
-   };
-
-   const updateStartupPreference = (checked: boolean): void => {
-      setShowStartupOnLaunch(checked);
-      window.localStorage.setItem(startupPreferenceKey, String(checked));
    };
 
    const handleDragOver = (event: DragEvent): void => {
@@ -611,10 +550,10 @@ export const App = () => {
          void trashDuplicateFolder();
       } else if (kind === "switchFolder") {
          setIsStartupOpen(false);
-         void startScan(confirmAction.folderPath);
+         void startScan(confirmAction.folderPath ?? null);
       } else {
          setIsStartupOpen(false);
-         void startScan();
+         void startScan(scanRoot);
       }
    };
 
@@ -630,7 +569,7 @@ export const App = () => {
    if (isScanning) {
       return (
          <>
-            <ScanningScreen folderName={getFolderName(scanningPath)} folderPath={scanningPath} progress={scanProgress} />
+            <ScanningScreen folderName={getFolderName(scanningPath)} folderPath={scanningPath} progress={scanProgress} onCancel={cancelScan} />
             <NotificationCenter notifications={notifications} onDismiss={dismissNotification} />
          </>
       );
@@ -653,10 +592,10 @@ export const App = () => {
                   if (confirmMajorActions) setConfirmAction(createConfirmAction("rescan"));
                   else {
                      setIsStartupOpen(false);
-                     void startScan();
+                     void startScan(scanRoot);
                   }
                }}
-               onShowOnLaunchChange={updateStartupPreference}
+               onShowOnLaunchChange={setShowStartupOnLaunch}
                showOnLaunch={showStartupOnLaunch}
             />
             {confirmAction !== null && <ConfirmDialog action={confirmAction} onClose={() => setConfirmAction(null)} onConfirm={runConfirmAction} />}
@@ -701,6 +640,8 @@ export const App = () => {
             onToggleView={() => setView(view === "review" ? "final" : "review")}
             onUndo={undoLastDecision}
          />
+
+         {scanWarnings !== null && !scanWarningsDismissed && <ScanWarningsBanner warnings={scanWarnings} onDismiss={() => setScanWarningsDismissed(true)} />}
 
          {view === "review" ? (
             <ReviewWorkspace
@@ -751,10 +692,12 @@ export const App = () => {
          {isSettingsOpen && (
             <SettingsPanel
                confirmMajorActions={confirmMajorActions}
+               neutralTheme={neutralTheme}
                onClear={() => setConfirmAction(createConfirmAction("clearAll"))}
                onClose={() => setIsSettingsOpen(false)}
                onConfirmChange={setConfirmMajorActions}
-               onStartupChange={updateStartupPreference}
+               onNeutralChange={setNeutralTheme}
+               onStartupChange={setShowStartupOnLaunch}
                onWrapChange={setWrapImageShelf}
                showStartupOnLaunch={showStartupOnLaunch}
                wrapImageShelf={wrapImageShelf}
@@ -802,19 +745,7 @@ export const App = () => {
 
          {confirmAction !== null && <ConfirmDialog action={confirmAction} onClose={() => setConfirmAction(null)} onConfirm={runConfirmAction} />}
 
-         {compare !== null && (
-            <CompareOverlay
-               compare={compare}
-               onClose={() => {
-                  setCompare(null);
-                  setComparePick(null);
-               }}
-               onKeep={(image) => {
-                  toggleOnlyImageKept(currentSet, image, false);
-                  setCompare(null);
-               }}
-            />
-         )}
+         {compare !== null && <CompareOverlay compare={compare} onClose={closeCompare} onKeep={(image) => keepCompareImage(image, false)} />}
          {previewImage !== null && (
             <ImagePreviewOverlay image={previewImage} onClose={() => setPreviewImage(null)} onOpenFolder={() => void openFolder(previewImage.folderPath)} />
          )}

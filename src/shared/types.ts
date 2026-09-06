@@ -7,6 +7,7 @@ export interface ImageItem {
    width: number;
    height: number;
    size: number;
+   modifiedAt: number;
    previewUrl: string;
    fullPreviewUrl: string;
    exists: boolean;
@@ -51,6 +52,8 @@ export interface LoadDataResult {
    duplicateFolderHasContent: boolean;
    lastFileAction: FileActionStatus;
    scanWarningCount: number;
+   /** Up to five example paths for skipped items; scanWarningCount is the full total. */
+   scanWarningPaths: string[];
 }
 
 export interface ScanRequest {
@@ -68,6 +71,7 @@ export interface AppApi {
    loadData: () => Promise<LoadDataResult>;
    chooseFolder: () => Promise<string | null>;
    scanFolder: (request: ScanRequest) => Promise<LoadDataResult>;
+   cancelScan: () => Promise<void>;
    onScanProgress: (listener: (progress: ScanProgress) => void) => () => void;
    onScanComplete: (listener: (result: LoadDataResult) => void) => () => void;
    onAppError: (listener: (message: string) => void) => () => void;

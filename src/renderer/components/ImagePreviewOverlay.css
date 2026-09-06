@@ -28,6 +28,21 @@
    padding: 14px 18px;
 }
 
+.imagePreviewDialog__tools {
+   display: flex;
+   align-items: center;
+   gap: 6px;
+}
+
+.imagePreviewDialog__zoom {
+   min-width: 44px;
+   color: var(--muted);
+   font-size: 12px;
+   font-weight: 700;
+   font-variant-numeric: tabular-nums;
+   text-align: center;
+}
+
 .imagePreviewDialog__header h2 {
    margin: 1px 0 0;
    overflow: hidden;
@@ -38,11 +53,21 @@
 }
 
 .imagePreviewDialog__stage {
+   position: relative;
    display: grid;
    place-items: center;
+   overflow: hidden;
    min-height: 0;
    margin: 0;
    background: rgba(5, 7, 12, 0.7);
+}
+
+.imagePreviewDialog__stage--zoomed {
+   cursor: grab;
+}
+
+.imagePreviewDialog__stage--panning {
+   cursor: grabbing;
 }
 
 .imagePreviewDialog__stage img {

@@ -12,9 +12,11 @@
       "build": "bun run clean && node ./node_modules/typescript/bin/tsc -b --force && node ./node_modules/vite/bin/vite.js build",
       "dist:win": "CSC_IDENTITY_AUTO_DISCOVERY=false bun run build && node ./node_modules/electron-builder/cli.js --win portable",
       "open": "node scripts/open.mjs",
-      "lint": "node ./node_modules/eslint/bin/eslint.js .",
+      "lint": "node ./node_modules/eslint/bin/eslint.js . --max-warnings 0",
       "format": "node ./node_modules/prettier/bin/prettier.cjs --write .",
-      "test": "bun run typecheck && node ./node_modules/typescript/bin/tsc -p tsconfig.test.json && node --test scripts/scanner.test.mjs scripts/fileOperations.test.mjs scripts/reviewModel.test.mjs",
+      "format:check": "node ./node_modules/prettier/bin/prettier.cjs --check .",
+      "test": "bun run typecheck && node ./node_modules/typescript/bin/tsc -p tsconfig.test.json && node --test scripts/scanner.test.mjs scripts/fileOperations.test.mjs scripts/reviewModel.test.mjs scripts/reviewActions.test.mjs scripts/decisionHistory.test.mjs",
+      "verify": "bun run format:check && bun run lint && bun run test && bun run test:ui",
       "test:ui": "bun run build && node scripts/smoke.mjs",
       "fixtures": "node scripts/makeFixtures.mjs",
       "typecheck": "node ./node_modules/typescript/bin/tsc -b --force"

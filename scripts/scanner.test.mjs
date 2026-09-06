@@ -3,7 +3,7 @@ import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import test from "node:test";
-import { collectImagePaths, groupImages } from "../dist-electron/main/scanner.js";
+import { ScanCancelledError, collectImagePaths, groupImages, scanImages } from "../dist-electron/main/scanner.js";
 
 const createImage = (hash, index) => ({
    file: `${index}.jpg`,
@@ -79,6 +79,29 @@ test("splits chains that average beyond the similarity cap", async () => {
    }
 });
 
+test("splits very large over-cap chains without quadratic memory", async () => {
+   // A 600-step chain: consecutive copies are exactly 13 bits apart, so they all
+   // connect into one group far above the similarity cap. This used to feed the
+   // whole group into a size-by-size distance matrix and crash on big folders.
+   const images = [];
+   let hash = 0n;
+   for (let index = 0; index < 600; index += 1) {
+      images.push(createImage(hash, index));
+      for (let bit = 0; bit < 13; bit += 1) {
+         hash ^= 1n << BigInt((index * 13 + bit) % 64);
+      }
+   }
+
+   const groups = await groupImages(images, () => undefined);
+
+   const grouped = groups.flatMap((group) => group.images);
+   assert.equal(grouped.length, images.length);
+   assert.ok(groups.length >= 3, `expected several sets, got ${groups.length}`);
+   for (const group of groups) {
+      assert.ok(group.similarity <= 13, `group averaged ${group.similarity}`);
+   }
+});
+
 test("keeps groups whose average stays within the similarity cap", async () => {
    const images = [0n, (1n << 12n) - 1n, ((1n << 6n) - 1n) | (((1n << 6n) - 1n) << 12n)].map(createImage);
    const groups = await groupImages(images, () => undefined);
@@ -92,4 +115,39 @@ test("finds every match inside the distance threshold", async () => {
    const groups = await groupImages(images, () => undefined);
    assert.equal(groups.length, 1);
    assert.equal(groups[0]?.images.length, 2);
+});
+
+test("stops collecting paths when the abort signal fires", async () => {
+   const controller = new AbortController();
+   controller.abort();
+   await assert.rejects(collectImagePaths("C:/nowhere", undefined, controller.signal), ScanCancelledError);
+});
+
+test("stops hashing when the abort signal fires", async () => {
+   const controller = new AbortController();
+   controller.abort();
+   const images = Array.from({ length: 8 }, (_, index) => `${index}.jpg`);
+   await assert.rejects(
+      scanImages(images, () => undefined, undefined, controller.signal),
+      ScanCancelledError
+   );
+});
+
+test("stops grouping when the abort signal fires mid-scan", async () => {
+   const controller = new AbortController();
+   const images = Array.from({ length: 600 }, (_, index) => createImage(BigInt(index), index));
+   let aborted = false;
+   await assert.rejects(
+      groupImages(
+         images,
+         () => {
+            if (!aborted) {
+               aborted = true;
+               controller.abort();
+            }
+         },
+         controller.signal
+      ),
+      ScanCancelledError
+   );
 });

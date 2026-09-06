@@ -17,5 +17,12 @@
       "esModuleInterop": true,
       "skipLibCheck": true
    },
-   "include": ["src/renderer/reviewModel.ts", "src/renderer/appTypes.ts", "src/shared/types.ts", "src/shared/constants.ts"]
+   "include": [
+      "src/renderer/appTypes.ts",
+      "src/renderer/hooks/useDecisionHistory.ts",
+      "src/renderer/reviewActions.ts",
+      "src/renderer/reviewModel.ts",
+      "src/shared/constants.ts",
+      "src/shared/types.ts"
+   ]
 }
