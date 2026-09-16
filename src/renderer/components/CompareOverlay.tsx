@@ -1,38 +1,18 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useRef, useState } from "react";
 import type { CSSProperties, PointerEvent } from "react";
 import { X } from "lucide-react";
 import type { ImageItem } from "../../shared/types.js";
 import type { CompareState } from "../appTypes.js";
 import { clamp } from "../reviewModel.js";
+import { usePanZoom } from "../hooks/usePanZoom.js";
 import { OverlayPanel } from "./OverlayPanel.js";
 import "./CompareOverlay.css";
 
-const minScale = 1;
-const maxScale = 8;
-
-interface ViewTransform {
-   scale: number;
-   x: number;
-   y: number;
-}
-
-const identityTransform: ViewTransform = { scale: 1, x: 0, y: 0 };
-
-const clampOffset = (value: number, scale: number, span: number): number => {
-   const limit = Math.max(0, (span * (scale - 1)) / 2);
-   return clamp(value, -limit, limit);
-};
-
-const asCssTransform = ({ scale, x, y }: ViewTransform): string => `translate(${x}px, ${y}px) scale(${scale})`;
-
 export const CompareOverlay = ({ compare, onClose, onKeep }: { compare: CompareState; onClose: () => void; onKeep: (image: ImageItem) => void }) => {
    const [focusedSide, setFocusedSide] = useState<"left" | "right" | null>(null);
-   const [transform, setTransform] = useState<ViewTransform>(identityTransform);
-   const [isPanning, setIsPanning] = useState(false);
-   const stageRef = useRef<HTMLDivElement | null>(null);
+   const { stageRef, transform, isZoomed, isPanning, panHandlers } = usePanZoom();
    const revealFrameRef = useRef<number | null>(null);
    const revealTargetRef = useRef<{ target: HTMLElement; value: number } | null>(null);
-   const panRef = useRef<{ pointerId: number; startX: number; startY: number; baseX: number; baseY: number } | null>(null);
 
    const flushReveal = useCallback((): void => {
       const next = revealTargetRef.current;
@@ -54,62 +34,13 @@ export const CompareOverlay = ({ compare, onClose, onKeep }: { compare: CompareS
 
    const updateRevealFromPointer = (event: PointerEvent<HTMLElement>): void => {
       // While drag-panning a zoomed stage the wipe stays put.
-      if (panRef.current !== null) return;
+      if (isPanning) return;
       updateRevealFromClientX(event.currentTarget, event.clientX);
    };
 
-   useEffect(() => {
-      // Native listener so wheel zoom can preventDefault (React's is passive).
-      const stage = stageRef.current;
-      if (stage === null) return undefined;
-      const onWheel = (event: WheelEvent): void => {
-         event.preventDefault();
-         const rect = stage.getBoundingClientRect();
-         setTransform((current) => {
-            const scale = clamp(current.scale * Math.exp(-event.deltaY * 0.0015), minScale, maxScale);
-            if (scale === current.scale) return current;
-            const ratio = scale / current.scale;
-            const cursorX = event.clientX - (rect.left + rect.width / 2);
-            const cursorY = event.clientY - (rect.top + rect.height / 2);
-            return {
-               scale,
-               x: clampOffset(cursorX - (cursorX - current.x) * ratio, scale, rect.width),
-               y: clampOffset(cursorY - (cursorY - current.y) * ratio, scale, rect.height),
-            };
-         });
-      };
-      stage.addEventListener("wheel", onWheel, { passive: false });
-      return () => stage.removeEventListener("wheel", onWheel);
-   }, []);
-
-   const startPan = (event: PointerEvent<HTMLDivElement>): void => {
-      if (event.button !== 0 || transform.scale <= minScale) return;
-      event.currentTarget.setPointerCapture(event.pointerId);
-      panRef.current = { pointerId: event.pointerId, startX: event.clientX, startY: event.clientY, baseX: transform.x, baseY: transform.y };
-      setIsPanning(true);
-   };
-
-   const movePan = (event: PointerEvent<HTMLDivElement>): void => {
-      const pan = panRef.current;
-      const stage = stageRef.current;
-      if (pan === null || stage === null || event.pointerId !== pan.pointerId) return;
-      const rect = stage.getBoundingClientRect();
-      setTransform((current) => ({
-         ...current,
-         x: clampOffset(pan.baseX + (event.clientX - pan.startX), current.scale, rect.width),
-         y: clampOffset(pan.baseY + (event.clientY - pan.startY), current.scale, rect.height),
-      }));
-   };
-
-   const endPan = (event: PointerEvent<HTMLDivElement>): void => {
-      if (panRef.current?.pointerId !== event.pointerId) return;
-      panRef.current = null;
-      setIsPanning(false);
-   };
-
    // Thumbnails while at 1:1; full images only once the user zooms in.
-   const sourceFor = (image: ImageItem): string => (transform.scale > minScale ? image.fullPreviewUrl : image.previewUrl);
-   const cssTransform = asCssTransform(transform);
+   const sourceFor = (image: ImageItem): string => (isZoomed ? image.fullPreviewUrl : image.previewUrl);
+   const cssTransform = `translate(${transform.x}px, ${transform.y}px) scale(${transform.scale})`;
 
    return (
       <OverlayPanel
@@ -148,15 +79,13 @@ export const CompareOverlay = ({ compare, onClose, onKeep }: { compare: CompareS
                <kbd>←</kbd>
             </button>
             <div
-               className={`compare__stage${transform.scale > minScale ? " compare__stage--zoomable" : ""}${isPanning ? " compare__stage--panning" : ""}`}
-               onPointerCancel={endPan}
-               onPointerDown={startPan}
+               className={`compare__stage${isZoomed ? " compare__stage--zoomable" : ""}${isPanning ? " compare__stage--panning" : ""}`}
+               {...panHandlers}
                onPointerEnter={updateRevealFromPointer}
                onPointerMove={(event) => {
-                  movePan(event);
+                  panHandlers.onPointerMove(event);
                   updateRevealFromPointer(event);
                }}
-               onPointerUp={endPan}
                ref={stageRef}
                style={
                   {

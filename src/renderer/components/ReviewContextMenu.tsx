@@ -108,7 +108,7 @@ export const ReviewContextMenu = (props: ReviewContextMenuProps) => {
                   type="button"
                >
                   <Trash2 aria-hidden="true" />
-                  <span>{props.imageIsDeleted ? "Keep image" : "Mark for removal"}</span>
+                  <span>{props.imageIsDeleted ? "Unmark image" : "Mark for removal"}</span>
                   <kbd>{getShortcutKeys("toggleImagePointer")}</kbd>
                </button>
                <button
@@ -118,7 +118,7 @@ export const ReviewContextMenu = (props: ReviewContextMenuProps) => {
                   type="button"
                >
                   <Trash2 aria-hidden="true" />
-                  <span>{props.onlyImageIsKept ? "Restore the others" : "Keep only this"}</span>
+                  <span>{props.onlyImageIsKept ? "Unmark the others" : "Keep only this"}</span>
                   <kbd>{getShortcutKeys("keepOnlyThisPointer")}</kbd>
                </button>
                <div className="contextMenu__divider" />

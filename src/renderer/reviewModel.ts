@@ -19,6 +19,8 @@ const areDecisionsEqual = (left: ImageSetDecision, right: ImageSetDecision): boo
    left.deletedImages.length === right.deletedImages.length &&
    left.deletedImages.every((path, index) => path === right.deletedImages[index]);
 
+export { areDecisionsEqual };
+
 export const setImageSetDecision = (decisions: Decisions, setId: string, decision: ImageSetDecision): Decisions => {
    const normalized = normalizeDecisionForSave(decision);
    if (normalized === null) {
@@ -127,7 +129,7 @@ export const getImageSetLabel = (imageSet: ImageSet, decision: ImageSetDecision)
 export const getImageDeleteState = (decision: ImageSetDecision, image: ImageItem): ImageDeleteState =>
    getDeletedImagePaths(decision).has(image.originalPath) ? "deleted" : "active";
 
-export const getSetNumber = (setId: string): string => setId.replace(/^(?:detection|set)_0*/u, "#");
+export const getSetNumber = (setId: string): string => setId.replace(/^set_0*/u, "#");
 
 export const getSimilarityLabel = (similarity: number): string => similarity.toFixed(1);
 
@@ -215,13 +217,48 @@ export const getFolderName = (folderPath: string | null): string => (folderPath 
 
 export const clamp = (value: number, min: number, max: number): number => Math.max(min, Math.min(max, value));
 
-export const createConfirmAction = (kind: ConfirmKind, folderPath?: string): ConfirmAction => {
+interface ConfirmDetails {
+   count?: number;
+   destination?: string;
+   folderPath?: string;
+}
+
+export const createConfirmAction = (kind: ConfirmKind, details: ConfirmDetails = {}): ConfirmAction => {
+   const { count = 0, destination = "the managed duplicate folder", folderPath } = details;
+
    if (kind === "markSet") {
       return {
          kind,
          title: "Mark this set for removal?",
          body: "Every image in the current set will be marked for removal. You can undo this before anything is moved.",
          confirmLabel: "Mark set",
+      };
+   }
+
+   if (kind === "markBand") {
+      return {
+         kind,
+         title: "Mark this band for removal?",
+         body: `Every available image in ${count} set${count === 1 ? "" : "s"} will be marked for removal, including sets you already chose for. You can undo this before anything is moved.`,
+         confirmLabel: "Mark band",
+      };
+   }
+
+   if (kind === "autoSelectBand") {
+      return {
+         kind,
+         title: "Autoselect this band?",
+         body: `The largest copy of every set in the band is kept and the rest marked. ${count} set${count === 1 ? "" : "s"} with your own choices will be re-picked.`,
+         confirmLabel: "Autoselect band",
+      };
+   }
+
+   if (kind === "applyMoves") {
+      return {
+         kind,
+         title: `Move ${count} image${count === 1 ? "" : "s"} to the duplicate folder?`,
+         body: `Marked images move into ${destination} and stay there, recoverable, until you recycle the folder.`,
+         confirmLabel: `Move ${count}`,
       };
    }
 

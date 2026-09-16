@@ -243,6 +243,14 @@
    font-variant-numeric: tabular-nums;
 }
 
+.scanLoadingPanel__count {
+   grid-column: 1 / -1;
+   color: var(--muted);
+   font-size: 12px;
+   font-weight: 700;
+   font-variant-numeric: tabular-nums;
+}
+
 /* --- Loading screen ------------------------------------------------------------ */
 
 .loadingCard {

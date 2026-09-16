@@ -67,6 +67,7 @@
 
 .finalReview__path span {
    overflow: hidden;
+   direction: rtl;
    white-space: nowrap;
    text-overflow: ellipsis;
 }

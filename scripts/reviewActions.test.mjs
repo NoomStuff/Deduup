@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { createReviewActions } from "../dist-test/renderer/reviewActions.js";
+import { countBandAutoselectOverrides, countBandMarkOverrides, createReviewActions } from "../dist-test/renderer/reviewActions.js";
 
 // reviewActions reaches for window timers when advancing; stub them for Node.
 // Assignment (not declaration) keeps it out of the compiled module's import graph.
@@ -131,6 +131,27 @@ test("autoselecting a band keeps the largest of every set in it", () => {
    run.actions.autoSelectBand(groups[0]);
    assert.deepEqual(run.result()["set_001"]?.deletedImages, ["C:/lib/a_small.jpg"]);
    assert.deepEqual(run.result()["set_002"]?.deletedImages, ["C:/lib/b_small.jpg"]);
+});
+
+test("band override counters flag only sets whose choices would change", () => {
+   const groups = [
+      makeSet("set_001", 1.2, [image("a_small.jpg", 100, 100), image("a_big.jpg", 900, 700)]),
+      makeSet("set_002", 1.2, [image("b_big.jpg", 900, 700), image("b_small.jpg", 100, 100)]),
+   ];
+
+   // A fresh band has nothing to overwrite.
+   assert.equal(countBandAutoselectOverrides(groups, {}, groups[0]), 0);
+   assert.equal(countBandMarkOverrides(groups, {}, groups[0]), 0);
+
+   // Keeping the smaller copy of set 1 is a manual choice autoselect would
+   // re-pick; set 2's marks already match the autoselect outcome.
+   const manual = {
+      set_001: { deletedImages: ["C:/lib/a_big.jpg"], seen: true },
+      set_002: { deletedImages: ["C:/lib/b_small.jpg"], seen: true },
+   };
+   assert.equal(countBandAutoselectOverrides(groups, manual, groups[0]), 1);
+   // Marking the whole band would still add marks to both sets.
+   assert.equal(countBandMarkOverrides(groups, manual, groups[0]), 2);
 });
 
 test("clearing a set keeps marks on images that are no longer at their source", () => {

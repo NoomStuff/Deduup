@@ -42,6 +42,14 @@ export const ScanningScreen = ({
    onCancel: () => void;
 }) => {
    const progressPercent = progress === null || progress.total === 0 ? 0 : Math.round((progress.completed / progress.total) * 100);
+   const progressCount =
+      progress === null || progress.total === 0
+         ? null
+         : progress.phase === "discovering"
+           ? `${progress.completed} image${progress.completed === 1 ? "" : "s"} found`
+           : progress.phase === "saving"
+             ? `Saving ${progress.total} set${progress.total === 1 ? "" : "s"}`
+             : `${progress.completed} of ${progress.total} image${progress.total === 1 ? "" : "s"}`;
    return (
       <main className="scanLoadingShell">
          <section aria-live="polite" className="scanLoadingPanel">
@@ -66,6 +74,7 @@ export const ScanningScreen = ({
                   <span style={{ width: `${progressPercent}%` }} />
                </div>
                <strong>{progressPercent}%</strong>
+               {progressCount !== null && <span className="scanLoadingPanel__count">{progressCount}</span>}
             </div>
             <button className="ghostButton scanLoadingPanel__cancel" onClick={onCancel} type="button">
                <X aria-hidden="true" />
@@ -153,18 +162,30 @@ export const StartupScreen = ({
                <FolderOpen aria-hidden="true" />
                <span className="startupAction__label">Open a folder</span>
             </button>
-            <button className="startupAction startupAction--continue" disabled={!hasSavedReview} onClick={onContinue} type="button">
+            <button
+               className="startupAction startupAction--continue"
+               disabled={!hasSavedReview}
+               onClick={onContinue}
+               title={hasSavedReview ? undefined : "No saved review yet"}
+               type="button"
+            >
                <Redo2 aria-hidden="true" />
                <span className="startupAction__label">
                   Continue review
                   {hasSavedReview && (
                      <small>
-                        {savedSetCount} set{savedSetCount === 1 ? "" : "s"} waiting
+                        {savedSetCount} set{savedSetCount === 1 ? "" : "s"} in progress
                      </small>
                   )}
                </span>
             </button>
-            <button className="startupAction startupAction--rescan" disabled={!canRescan} onClick={onRescan} type="button">
+            <button
+               className="startupAction startupAction--rescan"
+               disabled={!canRescan}
+               onClick={onRescan}
+               title={canRescan ? undefined : "Scan a folder first"}
+               type="button"
+            >
                <RotateCw aria-hidden="true" />
                <span className="startupAction__label">Rescan folder</span>
             </button>

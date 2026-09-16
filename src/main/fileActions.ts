@@ -1,4 +1,4 @@
-import { rm } from "node:fs/promises";
+import { rm, rmdir } from "node:fs/promises";
 import path from "node:path";
 import type { Decisions, MoveResult, PlannedMove } from "../shared/types.js";
 import { getDuplicateFolderFiles, getDuplicateFolderPath, getDuplicateFolderStatus, getSetting, loadGroups, setSetting } from "./database.js";
@@ -30,8 +30,6 @@ const getKnownMoves = async (decisions: Decisions | null): Promise<PlannedMove[]
    return moves;
 };
 
-export const getDeleteMoves = async (decisions: Decisions): Promise<PlannedMove[]> => getKnownMoves(decisions);
-
 export const moveMarkedImages = async (decisions: Decisions): Promise<MoveResult> => {
    const moves = await getKnownMoves(decisions);
    const duplicatePath = getDuplicateFolderPath();
@@ -48,7 +46,12 @@ export const restoreDuplicateFolder = async (): Promise<MoveResult> => {
    const expectedMoves = await getKnownMoves(null);
    const result = await restoreFileMoves(expectedMoves, await getDuplicateFolderFiles());
 
-   if (!(await getDuplicateFolderStatus())) await rm(duplicatePath, { recursive: true, force: true });
+   if (!(await getDuplicateFolderStatus())) {
+      await rm(duplicatePath, { recursive: true, force: true });
+      // The "duplicate" container would otherwise linger in the user's scan
+      // root; rmdir only succeeds when it is empty.
+      await rmdir(path.dirname(duplicatePath)).catch(() => undefined);
+   }
    if (result.moved.length > 0) setSetting("last_file_action", "restored");
    return result;
 };

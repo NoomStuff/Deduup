@@ -43,6 +43,21 @@
    text-align: center;
 }
 
+.imagePreviewDialog__counter {
+   min-width: 44px;
+   color: var(--muted);
+   font-size: 12px;
+   font-weight: 700;
+   font-variant-numeric: tabular-nums;
+   text-align: center;
+}
+
+.imagePreviewDialog__toolDivider {
+   width: 1px;
+   height: 18px;
+   background: var(--line);
+}
+
 .imagePreviewDialog__header h2 {
    margin: 1px 0 0;
    overflow: hidden;

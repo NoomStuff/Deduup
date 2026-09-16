@@ -32,6 +32,24 @@ test("an update that changes nothing is ignored", () => {
    assert.equal(untouched, empty);
 });
 
+test("ephemeral updates change decisions without entering the undo stack", () => {
+   const one = addOne(empty);
+   const ephemeral = decisionHistoryReducer(one, {
+      type: "update",
+      ephemeral: true,
+      updater: (current) => ({ ...current, set_009: { deletedImages: [], seen: true } }),
+   });
+   assert.deepEqual(Object.keys(ephemeral.decisions), ["set_1", "set_009"]);
+   // Navigation seen-marks must not crowd out real choices: the stack still
+   // holds exactly the one tracked update.
+   assert.equal(ephemeral.undoStack.length, 1);
+   assert.equal(ephemeral.redoStack.length, 0);
+
+   // Undo rewinds to the last tracked snapshot, taking the ephemeral mark with it.
+   const undone = decisionHistoryReducer(ephemeral, { type: "undo" });
+   assert.deepEqual(undone.decisions, {});
+});
+
 test("undo and redo walk the stacks", () => {
    const one = addOne(empty);
    const two = addOne(one);

@@ -1,120 +1,58 @@
-import { useEffect, useRef, useState } from "react";
-import type { MouseEvent, PointerEvent } from "react";
-import { FolderOpen, X, ZoomIn, ZoomOut } from "lucide-react";
+import { useEffect, useRef } from "react";
+import type { MouseEvent } from "react";
+import { ChevronLeft, ChevronRight, FolderOpen, X, ZoomIn, ZoomOut } from "lucide-react";
 import type { ImageItem } from "../../shared/types.js";
-import { clamp, formatBytes, formatDate } from "../reviewModel.js";
+import { formatBytes, formatDate } from "../reviewModel.js";
+import { panZoomMaxScale, usePanZoom } from "../hooks/usePanZoom.js";
 import { OverlayPanel } from "./OverlayPanel.js";
 import "./ImagePreviewOverlay.css";
 
-const minScale = 1;
-const maxScale = 8;
-
-interface ViewTransform {
-   scale: number;
-   x: number;
-   y: number;
-}
-
-const identityTransform: ViewTransform = { scale: 1, x: 0, y: 0 };
-
-/** Keeps panning inside roughly one viewport of slack so the image never gets lost. */
-const clampOffset = (value: number, scale: number, span: number): number => {
-   const limit = Math.max(0, (span * (scale - 1)) / 2);
-   return clamp(value, -limit, limit);
-};
-
 interface ImagePreviewOverlayProps {
    image: ImageItem;
+   /** Previewable images of the set, so arrows and buttons can flip between copies. */
+   images: ImageItem[];
    onClose: () => void;
+   onNavigate: (image: ImageItem) => void;
    onOpenFolder: () => void;
 }
 
-export const ImagePreviewOverlay = ({ image, onClose, onOpenFolder }: ImagePreviewOverlayProps) => {
-   const stageRef = useRef<HTMLDivElement | null>(null);
-   const [transform, setTransform] = useState<ViewTransform>(identityTransform);
-   const [isPanning, setIsPanning] = useState(false);
-   const panRef = useRef<{ pointerId: number; startX: number; startY: number; baseX: number; baseY: number } | null>(null);
+export const ImagePreviewOverlay = ({ image, images, onClose, onNavigate, onOpenFolder }: ImagePreviewOverlayProps) => {
+   const { stageRef, transform, isZoomed, isPanning, zoomAt, zoomBy, reset, panHandlers } = usePanZoom();
 
-   useEffect(() => setTransform(identityTransform), [image.originalPath]);
+   useEffect(() => reset(), [image.originalPath, reset]);
 
+   const imageIndex = images.findIndex((candidate) => candidate.originalPath === image.originalPath);
+   const canFlip = images.length > 1 && imageIndex >= 0;
+
+   const flip = (offset: number): void => {
+      if (!canFlip) return;
+      const next = images[(imageIndex + offset + images.length) % images.length];
+      if (next !== undefined) onNavigate(next);
+   };
+
+   // One listener for the overlay's lifetime; the refs keep it reading fresh state.
+   const flipRef = useRef(flip);
+   flipRef.current = flip;
+   const canFlipRef = useRef(canFlip);
+   canFlipRef.current = canFlip;
    useEffect(() => {
-      // React registers wheel listeners as passive, so this one is native to
-      // allow preventDefault while zooming.
-      const stage = stageRef.current;
-      if (stage === null) return undefined;
-      const onWheel = (event: WheelEvent): void => {
-         event.preventDefault();
-         const rect = stage.getBoundingClientRect();
-         setTransform((current) => {
-            const scale = clamp(current.scale * Math.exp(-event.deltaY * 0.0015), minScale, maxScale);
-            if (scale === current.scale) return current;
-            const ratio = scale / current.scale;
-            const cursorX = event.clientX - (rect.left + rect.width / 2);
-            const cursorY = event.clientY - (rect.top + rect.height / 2);
-            return {
-               scale,
-               x: clampOffset(cursorX - (cursorX - current.x) * ratio, scale, rect.width),
-               y: clampOffset(cursorY - (cursorY - current.y) * ratio, scale, rect.height),
-            };
-         });
+      const onKeyDown = (event: KeyboardEvent): void => {
+         if (!canFlipRef.current || event.isComposing || event.defaultPrevented) return;
+         if (event.key === "ArrowLeft") {
+            event.preventDefault();
+            flipRef.current(-1);
+         } else if (event.key === "ArrowRight") {
+            event.preventDefault();
+            flipRef.current(1);
+         }
       };
-      stage.addEventListener("wheel", onWheel, { passive: false });
-      return () => stage.removeEventListener("wheel", onWheel);
+      window.addEventListener("keydown", onKeyDown);
+      return () => window.removeEventListener("keydown", onKeyDown);
    }, []);
-
-   const zoomAt = (nextScale: number, anchorX: number, anchorY: number): void => {
-      const stage = stageRef.current;
-      if (stage === null) return;
-      const rect = stage.getBoundingClientRect();
-      setTransform((current) => {
-         const scale = clamp(nextScale, minScale, maxScale);
-         if (scale === current.scale) return current;
-         const ratio = scale / current.scale;
-         const anchorOffsetX = anchorX - (rect.left + rect.width / 2);
-         const anchorOffsetY = anchorY - (rect.top + rect.height / 2);
-         return {
-            scale,
-            x: clampOffset(anchorOffsetX - (anchorOffsetX - current.x) * ratio, scale, rect.width),
-            y: clampOffset(anchorOffsetY - (anchorOffsetY - current.y) * ratio, scale, rect.height),
-         };
-      });
-   };
-
-   const zoomBy = (factor: number): void => {
-      const stage = stageRef.current;
-      if (stage === null) return;
-      const rect = stage.getBoundingClientRect();
-      zoomAt(transform.scale * factor, rect.left + rect.width / 2, rect.top + rect.height / 2);
-   };
-
-   const startPan = (event: PointerEvent<HTMLDivElement>): void => {
-      if (event.button !== 0 || transform.scale <= minScale) return;
-      event.currentTarget.setPointerCapture(event.pointerId);
-      panRef.current = { pointerId: event.pointerId, startX: event.clientX, startY: event.clientY, baseX: transform.x, baseY: transform.y };
-      setIsPanning(true);
-   };
-
-   const movePan = (event: PointerEvent<HTMLDivElement>): void => {
-      const pan = panRef.current;
-      const stage = stageRef.current;
-      if (pan === null || stage === null || event.pointerId !== pan.pointerId) return;
-      const rect = stage.getBoundingClientRect();
-      setTransform((current) => ({
-         ...current,
-         x: clampOffset(pan.baseX + (event.clientX - pan.startX), current.scale, rect.width),
-         y: clampOffset(pan.baseY + (event.clientY - pan.startY), current.scale, rect.height),
-      }));
-   };
-
-   const endPan = (event: PointerEvent<HTMLDivElement>): void => {
-      if (panRef.current?.pointerId !== event.pointerId) return;
-      panRef.current = null;
-      setIsPanning(false);
-   };
 
    const handleDoubleClick = (event: MouseEvent<HTMLDivElement>): void => {
       event.preventDefault();
-      if (transform.scale > minScale) setTransform(identityTransform);
+      if (isZoomed) reset();
       else zoomAt(2.5, event.clientX, event.clientY);
    };
 
@@ -140,13 +78,27 @@ export const ImagePreviewOverlay = ({ image, onClose, onOpenFolder }: ImagePrevi
                </h2>
             </div>
             <div className="imagePreviewDialog__tools">
-               <button aria-label="Zoom out" className="iconButton" disabled={transform.scale <= minScale} onClick={() => zoomBy(1 / 1.4)} type="button">
+               {canFlip && (
+                  <>
+                     <button aria-label="Previous image in set" className="iconButton" onClick={() => flip(-1)} type="button">
+                        <ChevronLeft aria-hidden="true" />
+                     </button>
+                     <span className="imagePreviewDialog__counter">
+                        {imageIndex + 1} / {images.length}
+                     </span>
+                     <button aria-label="Next image in set" className="iconButton" onClick={() => flip(1)} type="button">
+                        <ChevronRight aria-hidden="true" />
+                     </button>
+                     <span aria-hidden="true" className="imagePreviewDialog__toolDivider" />
+                  </>
+               )}
+               <button aria-label="Zoom out" className="iconButton" disabled={!isZoomed} onClick={() => zoomBy(1 / 1.4)} type="button">
                   <ZoomOut aria-hidden="true" />
                </button>
                <span aria-live="polite" className="imagePreviewDialog__zoom">
                   {Math.round(transform.scale * 100)}%
                </span>
-               <button aria-label="Zoom in" className="iconButton" disabled={transform.scale >= maxScale} onClick={() => zoomBy(1.4)} type="button">
+               <button aria-label="Zoom in" className="iconButton" disabled={transform.scale >= panZoomMaxScale} onClick={() => zoomBy(1.4)} type="button">
                   <ZoomIn aria-hidden="true" />
                </button>
                <button aria-label="Close image preview" className="iconButton" onClick={onClose} type="button">
@@ -155,12 +107,9 @@ export const ImagePreviewOverlay = ({ image, onClose, onOpenFolder }: ImagePrevi
             </div>
          </header>
          <figure
-            className={`imagePreviewDialog__stage${transform.scale > minScale ? " imagePreviewDialog__stage--zoomed" : ""}${isPanning ? " imagePreviewDialog__stage--panning" : ""}`}
+            className={`imagePreviewDialog__stage${isZoomed ? " imagePreviewDialog__stage--zoomed" : ""}${isPanning ? " imagePreviewDialog__stage--panning" : ""}`}
             onDoubleClick={handleDoubleClick}
-            onPointerCancel={endPan}
-            onPointerDown={startPan}
-            onPointerMove={movePan}
-            onPointerUp={endPan}
+            {...panHandlers}
             ref={stageRef}
          >
             <img

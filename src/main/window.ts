@@ -12,7 +12,7 @@ export const createWindow = (): BrowserWindow => {
    const window = new BrowserWindow({
       width: 1500,
       height: 940,
-      minWidth: 1100,
+      minWidth: 960,
       minHeight: 720,
       backgroundColor: "#0e0e14",
       icon: iconPath,

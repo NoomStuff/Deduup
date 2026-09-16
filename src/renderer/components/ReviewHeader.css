@@ -60,6 +60,7 @@
 }
 
 .finalStep {
+   position: relative;
    display: inline-flex;
    align-items: center;
    gap: 9px;
@@ -93,11 +94,17 @@
    color: var(--accent-bright);
 }
 
+/* Floating so the button's width (and the hit targets around it) never shift
+   when the ready-to-move count appears or grows. */
 .finalStep__badge {
+   position: absolute;
+   top: -8px;
+   right: -8px;
    display: inline-grid;
    place-items: center;
    min-width: 20px;
    height: 20px;
+   border: 2px solid var(--bg);
    border-radius: var(--radius-lg);
    background: var(--accent);
    color: #101018;

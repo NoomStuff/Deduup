@@ -41,9 +41,10 @@ export const SettingsPanel = (props: SettingsPanelProps) => (
       </div>
       <div className="panelGroup">
          <p className="panelGroup__label">Review</p>
-         <Toggle checked={props.wrapImageShelf} label="Wrap image shelf" onChange={props.onWrapChange} />
-         <Toggle checked={props.confirmMajorActions} label="Confirm major actions" onChange={props.onConfirmChange} />
+         <Toggle checked={props.wrapImageShelf} label="Wrap image shelf onto multiple rows" onChange={props.onWrapChange} />
+         <Toggle checked={props.confirmMajorActions} label="Confirm review actions" onChange={props.onConfirmChange} />
          <Toggle checked={props.showStartupOnLaunch} label="Show start screen on launch" onChange={props.onStartupChange} />
+         <p className="panelGroup__hint">Moving and recycling images always ask, whatever this is set to.</p>
       </div>
       <div className="panelGroup panelGroup--danger">
          <button className="dangerButton" onClick={props.onClear} type="button">

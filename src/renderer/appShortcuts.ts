@@ -19,6 +19,7 @@ export interface ShortcutHandlers {
    onKeepCompareImage: (side: "left" | "right") => void;
    onNavigate: (offset: number) => void;
    onNavigateBand: (direction: -1 | 1) => void;
+   onOpenHelp: () => void;
    onPreviewSelected: () => void;
    onRedo: () => void;
    onRequestMarkCurrentSet: () => void;
@@ -133,6 +134,13 @@ export const shortcutDefinitions: ShortcutDefinition[] = [
       action: "Preview the selected image",
       when: (event, context) => inReviewMode(context) && context.hasSelectedImage && event.key === "Enter" && !context.targetIsActivatable,
       run: (_event, handlers) => handlers.onPreviewSelected(),
+   },
+   {
+      id: "openHelp",
+      keys: "?",
+      action: "Open the help panel",
+      when: (event, context) => inReviewMode(context) && event.key === "?",
+      run: (_event, handlers) => handlers.onOpenHelp(),
    },
    {
       id: "toggleSelected",

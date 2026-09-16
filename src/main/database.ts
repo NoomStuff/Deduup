@@ -31,9 +31,6 @@ interface DecisionRow {
    deletedImagesJson: string;
    seen: number;
 }
-interface TableColumnRow {
-   name: string;
-}
 
 let database: DatabaseSync | null = null;
 
@@ -58,41 +55,7 @@ export const getDatabase = (): DatabaseSync => {
          deleted_images_json TEXT NOT NULL, seen INTEGER NOT NULL
       );
    `);
-
-   migrateColumns();
    return database;
-};
-
-const tableColumns = (table: string): Set<string> =>
-   new Set((getDatabase().prepare(`PRAGMA table_info(${table})`).all() as unknown as TableColumnRow[]).map((column) => column.name));
-
-const migrateColumns = (): void => {
-   if (database === null) return;
-   database.exec("PRAGMA foreign_keys = OFF");
-   try {
-      const imageColumns = tableColumns("images");
-      if (imageColumns.has("group_id") && !imageColumns.has("set_id")) {
-         database.exec("ALTER TABLE images RENAME COLUMN group_id TO set_id");
-      }
-
-      const decisionColumns = tableColumns("decisions");
-      if (decisionColumns.has("group_id") && !decisionColumns.has("set_id")) {
-         database.exec("ALTER TABLE decisions RENAME COLUMN group_id TO set_id");
-      }
-      if (decisionColumns.has("deleted_images_json") && decisionColumns.has("completed") && !decisionColumns.has("seen")) {
-         database.exec("ALTER TABLE decisions RENAME COLUMN completed TO seen");
-      } else if (!decisionColumns.has("deleted_images_json") || !decisionColumns.has("seen")) {
-         database.exec(`
-            DROP TABLE decisions;
-            CREATE TABLE decisions (
-               set_id TEXT PRIMARY KEY REFERENCES duplicate_groups(id) ON DELETE CASCADE,
-               deleted_images_json TEXT NOT NULL, seen INTEGER NOT NULL
-            );
-         `);
-      }
-   } finally {
-      database.exec("PRAGMA foreign_keys = ON");
-   }
 };
 
 export const closeDatabase = (): void => {
@@ -296,7 +259,7 @@ export const getLoadResult = async (): Promise<LoadDataResult> => {
    const scanRoot = getSetting("scan_root");
    const lastFileAction = getLastFileAction();
    const groups = await loadGroups(decisions, scanRoot, lastFileAction);
-   const savedSetId = getSetting("current_set_id") ?? getSetting("current_group_id");
+   const savedSetId = getSetting("current_set_id");
    return {
       groups,
       decisions,

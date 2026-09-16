@@ -10,7 +10,11 @@ interface HistoryState {
 }
 
 type HistoryEvent =
-   | { type: "update"; updater: (current: Decisions) => Decisions }
+   | {
+        type: "update";
+        updater: (current: Decisions) => Decisions;
+        /** Ephemeral updates (navigation seen-marks) never enter the undo stack. */ ephemeral?: boolean;
+     }
    | { type: "replace"; decisions: Decisions }
    | { type: "undo" }
    | { type: "redo" }
@@ -27,6 +31,7 @@ export const decisionHistoryReducer = (state: HistoryState, event: HistoryEvent)
       case "update": {
          const next = event.updater(state.decisions);
          if (next === state.decisions) return state;
+         if (event.ephemeral === true) return { ...state, decisions: next };
          return { ...state, decisions: next, ...pushUndo(state) };
       }
       case "replace":
@@ -51,6 +56,7 @@ export const useDecisionHistory = (): {
    canUndo: boolean;
    canRedo: boolean;
    updateDecisions: (updater: (current: Decisions) => Decisions) => void;
+   updateDecisionsEphemeral: (updater: (current: Decisions) => Decisions) => void;
    replaceDecisions: (decisions: Decisions) => void;
    clearHistory: () => void;
    undo: () => void;
@@ -59,6 +65,10 @@ export const useDecisionHistory = (): {
    const [state, dispatch] = useReducer(decisionHistoryReducer, { decisions: {}, undoStack: [], redoStack: [] });
 
    const updateDecisions = useCallback((updater: (current: Decisions) => Decisions): void => dispatch({ type: "update", updater }), []);
+   const updateDecisionsEphemeral = useCallback(
+      (updater: (current: Decisions) => Decisions): void => dispatch({ type: "update", updater, ephemeral: true }),
+      []
+   );
    const replaceDecisions = useCallback((decisions: Decisions): void => dispatch({ type: "replace", decisions }), []);
    const clearHistory = useCallback((): void => dispatch({ type: "clearHistory" }), []);
    const undo = useCallback((): void => dispatch({ type: "undo" }), []);
@@ -69,6 +79,7 @@ export const useDecisionHistory = (): {
       canUndo: state.undoStack.length > 0,
       canRedo: state.redoStack.length > 0,
       updateDecisions,
+      updateDecisionsEphemeral,
       replaceDecisions,
       clearHistory,
       undo,

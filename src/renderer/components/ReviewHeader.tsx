@@ -84,7 +84,12 @@ export const ReviewHeader = (props: ReviewHeaderProps) => (
          </button>
          <button
             className={`finalStep${props.readyToMoveCount > 0 && props.view === "review" ? " finalStep--hot" : ""}`}
-            onClick={props.onToggleView}
+            onClick={(event) => {
+               // Mouse activation drops focus so keyboard navigation does not leave a
+               // focus ring parked on this button; keyboard activation keeps it.
+               if (event.detail > 0) event.currentTarget.blur();
+               props.onToggleView();
+            }}
             type="button"
             {...props.getTooltipProps(
                props.view === "final" ? "Back to review" : "Final review",

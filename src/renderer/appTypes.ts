@@ -12,7 +12,7 @@ export type AppView = "review" | "final";
 export type TravelDirection = "idle" | "left" | "right";
 export type ImageSetState = "open" | "seen" | "someDeleted" | "allDeleted";
 export type ImageDeleteState = "active" | "deleted";
-export type ConfirmKind = "markSet" | "clearAll" | "trashDuplicate" | "rescan" | "switchFolder";
+export type ConfirmKind = "markSet" | "markBand" | "autoSelectBand" | "applyMoves" | "clearAll" | "trashDuplicate" | "rescan" | "switchFolder";
 
 export interface SimilarityBand {
    label: string;

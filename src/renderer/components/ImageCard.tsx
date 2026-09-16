@@ -49,12 +49,12 @@ export const ImageCard = memo(function ImageCard({
             {index + 1}
          </button>
          <button
-            aria-label={state === "deleted" ? `Keep ${image.file}` : `Mark ${image.file} for removal`}
+            aria-label={state === "deleted" ? `Unmark ${image.file}` : `Mark ${image.file} for removal`}
             className="imageCard__deleteToggle"
             disabled={!isMutable}
             onClick={(event) => onToggleDelete(event, image)}
             type="button"
-            title={state === "deleted" ? "Keep this image" : "Mark for removal"}
+            title={state === "deleted" ? "Unmark this image" : "Mark for removal"}
          >
             <Trash2 aria-hidden="true" />
          </button>

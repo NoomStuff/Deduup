@@ -53,6 +53,7 @@
    display: grid;
    grid-auto-flow: column;
    grid-auto-columns: minmax(280px, 1fr);
+   align-items: center;
    gap: 14px;
    flex: 1;
    min-height: 0;
@@ -94,6 +95,9 @@
    flex-direction: column;
    overflow: hidden;
    min-height: 220px;
+   /* Wide cards letterbox landscape images into dead vertical space; cap the
+      card so the set row floats centered instead of filling the stage. */
+   max-height: min(100%, 620px);
    border: 2px solid var(--line);
    border-radius: 16px;
    background: rgba(255, 255, 255, 0.025);
@@ -177,7 +181,8 @@
    border-radius: 10px;
    background: rgba(8, 10, 16, 0.74);
    color: var(--muted);
-   opacity: 0;
+   /* Always visible: marking is the core action and must not be hover-only. */
+   opacity: 0.66;
    backdrop-filter: blur(4px);
    transition:
       opacity 120ms ease,

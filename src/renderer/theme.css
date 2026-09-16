@@ -524,6 +524,14 @@ img {
    text-transform: uppercase;
 }
 
+.panelGroup__hint {
+   margin: -2px 0 0;
+   color: var(--faint);
+   font-size: 11.5px;
+   font-weight: 600;
+   line-height: 1.5;
+}
+
 @media (prefers-reduced-motion: reduce) {
    *,
    *::before,

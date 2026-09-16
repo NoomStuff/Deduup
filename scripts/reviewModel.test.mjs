@@ -2,8 +2,6 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import {
    emptyImageSetDecision,
-   formatBytes,
-   formatDate,
    getDecision,
    getFileWorkflowState,
    getImageSetLabel,
@@ -137,8 +135,12 @@ test("bands group consecutive sets that share a displayed similarity", () => {
 });
 
 test("band colors run violet to green across the match limit", () => {
-   assert.match(getSimilarityColor(0), /^rgb\(1[67][0-9] 1[34][0-9] 25[0-9]\)$/u);
-   assert.match(getSimilarityColor(13), /^rgb\(1[34][0-9] 23[0-9] 1[56][0-9]\)$/u);
+   const start = getSimilarityColor(0);
+   const end = getSimilarityColor(13);
+   const channel = (color, index) => Number.parseInt(color.slice(4, -1).split(" ")[index], 10);
+   // Violet starts high in blue, green ends high in green.
+   assert.ok(channel(end, 1) > channel(start, 1));
+   assert.ok(channel(start, 2) > channel(end, 2));
 });
 
 test("resume index finds the saved set or falls back to the first", () => {
@@ -148,20 +150,7 @@ test("resume index finds the saved set or falls back to the first", () => {
    assert.equal(getResumeIndex(groups, null), 0);
 });
 
-test("set numbers format both id generations", () => {
+test("set numbers format to a hash plus plain number", () => {
    assert.equal(getSetNumber("set_001"), "#1");
-   assert.equal(getSetNumber("detection_012"), "#12");
-});
-
-test("bytes format for every magnitude", () => {
-   assert.equal(formatBytes(0), "0 B");
-   assert.equal(formatBytes(1023), "1023 B");
-   assert.equal(formatBytes(1024), "1.00 KB");
-   assert.equal(formatBytes(1536), "1.50 KB");
-   assert.equal(formatBytes(5 * 1024 * 1024), "5.00 MB");
-   assert.equal(formatBytes(3.5 * 1024 ** 4), "3.50 TB");
-});
-
-test("modified dates render a short locale date", () => {
-   assert.match(formatDate(new Date(2024, 2, 9).getTime()), /2024/u);
+   assert.equal(getSetNumber("set_341"), "#341");
 });

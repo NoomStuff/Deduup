@@ -3,6 +3,7 @@ import { useCallback, useState } from "react";
 export const preferenceKeys = {
    confirmMajorActions: "confirm-major-actions",
    neutralTheme: "neutral-gray-theme",
+   reviewHintsDismissed: "review-hints-dismissed",
    showStartupOnLaunch: "show-start-screen-on-startup",
    wrapImageShelf: "wrap-image-shelf",
 } as const;

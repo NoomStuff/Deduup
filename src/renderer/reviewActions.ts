@@ -1,5 +1,13 @@
 import type { Decisions, ImageItem, ImageSet, ImageSetDecision } from "../shared/types.js";
-import { getDecision, getDeletedImagePaths, getImageSetDecision, getLargestImage, getSimilarityLabel, setImageSetDecision } from "./reviewModel.js";
+import {
+   areDecisionsEqual,
+   getDecision,
+   getDeletedImagePaths,
+   getImageSetDecision,
+   getLargestImage,
+   getSimilarityLabel,
+   setImageSetDecision,
+} from "./reviewModel.js";
 
 interface ReviewActionOptions {
    currentIndex: number;
@@ -41,6 +49,34 @@ const autoSelectedDecision = (imageSet: ImageSet, source: Decisions): ImageSetDe
 
 const seenDecision = (imageSet: ImageSet, source: Decisions): ImageSetDecision =>
    getImageSetDecision(imageSet, getDeletedImagePaths(getDecision(source, imageSet.id)), true);
+
+const getBandSets = (groups: ImageSet[], baseSet: ImageSet): ImageSet[] => {
+   const similarity = getSimilarityLabel(baseSet.similarity);
+   return groups.filter((imageSet) => getSimilarityLabel(imageSet.similarity) === similarity);
+};
+
+/** How many sets share the band of the given set. */
+export const countBandSets = (groups: ImageSet[], baseSet: ImageSet): number => getBandSets(groups, baseSet).length;
+
+/**
+ * How many sets in the band hold choices that band-autoselect would overwrite,
+ * so callers can confirm before re-picking them. Sets whose marks already match
+ * the autoselect pick do not count.
+ */
+export const countBandAutoselectOverrides = (groups: ImageSet[], decisions: Decisions, baseSet: ImageSet): number =>
+   getBandSets(groups, baseSet).filter((imageSet) => {
+      const current = getDecision(decisions, imageSet.id);
+      if (current.deletedImages.length === 0) return false;
+      return !areDecisionsEqual(current, autoSelectedDecision(imageSet, decisions));
+   }).length;
+
+/** How many sets hold choices that marking the whole band would change. */
+export const countBandMarkOverrides = (groups: ImageSet[], decisions: Decisions, baseSet: ImageSet): number =>
+   getBandSets(groups, baseSet).filter((imageSet) => {
+      const markedCount = getDeletedImagePaths(getDecision(decisions, imageSet.id)).size;
+      const availableCount = imageSet.images.filter((image) => image.sourceStatus === "available").length;
+      return markedCount > 0 && markedCount < availableCount;
+   }).length;
 
 export const createReviewActions = ({ currentIndex, decisions, groups, goTo, updateDecisions }: ReviewActionOptions) => {
    const decide = (imageSet: ImageSet, decision: ImageSetDecision): void => {
@@ -110,7 +146,6 @@ export const createReviewActions = ({ currentIndex, decisions, groups, goTo, upd
    };
 
    return {
-      advanceFromImageSet,
       autoSelectImageSet: (imageSet: ImageSet): void => decide(imageSet, autoSelectedDecision(imageSet, decisions)),
       autoSelectBand,
       clearAllChoices: (): void =>
