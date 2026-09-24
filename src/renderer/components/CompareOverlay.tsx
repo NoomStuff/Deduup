@@ -1,4 +1,4 @@
-import { useCallback, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import type { CSSProperties, PointerEvent } from "react";
 import { X } from "lucide-react";
 import type { ImageItem } from "../../shared/types.js";
@@ -11,8 +11,33 @@ import "./CompareOverlay.css";
 export const CompareOverlay = ({ compare, onClose, onKeep }: { compare: CompareState; onClose: () => void; onKeep: (image: ImageItem) => void }) => {
    const [focusedSide, setFocusedSide] = useState<"left" | "right" | null>(null);
    const { stageRef, transform, isZoomed, isPanning, panHandlers } = usePanZoom();
+   const [thumbState, setThumbState] = useState({ left: false, right: false });
+   const [fullState, setFullState] = useState({ left: false, right: false });
+   const leftThumbRef = useRef<HTMLImageElement | null>(null);
+   const rightThumbRef = useRef<HTMLImageElement | null>(null);
    const revealFrameRef = useRef<number | null>(null);
    const revealTargetRef = useRef<{ target: HTMLElement; value: number } | null>(null);
+
+   useEffect(() => {
+      setThumbState({ left: false, right: false });
+      setFullState({ left: false, right: false });
+      // A warmed thumbnail can finish before React attaches onLoad.
+      const leftImg = leftThumbRef.current;
+      const rightImg = rightThumbRef.current;
+      setThumbState({
+         left: leftImg !== null && leftImg.complete && leftImg.naturalWidth > 0,
+         right: rightImg !== null && rightImg.complete && rightImg.naturalWidth > 0,
+      });
+   }, [compare.left.previewUrl, compare.right.previewUrl]);
+
+   // Warm the full-size decodes up front so zooming in never waits on disk.
+   // Off-DOM Image() probes, since fetch() can't cross origins from file://.
+   useEffect(() => {
+      for (const url of [compare.left.fullPreviewUrl, compare.right.fullPreviewUrl]) {
+         const probe = new Image();
+         probe.src = url;
+      }
+   }, [compare.left.fullPreviewUrl, compare.right.fullPreviewUrl]);
 
    const flushReveal = useCallback((): void => {
       const next = revealTargetRef.current;
@@ -38,8 +63,8 @@ export const CompareOverlay = ({ compare, onClose, onKeep }: { compare: CompareS
       updateRevealFromClientX(event.currentTarget, event.clientX);
    };
 
-   // Thumbnails while at 1:1; full images only once the user zooms in.
-   const sourceFor = (image: ImageItem): string => (isZoomed ? image.fullPreviewUrl : image.previewUrl);
+   // Thumbnails while at 1:1; the full decode stacks on top only once the user
+   // zooms, so the swap never blanks the stage.
    const cssTransform = `translate(${transform.x}px, ${transform.y}px) scale(${transform.scale})`;
 
    return (
@@ -94,21 +119,54 @@ export const CompareOverlay = ({ compare, onClose, onKeep }: { compare: CompareS
                   } as CSSProperties
                }
             >
+               {!(thumbState.left && thumbState.right) && <span className="skeleton compare__skeleton" aria-hidden="true" />}
                <div className="compare__layer">
                   <img
                      alt={compare.left.file}
                      className={"compare__bottom" + (focusedSide === "left" ? " compare__image--focused" : "")}
-                     src={sourceFor(compare.left)}
+                     onLoad={() => setThumbState((current) => (current.left ? current : { ...current, left: true }))}
+                     ref={leftThumbRef}
+                     src={compare.left.previewUrl}
                      style={{ transform: cssTransform }}
                   />
+                  {isZoomed && (
+                     <img
+                        alt=""
+                        aria-hidden="true"
+                        className={
+                           "compare__bottom compare__full" +
+                           (fullState.left ? " compare__full--visible" : "") +
+                           (focusedSide === "left" ? " compare__image--focused" : "")
+                        }
+                        onLoad={() => setFullState((current) => (current.left ? current : { ...current, left: true }))}
+                        src={compare.left.fullPreviewUrl}
+                        style={{ transform: cssTransform }}
+                     />
+                  )}
                </div>
                <div className="compare__layer compare__layer--top">
                   <img
                      alt={compare.right.file}
                      className={"compare__top" + (focusedSide === "right" ? " compare__image--focused" : "")}
-                     src={sourceFor(compare.right)}
+                     onLoad={() => setThumbState((current) => (current.right ? current : { ...current, right: true }))}
+                     ref={rightThumbRef}
+                     src={compare.right.previewUrl}
                      style={{ transform: cssTransform }}
                   />
+                  {isZoomed && (
+                     <img
+                        alt=""
+                        aria-hidden="true"
+                        className={
+                           "compare__top compare__full" +
+                           (fullState.right ? " compare__full--visible" : "") +
+                           (focusedSide === "right" ? " compare__image--focused" : "")
+                        }
+                        onLoad={() => setFullState((current) => (current.right ? current : { ...current, right: true }))}
+                        src={compare.right.fullPreviewUrl}
+                        style={{ transform: cssTransform }}
+                     />
+                  )}
                </div>
                <span className="compare__divider" />
                <span className="compare__label compare__label--left">{compare.leftIndex + 1}</span>

@@ -24,7 +24,8 @@ import { useFileWorkflowActions } from "./hooks/useFileWorkflowActions.js";
 import { useFilmstrip } from "./hooks/useFilmstrip.js";
 import { useFolderSelection } from "./hooks/useFolderSelection.js";
 import { useNotifications } from "./hooks/useNotifications.js";
-import { preferenceKeys, useEnumPreference, usePreference } from "./hooks/usePreference.js";
+import { usePreference, preferenceKeys, useEnumPreference } from "./hooks/usePreference.js";
+import { usePreviewPreloader } from "./hooks/usePreviewPreloader.js";
 import { useReviewContextMenu } from "./hooks/useReviewContextMenu.js";
 import { useReviewPersistence } from "./hooks/useReviewPersistence.js";
 import { useScanController } from "./hooks/useScanController.js";
@@ -96,6 +97,7 @@ export const App = () => {
    const fileWorkflow = useMemo(() => getFileWorkflowState(groups, decisions), [decisions, groups]);
    const similarityBands = useMemo(() => getSimilarityBands(groups), [groups]);
    const selectedImage = currentSet?.images.find((image) => image.originalPath === selectedImagePath) ?? null;
+   usePreviewPreloader(groups, currentIndex);
 
    const reportError = useCallback(
       (title: string, unknownError: unknown, fallback: string): void => {
@@ -207,6 +209,7 @@ export const App = () => {
    // chain (goTo closes it, its keep uses the actions), so the keep callback is
    // wired through a ref once the actions exist below.
    const keepImageRef = useRef<(image: ImageItem, advance: boolean) => void>(() => undefined);
+   const travelTimerRef = useRef<number | null>(null);
    const { beginCompare, closeCompare, compare, comparePick, keepCompareImage, openAdjacentCompare } = useCompareController({
       currentSet,
       onKeep: (image, advance) => keepImageRef.current(image, advance),
@@ -237,7 +240,13 @@ export const App = () => {
          closeCompare();
          setSelectedImagePath(null);
          setCurrentIndex(nextIndex);
-         window.setTimeout(() => setTravelDirection("idle"), 180);
+         // Rapid navigation must not let an older timer reset the direction
+         // mid-flight, or the shelf animation restarts from the wrong side.
+         if (travelTimerRef.current !== null) window.clearTimeout(travelTimerRef.current);
+         travelTimerRef.current = window.setTimeout(() => {
+            travelTimerRef.current = null;
+            setTravelDirection("idle");
+         }, 180);
       },
       [closeCompare, currentSet, currentIndex, groups.length, hideTooltip, updateDecisionsEphemeral]
    );
@@ -332,7 +341,7 @@ export const App = () => {
       try {
          await api.showImage(image.currentPath);
       } catch (unknownError: unknown) {
-         reportError("Couldn’t show the folder", unknownError, "Failed to show the folder");
+         reportError("Couldn’t show the image", unknownError, "Failed to show the image");
       }
    };
 

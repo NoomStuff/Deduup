@@ -215,7 +215,8 @@
    grid-auto-flow: column;
    grid-auto-columns: minmax(280px, 1fr);
    grid-auto-rows: minmax(0, 1fr);
-   align-items: center;
+   /* Cards stretch to their row so an image's reserved box never depends on
+      whether its bytes have arrived. */
    gap: 14px;
    flex: 1;
    min-height: 0;
@@ -227,7 +228,6 @@
    grid-auto-flow: row;
    grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
    grid-auto-rows: minmax(280px, 1fr);
-   align-items: center;
 }
 
 .comparePrompt {
@@ -293,12 +293,37 @@
    opacity: 0.9;
 }
 
-.imageCard > img {
+.imageCard__media {
+   position: relative;
+   display: flex;
+   flex: 1;
+   min-height: 0;
+}
+
+.imageCard__img {
    flex: 1;
    width: 100%;
+   min-width: 0;
    min-height: 0;
    object-fit: contain;
    background: rgba(0, 0, 0, 0.32);
+   opacity: 0;
+   transition: opacity 160ms ease-out;
+}
+
+.imageCard__img--loaded {
+   opacity: 1;
+}
+
+.imageCard__skeleton {
+   position: absolute;
+   inset: 0;
+}
+
+/* A card whose bytes never arrive still deserves its own message. */
+.imageCard__media > .imageCard__fallback {
+   position: absolute;
+   inset: 0;
 }
 
 .imageCard__chip {

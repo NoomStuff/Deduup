@@ -387,6 +387,25 @@ img {
    }
 }
 
+/* --- Skeleton ---------------------------------------------------------------
+   The empty state of a surface whose pixels are still arriving: a quiet
+   shimmer in the card it belongs to, no spinners, no blocking. */
+
+.skeleton {
+   background: linear-gradient(100deg, rgba(var(--hairline-rgb), 0.05) 32%, rgba(var(--hairline-rgb), 0.12) 50%, rgba(var(--hairline-rgb), 0.05) 68%);
+   background-size: 220% 100%;
+   animation: skeleton-shimmer 1.5s ease-in-out infinite;
+}
+
+@keyframes skeleton-shimmer {
+   from {
+      background-position: 120% 0;
+   }
+   to {
+      background-position: -120% 0;
+   }
+}
+
 /* --- Shared overlay motion -------------------------------------------------
    One vocabulary for every surface that appears over the app: backdrops fade,
    cards rise in and drop out, drawers slide. OverlayPanel and the root screens

@@ -143,6 +143,23 @@
    filter: brightness(1.12);
 }
 
+/* The full decode fades over its thumbnail once zoomed, so the step up in
+   resolution never blanks the stage. */
+
+.compare__full {
+   opacity: 0;
+   transition: opacity 180ms ease-out;
+}
+
+.compare__full--visible {
+   opacity: 1;
+}
+
+.compare__skeleton {
+   position: absolute;
+   inset: 0;
+}
+
 .compare__divider {
    position: absolute;
    top: 0;

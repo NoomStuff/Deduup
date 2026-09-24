@@ -1,4 +1,4 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { MouseEvent } from "react";
 import { ChevronLeft, ChevronRight, FolderOpen, X, ZoomIn, ZoomOut } from "lucide-react";
 import type { ImageItem } from "../../shared/types.js";
@@ -18,6 +18,21 @@ interface ImagePreviewOverlayProps {
 
 export const ImagePreviewOverlay = ({ image, images, onClose, onNavigate, onOpenFolder }: ImagePreviewOverlayProps) => {
    const { stageRef, transform, isZoomed, isPanning, zoomAt, zoomBy, reset, panHandlers } = usePanZoom();
+   const [thumbLoaded, setThumbLoaded] = useState(false);
+   const [fullLoaded, setFullLoaded] = useState(false);
+   const thumbImgRef = useRef<HTMLImageElement | null>(null);
+   const fullImgRef = useRef<HTMLImageElement | null>(null);
+
+   useEffect(() => {
+      setThumbLoaded(false);
+      setFullLoaded(false);
+      // Either layer can come back from cache having finished before React
+      // attached onLoad.
+      const thumbImg = thumbImgRef.current;
+      if (thumbImg?.complete) setThumbLoaded(thumbImg.naturalWidth > 0);
+      const fullImg = fullImgRef.current;
+      if (fullImg?.complete) setFullLoaded(fullImg.naturalWidth > 0);
+   }, [image.previewUrl, image.fullPreviewUrl]);
 
    useEffect(() => reset(), [image.originalPath, reset]);
 
@@ -112,9 +127,23 @@ export const ImagePreviewOverlay = ({ image, images, onClose, onNavigate, onOpen
             {...panHandlers}
             ref={stageRef}
          >
+            {!(thumbLoaded || fullLoaded) && <span className="skeleton imagePreviewDialog__skeleton" aria-hidden="true" />}
             <img
                alt={image.file}
+               className="imagePreviewDialog__img"
                draggable={false}
+               onLoad={() => setThumbLoaded(true)}
+               ref={thumbImgRef}
+               src={image.previewUrl}
+               style={{ transform: `translate(${transform.x}px, ${transform.y}px) scale(${transform.scale})` }}
+            />
+            <img
+               alt=""
+               aria-hidden="true"
+               className={`imagePreviewDialog__img imagePreviewDialog__imgFull${fullLoaded ? " imagePreviewDialog__imgFull--visible" : ""}`}
+               draggable={false}
+               onLoad={() => setFullLoaded(true)}
+               ref={fullImgRef}
                src={image.fullPreviewUrl}
                style={{ transform: `translate(${transform.x}px, ${transform.y}px) scale(${transform.scale})` }}
             />

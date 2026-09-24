@@ -85,11 +85,29 @@
    cursor: grabbing;
 }
 
+/* Both layers share one grid cell: the quick thumbnail underneath, the full
+   decode fading in over it once it arrives. */
+
 .imagePreviewDialog__stage img {
+   grid-area: 1 / 1;
    max-width: 100%;
    max-height: 100%;
    object-fit: contain;
    user-select: none;
+}
+
+.imagePreviewDialog__imgFull {
+   opacity: 0;
+   transition: opacity 200ms ease-out;
+}
+
+.imagePreviewDialog__imgFull--visible {
+   opacity: 1;
+}
+
+.imagePreviewDialog__skeleton {
+   position: absolute;
+   inset: 0;
 }
 
 .imagePreviewDialog__meta {

@@ -1,9 +1,11 @@
-import { memo } from "react";
+import { memo, useEffect, useRef, useState } from "react";
 import type { MouseEvent } from "react";
 import { FolderOpen, ImageOff, Trash2 } from "lucide-react";
 import type { ImageItem } from "../../shared/types.js";
 import type { ImageCaptionMode, ImageDeleteState } from "../appTypes.js";
 import { formatBytes, formatDate } from "../reviewModel.js";
+
+type CardLoadState = "loading" | "loaded" | "failed";
 
 export const ImageCard = memo(function ImageCard({
    image,
@@ -28,6 +30,17 @@ export const ImageCard = memo(function ImageCard({
    onDoubleClick: (event: MouseEvent, image: ImageItem) => void;
    onContextMenu: (event: MouseEvent, image: ImageItem) => void;
 }) {
+   const [loadState, setLoadState] = useState<CardLoadState>("loading");
+   const imgRef = useRef<HTMLImageElement | null>(null);
+   const previewUrl = image.previewUrl;
+
+   useEffect(() => {
+      setLoadState("loading");
+      // A cached image can finish before React attaches onLoad.
+      const img = imgRef.current;
+      if (img?.complete) setLoadState(img.naturalWidth > 0 ? "loaded" : "failed");
+   }, [previewUrl]);
+
    const isAvailable = image.sourceStatus === "available";
    const unavailableTitle =
       image.sourceStatus === "movedByApp" ? "In the duplicate folder" : image.sourceStatus === "recycledByApp" ? "Recycled" : "Source unavailable";
@@ -58,7 +71,27 @@ export const ImageCard = memo(function ImageCard({
             </span>
          )}
          {isAvailable ? (
-            <img alt={image.file} draggable={false} loading="lazy" src={image.previewUrl} />
+            <div className="imageCard__media">
+               {loadState === "loading" && <span className="skeleton imageCard__skeleton" aria-hidden="true" />}
+               <img
+                  alt={image.file}
+                  className={loadState === "loaded" ? "imageCard__img imageCard__img--loaded" : "imageCard__img"}
+                  decoding="async"
+                  draggable={false}
+                  loading="lazy"
+                  onError={() => setLoadState("failed")}
+                  onLoad={() => setLoadState("loaded")}
+                  ref={imgRef}
+                  src={previewUrl}
+               />
+               {loadState === "failed" && (
+                  <div className="imageCard__fallback">
+                     <ImageOff aria-hidden="true" />
+                     <strong>Preview unavailable</strong>
+                     <span>The file couldn’t be read</span>
+                  </div>
+               )}
+            </div>
          ) : (
             <div className={"imageCard__fallback imageCard__fallback--" + image.sourceStatus}>
                {image.sourceStatus === "movedByApp" ? <FolderOpen aria-hidden="true" /> : <ImageOff aria-hidden="true" />}
