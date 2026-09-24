@@ -1,8 +1,9 @@
-import { FolderOpen, ShieldCheck, Trash2, Undo2 } from "lucide-react";
+import { FolderOpen, ShieldCheck, Trash2, Undo2, X } from "lucide-react";
 import type { FileActionStatus, MoveResult } from "../../shared/types.js";
 import type { FileWorkflowState, MovePreview } from "../appTypes.js";
 import type { TooltipProps } from "../hooks/useTooltip.js";
 import { formatBytes, getSetNumber } from "../reviewModel.js";
+import { OverlayPanel } from "./OverlayPanel.js";
 import "./FinalReview.css";
 
 interface FinalReviewProps {
@@ -22,6 +23,7 @@ interface FinalReviewProps {
    onRestore: () => void;
    onTrash: () => void;
    onKeepImage: (row: MovePreview) => void;
+   onClose: () => void;
    getTooltipProps: (title: string, body: string, hotkey?: string) => TooltipProps;
 }
 
@@ -35,7 +37,7 @@ const MoveCard = ({ row, quarantined, onKeepImage }: { row: MovePreview; quarant
          </span>
       </figcaption>
       {!quarantined && (
-         <button className="moveCard__keep" onClick={() => onKeepImage(row)} title="Keep this image — removes it from the move" type="button">
+         <button className="moveCard__keep" onClick={() => onKeepImage(row)} title="Keep this image and remove it from the move" type="button">
             Keep this
          </button>
       )}
@@ -81,6 +83,7 @@ export const FinalReview = ({
    onRestore,
    onTrash,
    onKeepImage,
+   onClose,
    getTooltipProps,
 }: FinalReviewProps) => {
    const isEmpty = movePreview.length === 0 && duplicatePreview.length === 0;
@@ -95,17 +98,29 @@ export const FinalReview = ({
              : "Nothing is marked yet";
 
    return (
-      <section className={`finalReview${isEmpty ? " finalReview--empty" : ""}`}>
+      <OverlayPanel
+         backdropClassName="finalReviewOverlay__backdrop"
+         closeLabel="Close final review"
+         labelledBy="final-review-title"
+         rootClassName="finalReviewOverlay"
+         surfaceClassName="finalReview"
+         onClose={onClose}
+      >
          <header className="finalReview__header">
-            <p className="overlayLabel">Final review</p>
-            <h2>{heading}</h2>
-            <div className="finalReview__meta">
-               <span>{formatBytes(totalVisibleBytes)} · moves into the managed duplicate folder, recoverable until you recycle it</span>
-               <button className="finalReview__path" onClick={onOpenFolder} title={`Open ${destination}`} type="button">
-                  <FolderOpen aria-hidden="true" />
-                  <span>{destination}</span>
-               </button>
+            <div>
+               <p className="overlayLabel">Final review</p>
+               <h2 id="final-review-title">{heading}</h2>
+               <div className="finalReview__meta">
+                  <span>{formatBytes(totalVisibleBytes)} · recoverable until you recycle the folder</span>
+                  <button className="finalReview__path" onClick={onOpenFolder} title={`Open ${destination}`} type="button">
+                     <FolderOpen aria-hidden="true" />
+                     <span>{destination}</span>
+                  </button>
+               </div>
             </div>
+            <button aria-label="Close final review" className="iconButton" onClick={onClose} type="button">
+               <X aria-hidden="true" />
+            </button>
          </header>
 
          <div className="finalReview__scroll">
@@ -228,6 +243,6 @@ export const FinalReview = ({
                </button>
             </div>
          </footer>
-      </section>
+      </OverlayPanel>
    );
 };

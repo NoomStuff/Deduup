@@ -1,12 +1,11 @@
 /* --- Notifications ---------------------------------------------------------------- */
 
-/* Top-center: the bottom strip is primary navigation (filmstrip, action bar),
-   while the middle of the top bar is always free. Portaled to the body so
-   toasts stay clickable while an overlay holds the app root inert. */
+/* Top-center below the titlebar and toolbar. Portaled to the body so toasts
+   stay clickable while an overlay holds the app root inert. */
 
 .notificationCenter {
    position: fixed;
-   top: 14px;
+   top: 90px;
    left: 50%;
    transform: translateX(-50%);
    z-index: 85;
@@ -113,7 +112,7 @@
    flex: none;
    width: 24px;
    height: 24px;
-   border-radius: 8px;
+   border-radius: var(--radius-sm);
    color: var(--faint);
 }
 

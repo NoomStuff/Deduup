@@ -14,7 +14,8 @@ export const createWindow = (): BrowserWindow => {
       height: 940,
       minWidth: 960,
       minHeight: 720,
-      backgroundColor: "#0e0e14",
+      backgroundColor: "#131313",
+      titleBarStyle: "hidden",
       icon: iconPath,
       webPreferences: {
          preload: path.join(app.getAppPath(), "dist-electron", "preload", "index.cjs"),

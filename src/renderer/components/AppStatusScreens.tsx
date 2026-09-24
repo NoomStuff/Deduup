@@ -2,6 +2,7 @@ import type { DragEventHandler } from "react";
 import { FolderOpen, Image as ImageIcon, LoaderCircle, Redo2, RotateCw, TriangleAlert, X } from "lucide-react";
 import type { ScanProgress } from "../../shared/types.js";
 import type { ScanWarnings } from "../appTypes.js";
+import { useBindingDisplay } from "../commands.js";
 import { Toggle } from "./Toggle.js";
 import "./AppStatusScreens.css";
 
@@ -14,21 +15,21 @@ const getScanPhaseLabel = (phase: ScanProgress["phase"] | undefined): string => 
 };
 
 export const LoadingScreen = () => (
-   <main aria-live="polite" className="shell shell--center" role="status">
+   <main aria-live="polite" className="statusScreen" role="status">
       <div className="loadingCard">
          <span className="spinner" aria-hidden="true" />
          <div>
             <strong>Loading your library</strong>
             <small>Reading the saved scan from disk.</small>
          </div>
-         <div className="loadingBars" aria-hidden="true">
-            <span />
-            <span />
-            <span />
-         </div>
       </div>
    </main>
 );
+
+export const StartupScreen = (props: StartupScreenProps) => {
+   const openFolderHint = useBindingDisplay("openFolder");
+   return <StartupScreenBody {...props} openFolderHint={openFolderHint} />;
+};
 
 export const ScanningScreen = ({
    folderName,
@@ -51,18 +52,18 @@ export const ScanningScreen = ({
              ? `Saving ${progress.total} set${progress.total === 1 ? "" : "s"}`
              : `${progress.completed} of ${progress.total} image${progress.total === 1 ? "" : "s"}`;
    return (
-      <main className="scanLoadingShell">
-         <section aria-live="polite" className="scanLoadingPanel">
-            <LoaderCircle aria-hidden="true" className="scanLoadingPanel__icon spinIcon" />
+      <main className="statusScreen">
+         <section aria-live="polite" className="scanPanel">
+            <LoaderCircle aria-hidden="true" className="scanPanel__icon" />
             <div>
                <p className="overlayLabel">Scanning {folderName}</p>
                <h1>{getScanPhaseLabel(progress?.phase)}</h1>
-               <p className="scanLoadingPanel__file">
+               <p className="scanPanel__file">
                   {progress?.currentFile ?? "Large folders can take a moment."}
-                  {folderPath !== null && <span className="scanLoadingPanel__path">{folderPath}</span>}
+                  {folderPath !== null && <span className="scanPanel__path">{folderPath}</span>}
                </p>
             </div>
-            <div className="scanLoadingProgress">
+            <div className="scanPanel__progress">
                <div
                   aria-label={`${progressPercent}% complete`}
                   aria-valuemax={100}
@@ -74,9 +75,9 @@ export const ScanningScreen = ({
                   <span style={{ width: `${progressPercent}%` }} />
                </div>
                <strong>{progressPercent}%</strong>
-               {progressCount !== null && <span className="scanLoadingPanel__count">{progressCount}</span>}
+               {progressCount !== null && <span className="scanPanel__count">{progressCount}</span>}
             </div>
-            <button className="ghostButton scanLoadingPanel__cancel" onClick={onCancel} type="button">
+            <button className="ghostButton scanPanel__cancel" onClick={onCancel} type="button">
                <X aria-hidden="true" />
                Cancel scan
             </button>
@@ -126,7 +127,7 @@ interface StartupScreenProps {
    onDrop: DragEventHandler<HTMLElement>;
 }
 
-export const StartupScreen = ({
+const StartupScreenBody = ({
    hasSavedReview,
    savedSetCount,
    canRescan,
@@ -139,31 +140,37 @@ export const StartupScreen = ({
    onDragOver,
    onDragLeave,
    onDrop,
-}: StartupScreenProps) => (
-   <main className={`startupShell${isDragOver ? " startupShell--drag" : ""}`} onDragOver={onDragOver} onDragLeave={onDragLeave} onDrop={onDrop}>
+   openFolderHint,
+}: StartupScreenProps & { openFolderHint: string }) => (
+   <main className={`startup${isDragOver ? " startup--drag" : ""}`} onDragOver={onDragOver} onDragLeave={onDragLeave} onDrop={onDrop}>
       {isDragOver && (
-         <div className="startupDropHint" aria-hidden="true">
+         <div className="startup__dropHint" aria-hidden="true">
             <FolderOpen aria-hidden="true" />
             <span>Drop the folder to scan it</span>
          </div>
       )}
-      <section aria-labelledby="startup-title" className="startupPanel">
-         <div className="startupPanel__heading">
-            <span className="startupPanel__mark">
+      <section aria-labelledby="startup-title" className="startup__panel">
+         <div className="startup__heading">
+            <span className="startup__mark">
                <ImageIcon aria-hidden="true" />
             </span>
             <div>
                <h1 id="startup-title">Image Deduplicator</h1>
-               <p>Find the copies worth removing. Your originals stay in control.</p>
+               <p>Find the copies worth removing. Nothing moves until you say so.</p>
             </div>
          </div>
-         <div className="startupActions">
+         <div className="startup__actions">
             <button className="startupAction startupAction--primary" onClick={onOpenFolder} type="button">
                <FolderOpen aria-hidden="true" />
-               <span className="startupAction__label">Open a folder</span>
+               <span className="startupAction__label">
+                  Open a folder
+                  <small>
+                     or drop one here · <kbd>{openFolderHint}</kbd>
+                  </small>
+               </span>
             </button>
             <button
-               className="startupAction startupAction--continue"
+               className="startupAction"
                disabled={!hasSavedReview}
                onClick={onContinue}
                title={hasSavedReview ? undefined : "No saved review yet"}
@@ -179,18 +186,12 @@ export const StartupScreen = ({
                   )}
                </span>
             </button>
-            <button
-               className="startupAction startupAction--rescan"
-               disabled={!canRescan}
-               onClick={onRescan}
-               title={canRescan ? undefined : "Scan a folder first"}
-               type="button"
-            >
+            <button className="startupAction" disabled={!canRescan} onClick={onRescan} title={canRescan ? undefined : "Scan a folder first"} type="button">
                <RotateCw aria-hidden="true" />
                <span className="startupAction__label">Rescan folder</span>
             </button>
          </div>
-         <div className="startupPreference">
+         <div className="startup__preference">
             <Toggle checked={showOnLaunch} label="Show this screen when the app starts" onChange={onShowOnLaunchChange} />
          </div>
       </section>

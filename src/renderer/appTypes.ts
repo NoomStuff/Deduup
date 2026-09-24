@@ -8,10 +8,10 @@ export interface CompareState {
    reveal: number;
 }
 
-export type AppView = "review" | "final";
 export type TravelDirection = "idle" | "left" | "right";
 export type ImageSetState = "open" | "seen" | "someDeleted" | "allDeleted";
 export type ImageDeleteState = "active" | "deleted";
+export type ImageCaptionMode = "none" | "names" | "details";
 export type ConfirmKind = "markSet" | "markBand" | "autoSelectBand" | "applyMoves" | "clearAll" | "trashDuplicate" | "rescan" | "switchFolder";
 
 export interface SimilarityBand {

@@ -34,20 +34,6 @@ export const useReviewContextMenu = ({ groups, currentSet, decisions, selectedIm
       });
    };
 
-   const openImageMenuFromBadge = (event: MouseEvent, image: ImageItem): void => {
-      if (currentSet === null) return;
-      event.preventDefault();
-      event.stopPropagation();
-      hideTooltip();
-      selectImage(image.originalPath);
-      setContextMenu({
-         menuKind: "image",
-         imagePath: image.originalPath,
-         setId: currentSet.id,
-         anchor: { kind: "rect", rect: event.currentTarget.getBoundingClientRect() },
-      });
-   };
-
    const openSetContextMenu = (event: MouseEvent, imageSet: ImageSet): void => {
       event.preventDefault();
       event.stopPropagation();
@@ -62,7 +48,6 @@ export const useReviewContextMenu = ({ groups, currentSet, decisions, selectedIm
          contextMenu,
          setContextMenu,
          openImageContextMenu,
-         openImageMenuFromBadge,
          openSetContextMenu,
          closeContextMenu,
          contextSet: null,
@@ -86,7 +71,6 @@ export const useReviewContextMenu = ({ groups, currentSet, decisions, selectedIm
       contextMenu,
       setContextMenu,
       openImageContextMenu,
-      openImageMenuFromBadge,
       openSetContextMenu,
       closeContextMenu,
       contextSet,

@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import type { ImageItem, ImageSet } from "../../shared/types.js";
 import type { CompareState } from "../appTypes.js";
 
@@ -11,6 +11,16 @@ interface CompareControllerOptions {
 export const useCompareController = ({ currentSet, onKeep }: CompareControllerOptions) => {
    const [compare, setCompare] = useState<CompareState | null>(null);
    const [comparePick, setComparePick] = useState<ImageItem | null>(null);
+
+   // Escape backs out of the pick; the overlay itself handles its own Esc.
+   useEffect(() => {
+      if (comparePick === null) return undefined;
+      const onKeyDown = (event: KeyboardEvent): void => {
+         if (event.key === "Escape" && !event.defaultPrevented) setComparePick(null);
+      };
+      window.addEventListener("keydown", onKeyDown);
+      return () => window.removeEventListener("keydown", onKeyDown);
+   }, [comparePick]);
 
    const getImageIndex = (image: ImageItem): number => currentSet?.images.findIndex((item) => item.originalPath === image.originalPath) ?? -1;
 

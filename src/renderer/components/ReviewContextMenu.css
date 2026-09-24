@@ -5,8 +5,8 @@
    gap: 3px;
    min-width: 240px;
    max-width: 340px;
-   border: 2px solid var(--line-strong);
-   border-radius: 14px;
+   border: 1px solid var(--line-strong);
+   border-radius: var(--radius-md);
    background: rgba(var(--surface-rgb), 0.97);
    box-shadow: var(--shadow);
    padding: 6px;
@@ -29,7 +29,7 @@
    display: flex;
    align-items: center;
    gap: 10px;
-   border-radius: 9px;
+   border-radius: var(--radius-sm);
    padding: 9px 11px;
    text-align: left;
    font-size: 13px;
@@ -59,7 +59,7 @@
 }
 
 .contextMenu__command--important {
-   font-weight: 700;
+   font-weight: 600;
 }
 
 .contextMenu__command--danger {

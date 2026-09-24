@@ -1,4 +1,4 @@
-import "@fontsource-variable/quicksand/index.css";
+import "@fontsource-variable/nunito/index.css";
 import { createRoot } from "react-dom/client";
 import { App } from "./App.js";
 import "./theme.css";

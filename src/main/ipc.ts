@@ -1,4 +1,4 @@
-import { dialog, ipcMain, shell } from "electron";
+import { BrowserWindow, dialog, ipcMain, shell } from "electron";
 import { stat } from "node:fs/promises";
 import path from "node:path";
 import type { WebContents } from "electron";
@@ -54,6 +54,15 @@ export const runScan = async (rootPath: string, sender: WebContents, signal?: Ab
 };
 
 export const registerIpcHandlers = (): void => {
+   ipcMain.handle("window:action", (event, action: unknown): void => {
+      const window = BrowserWindow.fromWebContents(event.sender);
+      if (window === null) return;
+      if (action === "minimize") window.minimize();
+      else if (action === "maximize") {
+         if (window.isMaximized()) window.unmaximize();
+         else window.maximize();
+      } else if (action === "close") window.close();
+   });
    ipcMain.handle("data:load", getLoadResult);
    ipcMain.handle("scan:choose-folder", async (): Promise<string | null> => {
       const result = await dialog.showOpenDialog({ properties: ["openDirectory"], title: "Choose image folder" });

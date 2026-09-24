@@ -1,71 +1,50 @@
 /* ---------------------------------------------------------------------------
    Design tokens and shared controls.
 
-   One visual system: a navy stage with an ambient glow, content framed in
-   rounded glass, cool hairlines, and color reserved for meaning — violet as
-   the working accent, green for keep, red for removal.
+   One visual system: a neutral gray stage, flat raised panels with quiet
+   hairlines, and color reserved for meaning — terracotta orange as the working
+   accent, sage green for keep, red for removal. Tint-free surfaces so photos
+   carry the only warmth on screen.
 --------------------------------------------------------------------------- */
 
 :root {
    color-scheme: dark;
-   --bg: #06080e;
-   --surface-rgb: 13, 16, 25;
-   --panel: #0d1019;
-   --panel-2: #121623;
-   --panel-3: #181d2e;
-   --hairline-rgb: 169, 184, 255;
-   --line: rgba(var(--hairline-rgb), 0.14);
-   --line-strong: rgba(var(--hairline-rgb), 0.32);
-   --text: #eef2ff;
-   --text-strong: #f6f8ff;
-   --muted: #9aa8c8;
-   --faint: #6d7a99;
+   --bg: #131313;
+   --surface-rgb: 24, 24, 24;
+   --panel: #1a1a1a;
+   --panel-2: #202020;
+   --panel-3: #262626;
+   --hairline-rgb: 190, 190, 190;
+   --line: rgba(var(--hairline-rgb), 0.13);
+   --line-strong: rgba(var(--hairline-rgb), 0.3);
+   --text: #e8e8e8;
+   --text-strong: #f7f7f7;
+   --muted: #a4a4a4;
+   --faint: #797979;
 
-   --accent: #a48bff;
-   --accent-rgb: 164, 139, 255;
-   --accent-bright: #c9baff;
-   --keep: #92e9a6;
-   --keep-rgb: 146, 233, 166;
-   --delete: #ff7a8f;
-   --delete-rgb: 255, 122, 143;
-   --warning: #ffbf69;
+   --accent: #c98a5a;
+   --accent-rgb: 201, 138, 90;
+   --accent-bright: #e6b18b;
+   --keep: #94c98b;
+   --keep-rgb: 148, 201, 139;
+   --delete: #e2727c;
+   --delete-rgb: 226, 114, 124;
+   --warning: #d9b25c;
+   --warning-rgb: 217, 178, 92;
 
    --radius-sm: 8px;
    --radius-md: 12px;
-   --radius-lg: 22px;
+   --radius-lg: 18px;
 
-   --shadow: 0 24px 80px rgba(0, 0, 0, 0.35);
-   --bounce: cubic-bezier(0.2, 3.2, 0.2, 1);
+   --shadow: 0 18px 60px rgba(0, 0, 0, 0.45);
+   --bounce: cubic-bezier(0.2, 1.6, 0.2, 1);
    --ease-out: cubic-bezier(0.22, 1, 0.36, 1);
 
-   --popover-bg: rgba(10, 13, 20, 0.97);
-   --stage-wash: radial-gradient(circle at 50% 0, rgba(96, 74, 190, 0.18), transparent 34%), linear-gradient(180deg, #0d1020 0%, #05060b 54%, #0b0e1a 100%);
+   --popover-bg: rgba(20, 20, 20, 0.98);
+   --backdrop: rgba(6, 6, 6, 0.62);
+   --stage-wash: linear-gradient(180deg, #171717 0%, #111111 62%, #141414 100%);
 
-   --font: "Quicksand Variable", "Quicksand", "Segoe UI Variable Display", "Segoe UI", system-ui, sans-serif;
-}
-
-/* A tint-free variant for judging photo color without ambient bias. Semantic
-   colors (keep, delete, warning, and the similarity band scale) stay identical. */
-:root[data-theme="slate"] {
-   --bg: #0f1011;
-   --surface-rgb: 22, 23, 25;
-   --panel: #161719;
-   --panel-2: #1c1d1f;
-   --panel-3: #232527;
-   --hairline-rgb: 176, 180, 186;
-   --line: rgba(176, 180, 186, 0.14);
-   --line-strong: rgba(176, 180, 186, 0.32);
-   --text: #e9eaec;
-   --text-strong: #f7f8f9;
-   --muted: #a3a7ae;
-   --faint: #7b7f86;
-
-   --accent: #a8b6c4;
-   --accent-rgb: 168, 182, 196;
-   --accent-bright: #ccd6df;
-
-   --popover-bg: rgba(17, 18, 20, 0.97);
-   --stage-wash: radial-gradient(circle at 50% 0, rgba(122, 130, 140, 0.1), transparent 34%), linear-gradient(180deg, #141517 0%, #0c0d0e 54%, #111214 100%);
+   --font: "Nunito Variable", "Segoe UI Variable Text", "Segoe UI", system-ui, sans-serif;
 }
 
 * {
@@ -91,13 +70,13 @@ body {
    font-family: var(--font);
    font-size: 14px;
    font-weight: 500;
-   line-height: 1.45;
+   line-height: 1.5;
    -webkit-font-smoothing: antialiased;
    text-rendering: optimizeLegibility;
    user-select: none;
 }
 
-/* The stage: an ambient glow above a deep vertical wash. */
+/* The stage: a near-black wash, flat and tint-free — photos carry the color. */
 
 body::before {
    content: "";
@@ -109,12 +88,12 @@ body::before {
 }
 
 ::selection {
-   background: rgba(var(--accent-rgb), 0.3);
+   background: rgba(var(--accent-rgb), 0.35);
 }
 
 :focus-visible {
-   outline: 3px solid rgba(var(--accent-rgb), 0.72);
-   outline-offset: 3px;
+   outline: 2px solid rgba(var(--accent-rgb), 0.8);
+   outline-offset: 2px;
 }
 
 ::-webkit-scrollbar {
@@ -125,12 +104,12 @@ body::before {
 ::-webkit-scrollbar-thumb {
    border: 3px solid transparent;
    border-radius: var(--radius-lg);
-   background: rgba(var(--hairline-rgb), 0.22);
+   background: rgba(var(--hairline-rgb), 0.2);
    background-clip: content-box;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-   background-color: rgba(var(--hairline-rgb), 0.38);
+   background-color: rgba(var(--hairline-rgb), 0.36);
 }
 
 ::-webkit-scrollbar-corner {
@@ -140,13 +119,13 @@ body::before {
 kbd {
    display: inline-block;
    border: 1px solid var(--line-strong);
-   border-radius: 7px;
-   padding: 1px 7px;
-   background: rgba(255, 255, 255, 0.045);
+   border-radius: 5px;
+   padding: 1px 6px;
+   background: rgba(255, 255, 255, 0.04);
    color: var(--muted);
    font-family: var(--font);
    font-size: 10.5px;
-   font-weight: 700;
+   font-weight: 600;
    line-height: 1.7;
    white-space: nowrap;
 }
@@ -162,6 +141,7 @@ button {
 
 button:disabled {
    cursor: default;
+   opacity: 0.38;
 }
 
 img {
@@ -170,17 +150,19 @@ img {
 
 /* --- Layout shell ------------------------------------------------------- */
 
-.shell {
+/* The app column: titlebar and toolbar own the top, content fills the rest. */
+
+.app {
    display: flex;
    flex-direction: column;
    height: 100vh;
-   padding: 14px 20px 20px;
 }
 
-.shell--center {
-   display: grid;
-   place-items: center;
-   padding: 0;
+.app__content {
+   display: flex;
+   flex-direction: column;
+   flex: 1;
+   min-height: 0;
 }
 
 /* Eyebrow label, as used across overlay and section headers. */
@@ -188,9 +170,9 @@ img {
 .overlayLabel {
    margin: 0;
    color: var(--faint);
-   font-size: 10.5px;
-   font-weight: 700;
-   letter-spacing: 0.24em;
+   font-size: 11px;
+   font-weight: 600;
+   letter-spacing: 0.14em;
    text-transform: uppercase;
 }
 
@@ -201,8 +183,14 @@ img {
    display: inline-flex;
    align-items: center;
    justify-content: center;
-   width: 36px;
-   height: 36px;
+   width: 32px;
+   height: 32px;
+   border-radius: var(--radius-sm);
+   color: var(--muted);
+   transition:
+      background-color 140ms ease-out,
+      color 140ms ease-out,
+      transform 160ms var(--bounce);
 }
 
 .iconButton::after {
@@ -211,40 +199,19 @@ img {
    inset: -4px;
 }
 
-.iconButton__surface,
-.iconButton {
-   border-radius: 10px;
-}
-
-.iconButton {
-   border: 2px solid var(--line);
-   background: rgba(255, 255, 255, 0.035);
-   color: var(--muted);
-   transition:
-      transform 260ms var(--bounce),
-      border-color 200ms ease-out,
-      background-color 200ms ease-out,
-      color 200ms ease-out;
-}
-
 .iconButton:hover:not(:disabled),
 .iconButton:focus-visible {
-   border-color: var(--line-strong);
-   background: rgba(var(--accent-rgb), 0.14);
+   background: var(--panel-3);
    color: var(--text-strong);
 }
 
 .iconButton:hover:not(:disabled) svg,
 .iconButton:focus-visible svg {
-   animation: iconPop 400ms cubic-bezier(0.34, 2.56, 0.64, 1);
+   animation: iconPop 320ms cubic-bezier(0.34, 1.8, 0.64, 1);
 }
 
 .iconButton:active:not(:disabled) {
-   transform: scale(0.9);
-}
-
-.iconButton:disabled {
-   opacity: 0.4;
+   transform: scale(0.92);
 }
 
 .iconButton svg {
@@ -254,7 +221,7 @@ img {
 
 @keyframes iconPop {
    50% {
-      transform: scale(1.18);
+      transform: scale(1.15);
    }
 }
 
@@ -263,16 +230,16 @@ img {
 .dangerButton {
    display: inline-flex;
    align-items: center;
-   gap: 9px;
-   border: 2px solid transparent;
-   border-radius: var(--radius-md);
-   padding: 10px 18px;
-   font-size: 13.5px;
+   gap: 8px;
+   border-radius: var(--radius-sm);
+   padding: 8px 15px;
+   font-size: 13px;
    font-weight: 700;
    transition:
-      transform 200ms var(--bounce),
-      border-color 160ms ease-out,
-      background-color 160ms ease-out;
+      transform 160ms var(--bounce),
+      background-color 140ms ease-out,
+      color 140ms ease-out,
+      box-shadow 140ms ease-out;
 }
 
 .primaryButton svg,
@@ -283,50 +250,38 @@ img {
 }
 
 .primaryButton {
-   border-color: rgba(var(--accent-rgb), 0.55);
-   background: rgba(var(--accent-rgb), 0.18);
-   color: var(--accent-bright);
+   background: var(--accent);
+   color: #2b1507;
+   box-shadow: 0 2px 10px rgba(var(--accent-rgb), 0.25);
 }
 
 .primaryButton:hover:not(:disabled) {
-   border-color: rgba(var(--accent-rgb), 0.85);
-   background: rgba(var(--accent-rgb), 0.28);
-   transform: translateY(-1px);
+   background: var(--accent-bright);
 }
 
 .ghostButton {
-   border-color: var(--line);
-   background: rgba(255, 255, 255, 0.035);
+   background: var(--panel-3);
    color: var(--text);
 }
 
 .ghostButton:hover:not(:disabled) {
-   border-color: var(--line-strong);
-   background: rgba(255, 255, 255, 0.07);
-   transform: translateY(-1px);
+   background: #352e25;
+   color: var(--text-strong);
 }
 
 .dangerButton {
-   border-color: rgba(var(--delete-rgb), 0.45);
-   background: rgba(var(--delete-rgb), 0.1);
+   background: rgba(var(--delete-rgb), 0.14);
    color: var(--delete);
 }
 
 .dangerButton:hover:not(:disabled) {
-   border-color: rgba(var(--delete-rgb), 0.8);
-   background: rgba(var(--delete-rgb), 0.22);
+   background: rgba(var(--delete-rgb), 0.26);
 }
 
 .primaryButton:active:not(:disabled),
 .ghostButton:active:not(:disabled),
 .dangerButton:active:not(:disabled) {
    transform: scale(0.96);
-}
-
-.primaryButton:disabled,
-.ghostButton:disabled,
-.dangerButton:disabled {
-   opacity: 0.35;
 }
 
 /* --- Toggle ------------------------------------------------------------- */
@@ -336,8 +291,9 @@ img {
    align-items: center;
    gap: 11px;
    font-size: 13px;
-   font-weight: 600;
+   font-weight: 500;
    color: var(--muted);
+   transition: color 140ms ease;
 }
 
 .toggleControl:hover {
@@ -347,9 +303,9 @@ img {
 .toggleControl__track {
    position: relative;
    flex: none;
-   width: 38px;
-   height: 22px;
-   border: 2px solid var(--line-strong);
+   width: 34px;
+   height: 19px;
+   border: 1px solid var(--line-strong);
    border-radius: var(--radius-lg);
    background: rgba(255, 255, 255, 0.03);
    transition:
@@ -359,10 +315,10 @@ img {
 
 .toggleControl__track > span {
    position: absolute;
-   top: 2px;
-   left: 2px;
-   width: 14px;
-   height: 14px;
+   top: 3px;
+   left: 3px;
+   width: 11px;
+   height: 11px;
    border-radius: 50%;
    background: var(--faint);
    transition:
@@ -375,12 +331,12 @@ img {
 }
 
 .toggleControl--on .toggleControl__track {
-   border-color: rgba(var(--accent-rgb), 0.55);
-   background: rgba(var(--accent-rgb), 0.16);
+   border-color: rgba(var(--accent-rgb), 0.6);
+   background: rgba(var(--accent-rgb), 0.18);
 }
 
 .toggleControl--on .toggleControl__track > span {
-   transform: translateX(16px);
+   transform: translateX(15px);
    background: var(--accent);
 }
 
@@ -389,7 +345,7 @@ img {
 .progressBar {
    position: relative;
    overflow: hidden;
-   height: 5px;
+   height: 4px;
    border-radius: var(--radius-lg);
    background: rgba(255, 255, 255, 0.08);
 }
@@ -398,7 +354,7 @@ img {
    display: block;
    height: 100%;
    border-radius: inherit;
-   background: linear-gradient(90deg, var(--accent), var(--keep));
+   background: var(--accent);
    transition: width 200ms ease;
 }
 
@@ -417,9 +373,9 @@ img {
 }
 
 .spinner {
-   width: 26px;
-   height: 26px;
-   border: 3px solid var(--line-strong);
+   width: 24px;
+   height: 24px;
+   border: 2px solid var(--line-strong);
    border-top-color: var(--accent);
    border-radius: 50%;
    animation: spin 0.8s linear infinite;
@@ -428,15 +384,6 @@ img {
 @keyframes spin {
    to {
       transform: rotate(360deg);
-   }
-}
-
-@keyframes shimmer {
-   0% {
-      background-position: 0% 50%;
-   }
-   to {
-      background-position: 200% 50%;
    }
 }
 
@@ -460,14 +407,14 @@ img {
 @keyframes overlay-rise {
    from {
       opacity: 0;
-      transform: translateY(26px) scale(0.985);
+      transform: translateY(20px) scale(0.985);
    }
 }
 
 @keyframes overlay-drop {
    to {
       opacity: 0;
-      transform: translateY(18px) scale(0.99);
+      transform: translateY(14px) scale(0.99);
    }
 }
 
@@ -488,7 +435,7 @@ img {
 @keyframes soft-rise {
    from {
       opacity: 0;
-      transform: translateY(14px);
+      transform: translateY(10px);
    }
 }
 
@@ -505,8 +452,8 @@ img {
 
 .panelHeader h2 {
    margin: 1px 0 0;
-   font-size: 19px;
-   font-weight: 700;
+   font-size: 18px;
+   font-weight: 600;
    color: var(--text-strong);
 }
 
@@ -518,18 +465,85 @@ img {
 .panelGroup__label {
    margin: 0;
    color: var(--faint);
-   font-size: 10.5px;
-   font-weight: 700;
-   letter-spacing: 0.24em;
+   font-size: 11px;
+   font-weight: 600;
+   letter-spacing: 0.14em;
    text-transform: uppercase;
 }
 
 .panelGroup__hint {
    margin: -2px 0 0;
    color: var(--faint);
-   font-size: 11.5px;
-   font-weight: 600;
+   font-size: 12px;
    line-height: 1.5;
+}
+
+/* --- Panel modals ------------------------------------------------------------
+   Shared chrome for the settings and help modals: surface, header, underline
+   tabs, and a scrolling body. Panels skin their own widths and content. */
+
+.panelModal {
+   display: flex;
+   flex-direction: column;
+   overflow: hidden;
+   border: 1px solid var(--line);
+   border-radius: var(--radius-lg);
+   background: var(--panel);
+   box-shadow: var(--shadow);
+   animation: overlay-rise 240ms var(--ease-out);
+}
+
+.panelModal__header {
+   display: flex;
+   align-items: flex-start;
+   justify-content: space-between;
+   gap: 12px;
+   flex: none;
+   padding: 18px 22px 0;
+}
+
+.panelModal__header h2 {
+   margin: 0;
+   color: var(--text-strong);
+   font-size: 18px;
+   font-weight: 800;
+}
+
+.panelModal__tabs {
+   display: flex;
+   gap: 20px;
+   flex: none;
+   margin: 10px 22px 0;
+   border-bottom: 1px solid var(--line);
+}
+
+.panelModal__tabs button {
+   border-bottom: 2px solid transparent;
+   border-radius: 4px 4px 0 0;
+   color: var(--muted);
+   font-size: 13px;
+   font-weight: 600;
+   padding: 9px 2px;
+   transition:
+      border-color 140ms ease-out,
+      color 140ms ease-out;
+}
+
+.panelModal__tabs button:hover {
+   color: var(--text);
+}
+
+.panelModal__tabs button[aria-selected="true"] {
+   border-color: var(--accent);
+   color: var(--text-strong);
+}
+
+.panelModal__body {
+   flex: 1;
+   min-height: 0;
+   overflow-y: auto;
+   padding: 16px 22px 22px;
+   scrollbar-gutter: stable;
 }
 
 @media (prefers-reduced-motion: reduce) {

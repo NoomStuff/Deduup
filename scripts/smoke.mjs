@@ -10,7 +10,7 @@
  *   - final review: move list, per-image "Keep this", disabled recycle
  *   - drag-and-drop API surface (getPathForFile bridge)
  *   - persistent scan-warning banner (dismissable)
- *   - preview zoom via the wheel, neutral theme toggle + persistence
+ *   - preview zoom via the wheel, settings modal with rebindable shortcuts
  *
  * Screenshots land in .cache/ui-smoke/ so a human (or agent) can inspect them.
  */
@@ -78,7 +78,7 @@ const run = async () => {
       await warningBanner.waitFor({ state: "detached", timeout: 5_000 });
       check("scan warning banner can be dismissed", true);
 
-      const headerCounter = await window.textContent(".topbar__counter");
+      const headerCounter = await window.textContent(".toolbar__counter");
       check("review header shows set counter", /#\d+\s*\/\s*\d+/.test(headerCounter ?? ""), headerCounter ?? "missing");
 
       const bandTags = await window.locator(".similarityBand__tag").count();
@@ -101,6 +101,7 @@ const run = async () => {
       await window.keyboard.press("x");
       await window.waitForSelector(".confirmDialog", { timeout: 5_000 });
       check("X asks for confirmation", true);
+      await window.waitForTimeout(350);
       await window.screenshot({ path: path.join(artifactsDir, "03-confirm.png") });
       await window.keyboard.press("Escape");
 
@@ -113,6 +114,7 @@ const run = async () => {
       await window.locator(".imageCard").first().click();
       await window.keyboard.press("Enter");
       await window.waitForSelector(".imagePreviewDialog__stage", { timeout: 5_000 });
+      await window.waitForTimeout(350);
       await window.screenshot({ path: path.join(artifactsDir, "07-preview.png") });
       await window.mouse.move(720, 430);
       await window.mouse.wheel(0, -600);
@@ -123,17 +125,16 @@ const run = async () => {
       await window.keyboard.press("Escape");
       await window.waitForSelector(".imagePreviewDialog__stage", { state: "detached", timeout: 5_000 });
 
-      // The neutral gray theme applies instantly and persists its preference.
-      await window.getByRole("button", { name: /open app settings/i }).click();
+      // Settings opens as a tabbed modal from the Help menu and exposes the
+      // rebindable shortcuts screen.
+      await window.getByRole("button", { name: "Help", exact: true }).click();
+      await window.getByRole("menuitem", { name: /settings/i }).click();
       await window.waitForSelector(".settingsPanel", { timeout: 5_000 });
-      const themeToggle = window.getByRole("button", { name: /neutral gray theme/i });
-      await themeToggle.click();
-      const appliedTheme = await window.evaluate(() => document.documentElement.getAttribute("data-theme"));
-      check("neutral theme applies to the document root", appliedTheme === "slate", appliedTheme ?? "missing");
-      const storedTheme = await window.evaluate(() => window.localStorage.getItem("neutral-gray-theme"));
-      check("neutral theme preference persists", storedTheme === "true", storedTheme ?? "missing");
-      await window.screenshot({ path: path.join(artifactsDir, "09-neutral-theme.png") });
-      await themeToggle.click();
+      await window.getByRole("tab", { name: "Keyboard shortcuts" }).click();
+      await window.waitForSelector(".shortcutList", { timeout: 5_000 });
+      const shortcutRows = await window.locator(".shortcutRow").count();
+      check("settings exposes the rebindable shortcuts screen", shortcutRows > 0, `rows: ${shortcutRows}`);
+      await window.screenshot({ path: path.join(artifactsDir, "09-settings.png") });
       // The backdrop is also a "Close settings" button; target the dialog's own control.
       await window
          .getByRole("dialog", { name: /settings/i })
@@ -144,13 +145,14 @@ const run = async () => {
       // Final review reflects the workflow state.
       await window.getByRole("button", { name: /final review/i }).click();
       await window.waitForSelector(".finalReview", { timeout: 5_000 });
+      await window.waitForTimeout(350);
       await window.screenshot({ path: path.join(artifactsDir, "04-final-review.png") });
 
       const recycleDisabled = await window.locator(".finalReview__actions .dangerButton").isDisabled();
       check("recycle stays disabled before any move", recycleDisabled);
 
       // Mark something so the final review has rows, then use "Keep this".
-      await window.getByRole("button", { name: /back to review/i }).click();
+      await window.locator(".finalReview").getByLabel("Close final review").click();
       await window.waitForSelector(".imageShelf");
       await window.keyboard.press("1");
       await window.waitForTimeout(200);
@@ -172,7 +174,7 @@ const run = async () => {
 
       // Back on the review view: the scanner must cap every set below the
       // similarity limit, and the chain fixture must have split into several sets.
-      await window.getByRole("button", { name: /back to review/i }).click();
+      await window.locator(".finalReview").getByLabel("Close final review").click();
       await window.waitForSelector(".filmstrip__item");
       const bandLabels = await window.locator(".similarityBand__tag").allTextContents();
       const worstBand = Math.max(...bandLabels.map((label) => Number.parseFloat(label)));

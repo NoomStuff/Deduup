@@ -1,5 +1,4 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import type { AppView } from "../appTypes.js";
 
 const centerTarget = (filmstrip: HTMLElement, active: HTMLElement): number => {
    const stripRect = filmstrip.getBoundingClientRect();
@@ -15,14 +14,14 @@ export const useFilmstrip = ({
    isScanning,
    isStartupOpen,
    loading,
-   view,
+   reviewActive,
 }: {
    currentIndex: number;
    groupCount: number;
    isScanning: boolean;
    isStartupOpen: boolean;
    loading: boolean;
-   view: AppView;
+   reviewActive: boolean;
 }) => {
    const filmstripRef = useRef<HTMLElement | null>(null);
    const [fade, setFade] = useState({ left: false, right: false });
@@ -60,7 +59,7 @@ export const useFilmstrip = ({
    }, [groupCount]);
 
    useEffect(() => {
-      if (view !== "review") {
+      if (!reviewActive) {
          positionedRef.current = false;
          return;
       }
@@ -94,7 +93,7 @@ export const useFilmstrip = ({
          filmstrip.removeEventListener("scroll", updateFade);
          resizeObserver.disconnect();
       };
-   }, [animate, currentIndex, isScanning, isStartupOpen, loading, view]);
+   }, [animate, currentIndex, isScanning, isStartupOpen, loading, reviewActive]);
 
    useEffect(
       () => () => {

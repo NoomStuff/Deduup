@@ -134,13 +134,14 @@ test("bands group consecutive sets that share a displayed similarity", () => {
    );
 });
 
-test("band colors run violet to green across the match limit", () => {
+test("band colors run warm orange to green across the match limit", () => {
    const start = getSimilarityColor(0);
    const end = getSimilarityColor(13);
    const channel = (color, index) => Number.parseInt(color.slice(4, -1).split(" ")[index], 10);
-   // Violet starts high in blue, green ends high in green.
+   // Terracotta orange starts high in red and low in blue, green ends the scale.
+   assert.ok(channel(start, 0) > channel(end, 0));
    assert.ok(channel(end, 1) > channel(start, 1));
-   assert.ok(channel(start, 2) > channel(end, 2));
+   assert.ok(channel(end, 2) > channel(start, 2));
 });
 
 test("resume index finds the saved set or falls back to the first", () => {

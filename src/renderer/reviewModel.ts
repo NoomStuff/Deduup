@@ -134,15 +134,15 @@ export const getSetNumber = (setId: string): string => setId.replace(/^set_0*/u,
 export const getSimilarityLabel = (similarity: number): string => similarity.toFixed(1);
 
 /**
- * Band color by average pixel difference: violet for near-identical sets,
- * warming through mauve and amber into green at the match limit.
+ * Band color by average pixel difference: terracotta orange for near-identical
+ * sets, cooling through amber, olive, and sage into green at the match limit.
  */
 const similarityColorStops = [
-   { distance: 0, color: [174, 140, 255] },
-   { distance: 3.25, color: [205, 132, 218] },
-   { distance: 6.5, color: [232, 142, 158] },
-   { distance: 9.75, color: [228, 184, 112] },
-   { distance: 13, color: [146, 233, 166] },
+   { distance: 0, color: [224, 137, 74] },
+   { distance: 3.25, color: [217, 168, 88] },
+   { distance: 6.5, color: [186, 186, 106] },
+   { distance: 9.75, color: [148, 196, 128] },
+   { distance: 13, color: [114, 200, 138] },
 ] as const;
 
 export const getSimilarityColor = (similarity: number): string => {
@@ -230,7 +230,7 @@ export const createConfirmAction = (kind: ConfirmKind, details: ConfirmDetails =
       return {
          kind,
          title: "Mark this set for removal?",
-         body: "Every image in the current set will be marked for removal. You can undo this before anything is moved.",
+         body: "Every image in the current set will be marked for removal. You can undo this before anything moves.",
          confirmLabel: "Mark set",
       };
    }
@@ -239,7 +239,7 @@ export const createConfirmAction = (kind: ConfirmKind, details: ConfirmDetails =
       return {
          kind,
          title: "Mark this band for removal?",
-         body: `Every available image in ${count} set${count === 1 ? "" : "s"} will be marked for removal, including sets you already chose for. You can undo this before anything is moved.`,
+         body: `Every available image in ${count} set${count === 1 ? "" : "s"} will be marked for removal, including sets you already marked. You can undo this before anything moves.`,
          confirmLabel: "Mark band",
       };
    }
@@ -248,7 +248,7 @@ export const createConfirmAction = (kind: ConfirmKind, details: ConfirmDetails =
       return {
          kind,
          title: "Autoselect this band?",
-         body: `The largest copy of every set in the band is kept and the rest marked. ${count} set${count === 1 ? "" : "s"} with your own choices will be re-picked.`,
+         body: `The largest copy in every set of the band is kept and the rest are marked. ${count} set${count === 1 ? "" : "s"} with existing marks get re-picked.`,
          confirmLabel: "Autoselect band",
       };
    }
@@ -275,7 +275,7 @@ export const createConfirmAction = (kind: ConfirmKind, details: ConfirmDetails =
       return {
          kind,
          title: "Rescan this folder?",
-         body: "Scan results and every review choice will be replaced. Move or recycle the duplicate folder contents first if any exist.",
+         body: "Scan results and all marks will be replaced. Move or recycle the duplicate folder first if it has content.",
          confirmLabel: "Rescan",
       };
    }
@@ -284,7 +284,7 @@ export const createConfirmAction = (kind: ConfirmKind, details: ConfirmDetails =
       return {
          kind,
          title: "Scan a different folder?",
-         body: "Opening a new folder replaces the current scan results and all review choices. Source files are never touched.",
+         body: "Opening a new folder replaces the current scan and all marks. Source files are never touched.",
          confirmLabel: "Scan folder",
          ...(folderPath === undefined ? {} : { folderPath }),
       };
@@ -293,7 +293,7 @@ export const createConfirmAction = (kind: ConfirmKind, details: ConfirmDetails =
    return {
       kind,
       title: "Clear every choice?",
-      body: "All review choices for this scan will be cleared. Source files stay untouched.",
+      body: "All marks in this scan will be cleared. Source files stay untouched.",
       confirmLabel: "Clear all",
    };
 };

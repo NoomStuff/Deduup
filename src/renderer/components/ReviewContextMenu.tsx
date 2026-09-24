@@ -3,7 +3,7 @@ import type { MouseEventHandler } from "react";
 import { Check, Eraser, FolderOpen, Image as ImageIcon, Search, Sparkles, Trash2 } from "lucide-react";
 import type { ImageItem } from "../../shared/types.js";
 import type { ContextMenuState } from "../appTypes.js";
-import { getShortcutKeys } from "../appShortcuts.js";
+import { useBindingDisplay } from "../commands.js";
 import { clamp } from "../reviewModel.js";
 import "./ReviewContextMenu.css";
 
@@ -40,6 +40,9 @@ const command =
 
 /** Positions itself against the anchor after measuring its real size, so the JS side never hardcodes menu dimensions. */
 export const ReviewContextMenu = (props: ReviewContextMenuProps) => {
+   const previewHint = useBindingDisplay("previewSelected");
+   const markSetHint = useBindingDisplay("markSet");
+   const autoselectHint = useBindingDisplay("autoselectBand");
    const menuRef = useRef<HTMLDivElement | null>(null);
    const [position, setPosition] = useState<{ left: number; top: number; ready: boolean }>({ left: 0, top: 0, ready: false });
 
@@ -108,8 +111,8 @@ export const ReviewContextMenu = (props: ReviewContextMenuProps) => {
                   type="button"
                >
                   <Trash2 aria-hidden="true" />
-                  <span>{props.imageIsDeleted ? "Unmark image" : "Mark for removal"}</span>
-                  <kbd>{getShortcutKeys("toggleImagePointer")}</kbd>
+                  <span>{props.imageIsDeleted ? "Unmark" : "Mark for removal"}</span>
+                  <kbd>Shift Click</kbd>
                </button>
                <button
                   className="contextMenu__command contextMenu__command--danger contextMenu__command--important"
@@ -119,7 +122,7 @@ export const ReviewContextMenu = (props: ReviewContextMenuProps) => {
                >
                   <Trash2 aria-hidden="true" />
                   <span>{props.onlyImageIsKept ? "Unmark the others" : "Keep only this"}</span>
-                  <kbd>{getShortcutKeys("keepOnlyThisPointer")}</kbd>
+                  <kbd>Shift Right Click</kbd>
                </button>
                <div className="contextMenu__divider" />
                <button
@@ -130,7 +133,7 @@ export const ReviewContextMenu = (props: ReviewContextMenuProps) => {
                >
                   <Search aria-hidden="true" />
                   <span>Compare</span>
-                  <kbd>{getShortcutKeys("comparePointer")}</kbd>
+                  <kbd>Alt Click</kbd>
                </button>
                <button
                   className="contextMenu__command"
@@ -140,7 +143,7 @@ export const ReviewContextMenu = (props: ReviewContextMenuProps) => {
                >
                   <ImageIcon aria-hidden="true" />
                   <span>Preview</span>
-                  <kbd>{getShortcutKeys("previewSelected")}</kbd>
+                  <kbd>{previewHint}</kbd>
                </button>
                <div className="contextMenu__divider" />
                <button className="contextMenu__command" onClick={command(props.onShowImage, props.onClose)} type="button">
@@ -162,7 +165,7 @@ export const ReviewContextMenu = (props: ReviewContextMenuProps) => {
                >
                   <Trash2 aria-hidden="true" />
                   <span>Mark whole set</span>
-                  <kbd>{getShortcutKeys("markSet")}</kbd>
+                  <kbd>{markSetHint}</kbd>
                </button>
                <button className="contextMenu__command contextMenu__command--accent" onClick={command(props.onAutoSelectImageSet, props.onClose)} type="button">
                   <Sparkles aria-hidden="true" />
@@ -196,7 +199,7 @@ export const ReviewContextMenu = (props: ReviewContextMenuProps) => {
                <button className="contextMenu__command contextMenu__command--accent" onClick={command(props.onAutoSelectBand, props.onClose)} type="button">
                   <Sparkles aria-hidden="true" />
                   <span>Autoselect all</span>
-                  <kbd>{getShortcutKeys("autoSelectBand")}</kbd>
+                  <kbd>{autoselectHint}</kbd>
                </button>
                <button className="contextMenu__command" onClick={command(props.onClearBand, props.onClose)} type="button">
                   <Eraser aria-hidden="true" />

@@ -1,32 +1,282 @@
+/* Settings modal: general rows plus the rebindable shortcuts screen. */
+
 .settingsPanel {
    z-index: 60;
 }
 
 .settingsPanel__backdrop {
-   background: rgba(5, 7, 12, 0.55);
-   backdrop-filter: blur(6px);
+   background: var(--backdrop);
 }
 
 .settingsPanel__surface {
-   display: flex;
-   flex-direction: column;
-   gap: 18px;
-   width: min(380px, 94vw);
-   height: 100%;
-   overflow-y: auto;
-   border-left: 2px solid var(--line);
-   background: rgba(var(--surface-rgb), 0.97);
-   box-shadow: var(--shadow);
-   padding: 20px 22px;
-   animation: drawer-in 280ms var(--ease-out) both;
+   width: min(620px, calc(100vw - 48px));
+   height: min(640px, calc(100vh - 88px));
 }
 
 .settingsPanel[data-closing="true"] .settingsPanel__surface {
-   animation: drawer-out 200ms ease both;
+   animation: overlay-drop 200ms ease-in both;
 }
 
-.panelGroup--danger {
-   margin-top: auto;
-   border-top: 2px solid var(--line);
-   padding-top: 16px;
+/* --- General rows ----------------------------------------------------------- */
+
+.settingRow {
+   display: flex;
+   align-items: center;
+   justify-content: space-between;
+   gap: 20px;
+   border-bottom: 1px solid var(--line);
+   padding: 15px 0;
+   font-size: 13px;
+   font-weight: 600;
+}
+
+.settingRow:last-child {
+   border-bottom: 0;
+}
+
+.settingRow > div {
+   min-width: 0;
+}
+
+.settingRow small {
+   display: block;
+   color: var(--faint);
+   font-size: 11.5px;
+   font-weight: 500;
+   line-height: 1.5;
+   margin-top: 4px;
+}
+
+.settingRow--toggle {
+   flex-direction: column;
+   align-items: flex-start;
+   gap: 6px;
+}
+
+.settingRow--danger {
+   justify-content: flex-end;
+   border-bottom: 0;
+}
+
+.segmentedPicker {
+   position: relative;
+   display: flex;
+   flex: none;
+   border-radius: var(--radius-sm);
+   background: var(--panel-2);
+   padding: 3px;
+}
+
+.segmentedPicker__thumb {
+   position: absolute;
+   top: 3px;
+   bottom: 3px;
+   left: 3px;
+   width: calc((100% - 6px) / 3);
+   border-radius: 6px;
+   background: var(--accent);
+   transition: transform 220ms var(--ease-out);
+}
+
+.segmentedPicker button {
+   position: relative;
+   z-index: 1;
+   flex: 1 1 0;
+   border-radius: 6px;
+   color: var(--muted);
+   font-size: 12px;
+   font-weight: 700;
+   padding: 6px 12px;
+   transition: color 140ms ease-out;
+}
+
+.segmentedPicker button:hover {
+   color: var(--text);
+}
+
+.segmentedPicker button[aria-pressed="true"] {
+   color: #241207;
+}
+
+/* --- Shortcuts screen -------------------------------------------------------- */
+
+.shortcutToolbar {
+   display: flex;
+   align-items: center;
+   gap: 10px;
+   margin-bottom: 14px;
+}
+
+.shortcutToolbar input {
+   flex: 1;
+   min-width: 0;
+   border: 1px solid var(--line);
+   border-radius: var(--radius-sm);
+   background: var(--panel-2);
+   color: var(--text);
+   font: inherit;
+   font-size: 12.5px;
+   padding: 7px 11px;
+}
+
+.shortcutToolbar input:focus-visible {
+   outline: 2px solid rgba(var(--accent-rgb), 0.7);
+   outline-offset: 0;
+}
+
+.shortcutToolbar input::placeholder {
+   color: var(--faint);
+}
+
+.shortcutGroup h3 {
+   color: var(--faint);
+   font-size: 11px;
+   font-weight: 700;
+   letter-spacing: 0.12em;
+   text-transform: uppercase;
+   margin: 16px 0 4px;
+}
+
+.shortcutRow {
+   border-bottom: 1px solid var(--line);
+   padding: 9px 0;
+}
+
+.shortcutLine {
+   display: flex;
+   align-items: baseline;
+   gap: 18px;
+}
+
+.shortcutAction {
+   color: var(--text);
+   flex: none;
+   font-size: 12.5px;
+   font-weight: 600;
+}
+
+.shortcutBindings {
+   display: flex;
+   flex-wrap: wrap;
+   justify-content: flex-end;
+   align-items: center;
+   flex: 1;
+   min-width: 0;
+   gap: 5px;
+}
+
+.shortcutChip {
+   display: inline-flex;
+   align-items: stretch;
+   border-radius: 6px;
+   background: var(--panel-2);
+}
+
+.shortcutChip button {
+   display: grid;
+   place-items: center;
+   color: var(--muted);
+   transition:
+      background-color 120ms ease-out,
+      color 120ms ease-out;
+}
+
+.shortcutBinding {
+   padding: 3px 4px 3px 7px;
+}
+
+.shortcutBinding:hover {
+   color: var(--text);
+}
+
+.shortcutBinding kbd {
+   border: 0;
+   background: none;
+   padding: 0;
+   font-size: 11px;
+}
+
+.shortcutRemove {
+   padding: 3px 6px 3px 2px;
+}
+
+.shortcutRemove svg {
+   width: 11px;
+   height: 11px;
+}
+
+.shortcutRemove:hover {
+   color: var(--delete);
+}
+
+.shortcutAdd {
+   display: grid;
+   place-items: center;
+   width: 24px;
+   height: 24px;
+   border: 1px dashed var(--line-strong);
+   border-radius: 6px;
+   color: var(--faint);
+   transition:
+      border-color 120ms ease-out,
+      color 120ms ease-out;
+}
+
+.shortcutAdd:hover {
+   border-color: rgba(var(--accent-rgb), 0.6);
+   color: var(--accent-bright);
+}
+
+.shortcutAdd svg {
+   width: 12px;
+   height: 12px;
+}
+
+.shortcutEditor {
+   display: flex;
+   align-items: center;
+   gap: 12px;
+   margin-top: 9px;
+}
+
+.shortcutCapture {
+   flex: none;
+}
+
+.shortcutCapture kbd {
+   border-color: rgba(var(--accent-rgb), 0.7);
+   background: rgba(var(--accent-rgb), 0.12);
+   color: var(--accent-bright);
+   font-size: 12px;
+   padding: 5px 12px;
+}
+
+.shortcutEditorActions {
+   display: flex;
+   align-items: center;
+   justify-content: flex-end;
+   flex: 1;
+   gap: 9px;
+   min-width: 0;
+}
+
+.shortcutHint,
+.inlineError {
+   margin: 0;
+   font-size: 11.5px;
+   line-height: 1.4;
+}
+
+.shortcutHint {
+   color: var(--faint);
+}
+
+.inlineError {
+   color: var(--warning);
+}
+
+.shortcutEmpty {
+   color: var(--faint);
+   font-size: 12.5px;
+   padding: 12px 0;
 }

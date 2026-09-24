@@ -3,6 +3,9 @@ import type { AppApi, Decisions, LoadDataResult, MoveResult, ScanProgress, ScanR
 const { contextBridge, ipcRenderer, webUtils } = require("electron") as typeof import("electron");
 
 const api: AppApi = {
+   windowAction: async (action): Promise<void> => {
+      await ipcRenderer.invoke("window:action", action);
+   },
    loadData: async (): Promise<LoadDataResult> => ipcRenderer.invoke("data:load") as Promise<LoadDataResult>,
    chooseFolder: async (): Promise<string | null> => ipcRenderer.invoke("scan:choose-folder") as Promise<string | null>,
    scanFolder: async (request: ScanRequest): Promise<LoadDataResult> => ipcRenderer.invoke("scan:start", request) as Promise<LoadDataResult>,

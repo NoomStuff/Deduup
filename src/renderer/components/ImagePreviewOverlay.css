@@ -3,7 +3,7 @@
 }
 
 .imagePreviewOverlay__backdrop {
-   background: rgba(5, 7, 12, 0.88);
+   background: rgba(8, 6, 4, 0.88);
    backdrop-filter: blur(8px);
 }
 
@@ -12,7 +12,7 @@
    grid-template-rows: auto 1fr auto;
    width: min(1100px, 92vw);
    height: min(860px, 92vh);
-   border: 2px solid var(--line-strong);
+   border: 1px solid var(--line-strong);
    border-radius: var(--radius-lg);
    background: rgba(var(--surface-rgb), 0.96);
    box-shadow: var(--shadow);
@@ -38,7 +38,7 @@
    min-width: 44px;
    color: var(--muted);
    font-size: 12px;
-   font-weight: 700;
+   font-weight: 600;
    font-variant-numeric: tabular-nums;
    text-align: center;
 }
@@ -47,7 +47,7 @@
    min-width: 44px;
    color: var(--muted);
    font-size: 12px;
-   font-weight: 700;
+   font-weight: 600;
    font-variant-numeric: tabular-nums;
    text-align: center;
 }
@@ -62,7 +62,7 @@
    margin: 1px 0 0;
    overflow: hidden;
    font-size: 16px;
-   font-weight: 700;
+   font-weight: 600;
    white-space: nowrap;
    text-overflow: ellipsis;
 }
@@ -74,7 +74,7 @@
    overflow: hidden;
    min-height: 0;
    margin: 0;
-   background: rgba(5, 7, 12, 0.7);
+   background: rgba(8, 6, 4, 0.7);
 }
 
 .imagePreviewDialog__stage--zoomed {
@@ -104,15 +104,15 @@
 .imagePreviewDialog__meta dt {
    color: var(--faint);
    font-size: 10px;
-   font-weight: 700;
-   letter-spacing: 0.2em;
+   font-weight: 600;
+   letter-spacing: 0.14em;
    text-transform: uppercase;
 }
 
 .imagePreviewDialog__meta dd {
    margin: 2px 0 0;
    font-size: 13px;
-   font-weight: 700;
+   font-weight: 600;
 }
 
 .imagePreviewDialog__location button {
@@ -120,10 +120,10 @@
    align-items: center;
    gap: 7px;
    max-width: 340px;
-   border-radius: 8px;
+   border-radius: var(--radius-sm);
    color: var(--accent-bright);
    font-size: 13px;
-   font-weight: 700;
+   font-weight: 600;
    padding: 2px 4px;
 }
 

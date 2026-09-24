@@ -67,7 +67,10 @@ export interface ScanProgress {
    currentFile?: string;
 }
 
+export type WindowAction = "minimize" | "maximize" | "close";
+
 export interface AppApi {
+   windowAction: (action: WindowAction) => Promise<void>;
    loadData: () => Promise<LoadDataResult>;
    chooseFolder: () => Promise<string | null>;
    scanFolder: (request: ScanRequest) => Promise<LoadDataResult>;

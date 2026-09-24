@@ -1,31 +1,192 @@
 /* --- Work frame: the review stage ------------------------------------------ */
+/* The stage is the app background itself; no frame, no inner box. */
 
 .workFrame {
    display: flex;
    flex-direction: column;
    flex: 1;
    min-height: 0;
-   border: 2px solid var(--line);
-   border-radius: var(--radius-lg);
-   background: linear-gradient(180deg, rgba(255, 255, 255, 0.025), rgba(255, 255, 255, 0.012)), rgba(var(--surface-rgb), 0.82);
-   box-shadow: var(--shadow);
-   overflow: hidden;
 }
 
 .reviewWorkspace {
    display: flex;
    flex: 1;
    min-height: 0;
-   padding: 18px;
+   padding: 12px 16px 8px;
 }
 
 .reviewWorkspace__main {
    display: flex;
    flex: 1;
    flex-direction: column;
+   gap: 8px;
+   min-width: 0;
+}
+
+/* --- Set header: identity and the full action bar --------------------------- */
+
+.setHeader {
+   display: flex;
+   align-items: center;
+   justify-content: space-between;
+   gap: 14px;
+   flex: none;
+   min-height: 36px;
+   flex-wrap: wrap;
+}
+
+.setHeader__identity {
+   display: flex;
+   align-items: baseline;
    gap: 12px;
    min-width: 0;
 }
+
+.setHeader__number {
+   color: var(--text-strong);
+   font-size: 17px;
+   font-weight: 800;
+   font-variant-numeric: tabular-nums;
+}
+
+.setHeader__kept {
+   color: var(--muted);
+   font-size: 12.5px;
+   font-weight: 600;
+   font-variant-numeric: tabular-nums;
+}
+
+.setHeader__difference {
+   display: inline-flex;
+   align-items: center;
+   gap: 7px;
+   color: var(--band-color);
+   font-size: 12px;
+   font-weight: 700;
+   font-variant-numeric: tabular-nums;
+}
+
+.setHeader__difference::before {
+   content: "";
+   width: 7px;
+   height: 7px;
+   border-radius: 50%;
+   background: var(--band-color);
+   align-self: center;
+}
+
+.setHeader__folder {
+   display: inline-flex;
+   align-items: center;
+   gap: 6px;
+   border-radius: var(--radius-sm);
+   color: var(--faint);
+   font-size: 12px;
+   font-weight: 600;
+   padding: 3px 8px;
+   max-width: 200px;
+   align-self: center;
+   transition:
+      background-color 140ms ease-out,
+      color 140ms ease-out;
+}
+
+.setHeader__folder:hover {
+   background: var(--panel-3);
+   color: var(--text);
+}
+
+.setHeader__folder svg {
+   width: 13px;
+   height: 13px;
+   flex: none;
+}
+
+.setHeader__folder span {
+   overflow: hidden;
+   white-space: nowrap;
+   text-overflow: ellipsis;
+}
+
+.setHeader__actions {
+   display: flex;
+   align-items: center;
+   gap: 5px;
+   flex-wrap: wrap;
+}
+
+.setHeader__action {
+   display: inline-flex;
+   align-items: center;
+   gap: 7px;
+   border-radius: var(--radius-sm);
+   background: transparent;
+   color: var(--muted);
+   font-size: 12.5px;
+   font-weight: 700;
+   padding: 6px 11px;
+   max-width: 200px;
+   transition:
+      background-color 140ms ease-out,
+      color 140ms ease-out,
+      transform 160ms var(--bounce);
+}
+
+.setHeader__action > span {
+   overflow: hidden;
+   white-space: nowrap;
+   text-overflow: ellipsis;
+}
+
+.setHeader__action svg {
+   width: 13px;
+   height: 13px;
+   flex: none;
+   transition: transform 160ms var(--bounce);
+}
+
+.setHeader__action:hover:not(:disabled) svg {
+   transform: scale(1.14);
+}
+
+.setHeader__action:hover:not(:disabled) {
+   background: var(--panel-3);
+   color: var(--text-strong);
+}
+
+.setHeader__action:active:not(:disabled) {
+   transform: scale(0.96);
+}
+
+.setHeader__action:disabled {
+   opacity: 0.35;
+}
+
+.setHeader__action--quiet {
+   color: var(--faint);
+   font-weight: 600;
+}
+
+.setHeader__action--quiet:hover:not(:disabled) {
+   color: var(--text);
+}
+
+.setHeader__action--danger:hover:not(:disabled) {
+   background: rgba(var(--delete-rgb), 0.14);
+   color: var(--delete);
+}
+
+.setHeader__rule {
+   width: 1px;
+   height: 18px;
+   background: var(--line);
+   margin: 0 4px;
+   flex: none;
+}
+
+/* --- Shelf ------------------------------------------------------------------ */
+/* Single row: tracks share the full width so copies take the whole stage.
+   Wrap mode: auto-fit collapses empty tracks, so small sets still fill the row. */
 
 .imageGrid--right .imageShelf {
    animation: shelfFromRight 320ms var(--ease-out);
@@ -53,18 +214,20 @@
    display: grid;
    grid-auto-flow: column;
    grid-auto-columns: minmax(280px, 1fr);
+   grid-auto-rows: minmax(0, 1fr);
    align-items: center;
    gap: 14px;
    flex: 1;
    min-height: 0;
    overflow: auto;
-   padding: 2px;
+   padding: 2px 2px 6px;
 }
 
-.shell--wrapShelf .imageShelf {
+.imageShelf--wrap {
    grid-auto-flow: row;
-   grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
-   grid-auto-rows: minmax(300px, 1fr);
+   grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+   grid-auto-rows: minmax(280px, 1fr);
+   align-items: center;
 }
 
 .comparePrompt {
@@ -72,13 +235,12 @@
    align-items: center;
    gap: 9px;
    width: max-content;
-   border: 2px solid rgba(var(--accent-rgb), 0.5);
-   border-radius: var(--radius-lg);
-   background: rgba(var(--accent-rgb), 0.12);
+   border-radius: var(--radius-sm);
+   background: rgba(var(--accent-rgb), 0.16);
    color: var(--accent-bright);
    font-size: 12.5px;
    font-weight: 700;
-   padding: 7px 14px;
+   padding: 6px 13px;
    animation: soft-rise 200ms var(--ease-out);
 }
 
@@ -87,20 +249,19 @@
    height: 14px;
 }
 
-/* --- Image cards ---------------------------------------------------------- */
+/* --- Image cards ------------------------------------------------------------ */
 
 .imageCard {
    position: relative;
    display: flex;
    flex-direction: column;
    overflow: hidden;
-   min-height: 220px;
-   /* Wide cards letterbox landscape images into dead vertical space; cap the
-      card so the set row floats centered instead of filling the stage. */
-   max-height: min(100%, 620px);
-   border: 2px solid var(--line);
-   border-radius: 16px;
-   background: rgba(255, 255, 255, 0.025);
+   min-height: 0;
+   max-height: 100%;
+   border: 1px solid transparent;
+   border-radius: var(--radius-md);
+   background: var(--panel-2);
+   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
    transition:
       border-color 140ms ease-out,
       transform 200ms var(--bounce),
@@ -108,13 +269,12 @@
 }
 
 .imageCard:hover {
-   border-color: var(--line-strong);
-   box-shadow: var(--shadow);
+   box-shadow: 0 10px 32px rgba(0, 0, 0, 0.4);
    transform: translateY(-2px);
 }
 
 .imageCard--selected {
-   border-color: rgba(var(--accent-rgb), 0.65);
+   border-color: rgba(var(--accent-rgb), 0.7);
 }
 
 .imageCard--comparePick {
@@ -122,7 +282,7 @@
 }
 
 .imageCard--deleted {
-   border-color: rgba(var(--delete-rgb), 0.6);
+   border-color: rgba(var(--delete-rgb), 0.55);
 }
 
 .imageCard--deleted img {
@@ -138,117 +298,53 @@
    width: 100%;
    min-height: 0;
    object-fit: contain;
-   background: rgba(5, 7, 12, 0.6);
-}
-
-.imageCard__badge {
-   position: absolute;
-   top: 10px;
-   left: 10px;
-   z-index: 2;
-   display: grid;
-   place-items: center;
-   width: 26px;
-   height: 26px;
-   border: 2px solid var(--line);
-   border-radius: 9px;
-   background: rgba(8, 10, 16, 0.74);
-   color: var(--text);
-   font-size: 12px;
-   font-weight: 800;
-   font-variant-numeric: tabular-nums;
-   backdrop-filter: blur(4px);
-   transition:
-      border-color 120ms ease,
-      background 120ms ease;
-}
-
-.imageCard__badge:hover {
-   border-color: rgba(var(--accent-rgb), 0.6);
-   background: rgba(var(--accent-rgb), 0.2);
-}
-
-.imageCard__deleteToggle {
-   position: absolute;
-   top: 10px;
-   right: 10px;
-   z-index: 2;
-   display: grid;
-   place-items: center;
-   width: 30px;
-   height: 30px;
-   border: 2px solid var(--line);
-   border-radius: 10px;
-   background: rgba(8, 10, 16, 0.74);
-   color: var(--muted);
-   /* Always visible: marking is the core action and must not be hover-only. */
-   opacity: 0.66;
-   backdrop-filter: blur(4px);
-   transition:
-      opacity 120ms ease,
-      border-color 120ms ease,
-      background 120ms ease,
-      color 120ms ease,
-      transform 200ms var(--bounce);
-}
-
-.imageCard:hover .imageCard__deleteToggle,
-.imageCard__deleteToggle:focus-visible {
-   opacity: 1;
-}
-
-.imageCard__deleteToggle:hover:not(:disabled) {
-   border-color: rgba(var(--delete-rgb), 0.8);
-   background: rgba(var(--delete-rgb), 0.2);
-   color: var(--delete);
-   transform: scale(1.05);
-}
-
-.imageCard--deleted .imageCard__deleteToggle {
-   border-color: rgba(var(--delete-rgb), 0.6);
-   background: rgba(var(--delete-rgb), 0.2);
-   color: var(--delete);
-   opacity: 1;
-}
-
-.imageCard__deleteToggle svg {
-   width: 15px;
-   height: 15px;
+   background: rgba(0, 0, 0, 0.32);
 }
 
 .imageCard__chip {
    position: absolute;
-   top: 12px;
+   top: 10px;
    z-index: 2;
    display: inline-flex;
    align-items: center;
    gap: 6px;
-   border-radius: var(--radius-lg);
-   font-size: 11.5px;
+   border-radius: var(--radius-sm);
+   font-size: 11px;
    font-weight: 800;
-   padding: 4px 12px;
+   padding: 3px 10px;
    pointer-events: none;
+   animation: chip-in 180ms var(--bounce);
+}
+
+@keyframes chip-in {
+   from {
+      opacity: 0;
+      transform: translateX(-50%) scale(0.85);
+   }
+}
+
+.imageCard__chip--marked,
+.imageCard__chip--compare {
+   transform: translateX(-50%);
 }
 
 .imageCard__chip--marked {
    left: 50%;
    transform: translateX(-50%);
-   background: rgb(9 11 17 / 0.93);
+   background: rgb(12 10 8 / 0.93);
    color: var(--delete);
-   border: 2px solid rgba(var(--delete-rgb), 0.6);
 }
 
 .imageCard__chip--marked svg {
-   width: 12px;
-   height: 12px;
+   width: 11px;
+   height: 11px;
 }
 
 .imageCard__chip--compare {
    left: 50%;
    transform: translateX(-50%);
-   background: rgb(9 11 17 / 0.93);
+   background: rgb(12 10 8 / 0.93);
    color: var(--accent-bright);
-   border: 2px solid rgba(var(--accent-rgb), 0.6);
 }
 
 .imageCard__fallback {
@@ -262,8 +358,8 @@
 }
 
 .imageCard__fallback svg {
-   width: 26px;
-   height: 26px;
+   width: 24px;
+   height: 24px;
    color: var(--faint);
 }
 
@@ -285,57 +381,81 @@
    align-items: center;
    justify-content: space-between;
    gap: 10px;
-   background: linear-gradient(transparent, rgba(5, 7, 12, 0.9));
+   background: linear-gradient(transparent, rgba(10, 8, 6, 0.88));
    padding: 24px 12px 9px;
    pointer-events: none;
 }
 
-.imageCard__meta strong {
+.imageCard__indexHint {
+   position: absolute;
+   top: 9px;
+   left: 9px;
+   z-index: 2;
+   border-radius: var(--radius-sm);
+   background: rgba(12, 10, 8, 0.72);
+   color: var(--accent-bright);
+   font-size: 11.5px;
+   font-weight: 800;
+   font-variant-numeric: tabular-nums;
+   padding: 3px 8px;
+   pointer-events: none;
+   animation: overlay-fade-in 120ms ease-out;
+   backdrop-filter: blur(4px);
+}
+
+.imageCard__caption {
+   display: grid;
+   gap: 0;
+   flex: none;
+   border-top: 1px solid var(--line);
+   background: var(--panel);
+   padding: 7px 11px 8px;
+}
+
+.imageCard__caption strong {
    overflow: hidden;
+   color: var(--text);
    font-size: 12.5px;
    font-weight: 700;
    white-space: nowrap;
    text-overflow: ellipsis;
 }
 
-.imageCard__meta span {
-   flex: none;
+.imageCard__details {
    color: var(--faint);
    font-size: 11px;
    font-weight: 600;
    font-variant-numeric: tabular-nums;
+   white-space: nowrap;
+   overflow: hidden;
+   text-overflow: ellipsis;
 }
 
-/* --- Set timeline (filmstrip) --------------------------------------------- */
+/* --- Set timeline (filmstrip) ----------------------------------------------- */
 
 .setTimeline {
    display: flex;
    align-items: stretch;
-   gap: 10px;
+   gap: 8px;
    flex: none;
-   border-top: 2px solid var(--line);
-   background: rgba(255, 255, 255, 0.015);
-   padding: 12px;
+   padding: 8px 12px 10px;
 }
 
 .setNav {
    display: grid;
    place-items: center;
    flex: none;
-   width: 34px;
-   border: 2px solid var(--line);
-   border-radius: var(--radius-md);
+   width: 30px;
+   border-radius: var(--radius-sm);
    color: var(--muted);
    transition:
-      border-color 140ms ease,
       background 140ms ease,
       color 140ms ease,
       transform 200ms var(--bounce);
 }
 
 .setNav:hover {
-   border-color: var(--line-strong);
-   background: rgba(var(--accent-rgb), 0.12);
+   background: var(--panel-3);
    color: var(--text-strong);
 }
 
@@ -344,14 +464,14 @@
 }
 
 .setNav svg {
-   width: 17px;
-   height: 17px;
+   width: 16px;
+   height: 16px;
 }
 
 .filmstrip {
    display: flex;
    align-items: flex-end;
-   gap: 18px;
+   gap: 14px;
    flex: 1;
    min-width: 0;
    overflow-x: auto;
@@ -382,30 +502,29 @@
 .filmstrip::-webkit-scrollbar-thumb {
    border: 0;
    border-radius: var(--radius-lg);
-   background: rgba(var(--accent-rgb), 0.3);
+   background: rgba(var(--hairline-rgb), 0.24);
 }
 
 .filmstrip::-webkit-scrollbar-thumb:hover {
-   background-color: rgba(var(--accent-rgb), 0.5);
+   background-color: rgba(var(--hairline-rgb), 0.4);
 }
 
 .similarityBand {
    display: flex;
    align-items: center;
-   gap: 10px;
+   gap: 9px;
    flex: none;
 }
 
 .similarityBand__tag {
    display: grid;
    place-items: center;
-   width: 32px;
-   height: 64px;
-   border: 2px solid color-mix(in srgb, var(--band-color) 45%, transparent);
-   border-radius: var(--radius-lg);
+   height: 34px;
+   padding: 0 9px;
+   border-radius: var(--radius-sm);
    background: color-mix(in srgb, var(--band-color) 14%, transparent);
    color: var(--band-color);
-   font-size: 11.5px;
+   font-size: 12px;
    font-weight: 800;
    font-variant-numeric: tabular-nums;
    transition:
@@ -414,7 +533,7 @@
 }
 
 .similarityBand__tag:hover {
-   background: color-mix(in srgb, var(--band-color) 26%, transparent);
+   background: color-mix(in srgb, var(--band-color) 28%, transparent);
    transform: translateY(-1px);
 }
 
@@ -422,7 +541,7 @@
    position: relative;
    display: flex;
    align-items: center;
-   gap: 7px;
+   gap: 6px;
    /* The baseline the tiles stand on. */
    padding: 0 1px 8px;
 }
@@ -436,7 +555,7 @@
    height: 2px;
    border-radius: var(--radius-lg);
    background: var(--band-color);
-   opacity: 0.5;
+   opacity: 0.45;
 }
 
 .filmstrip__item {
@@ -446,19 +565,17 @@
    justify-items: center;
    align-content: center;
    width: 54px;
-   height: 52px;
-   border: 2px solid var(--line);
-   border-radius: 10px;
-   background: rgba(255, 255, 255, 0.03);
+   height: 50px;
+   border-radius: var(--radius-sm);
+   background: rgba(255, 255, 255, 0.035);
    padding: 4px 2px 12px;
    transition:
-      border-color 140ms ease,
       background 140ms ease,
       transform 200ms var(--bounce);
 }
 
 .filmstrip__item:hover {
-   border-color: var(--line-strong);
+   background: rgba(255, 255, 255, 0.07);
    transform: translateY(-2px);
 }
 
@@ -505,8 +622,8 @@
 /* The active set wears its own band color. */
 
 .filmstrip__item--active {
-   border-color: color-mix(in srgb, var(--band-color) 75%, transparent);
-   background: color-mix(in srgb, var(--band-color) 14%, transparent);
+   background: color-mix(in srgb, var(--band-color) 16%, transparent);
+   box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--band-color) 55%, transparent);
 }
 
 .filmstrip__item--active > span {
