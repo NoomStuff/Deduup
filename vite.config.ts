@@ -9,11 +9,11 @@ export default defineConfig({
       port: 5173,
       strictPort: true,
       watch: {
-         ignored: ["**/dist/**", "**/dist-electron/**", "**/release/**", "**/release-verify/**"],
+         ignored: ["**/build/**", "**/dist/**"],
       },
    },
    build: {
-      outDir: "dist",
+      outDir: "build/renderer",
       emptyOutDir: true,
    },
 });

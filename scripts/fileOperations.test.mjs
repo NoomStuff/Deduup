@@ -10,8 +10,8 @@ import {
    collectManagedFolderFiles,
    ensureManagedFolder,
    restoreFileMoves,
-} from "../dist-electron/main/fileOperations.js";
-import { duplicateOwnershipMarkerContents, duplicateOwnershipMarkerName } from "../dist-electron/shared/constants.js";
+} from "../src/main/fileOperations.ts";
+import { duplicateOwnershipMarkerContents, duplicateOwnershipMarkerName } from "../src/shared/constants.ts";
 
 const withWorkspace = async (run) => {
    const root = await mkdtemp(path.join(os.tmpdir(), "image-deduplicator-"));

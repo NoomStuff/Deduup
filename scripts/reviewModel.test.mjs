@@ -14,7 +14,7 @@ import {
    getSimilarityBands,
    getSimilarityColor,
    setImageSetDecision,
-} from "../dist-test/renderer/reviewModel.js";
+} from "../src/renderer/reviewModel.ts";
 
 const image = (name, width, height, size) => ({
    file: name,

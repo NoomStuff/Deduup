@@ -1,0 +1,19 @@
+appId: local.image-deduplicator
+productName: Image Deduplicator
+directories:
+   output: release
+files:
+   - build/renderer/**
+   - build/electron/**
+win:
+   icon: public/favicon.ico
+   target: portable
+mac:
+   icon: public/icon.png
+   identity: null
+   category: public.app-category.utilities
+   target: dmg
+linux:
+   icon: public/icon.png
+   category: Utility
+   target: AppImage

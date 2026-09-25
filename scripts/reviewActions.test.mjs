@@ -1,9 +1,9 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { countBandAutoselectOverrides, countBandMarkOverrides, createReviewActions } from "../dist-test/renderer/reviewActions.js";
+import { countBandAutoselectOverrides, countBandMarkOverrides, createReviewActions } from "../src/renderer/reviewActions.ts";
 
 // reviewActions reaches for window timers when advancing; stub them for Node.
-// Assignment (not declaration) keeps it out of the compiled module's import graph.
+// Assignment (not declaration): a module-scope declaration would shadow the real global.
 globalThis.window ??= {
    setTimeout: (callback, ms) => setTimeout(callback, ms),
    clearTimeout: (id) => clearTimeout(id),

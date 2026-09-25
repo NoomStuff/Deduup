@@ -3,7 +3,7 @@ import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import test from "node:test";
-import { ScanCancelledError, collectImagePaths, groupImages, scanImages } from "../dist-electron/main/scanner.js";
+import { ScanCancelledError, collectImagePaths, groupImages, scanImages } from "../src/main/scanner.ts";
 
 const createImage = (hash, index) => ({
    file: `${index}.jpg`,

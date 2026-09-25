@@ -2,7 +2,7 @@
    "compilerOptions": {
       "composite": true,
       "rootDir": "src",
-      "outDir": "dist-electron",
+      "outDir": "build/electron",
       "tsBuildInfoFile": ".cache/tsconfig.electron.tsbuildinfo",
       "target": "ES2022",
       "module": "NodeNext",

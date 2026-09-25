@@ -23,7 +23,7 @@ Useful launch-time flags (any Electron app accepts these; they are how automated
 
 - `--user-data-dir=<folder>` — isolated profile, so a test scan never touches your real saved review.
 - `--scan=<folder>` — start scanning the given folder as soon as the renderer is up.
-- `IMAGE_DEDUPLICATOR_PROD=1` — load the built `dist/` renderer instead of the dev server.
+- `IMAGE_DEDUPLICATOR_PROD=1` — load the built renderer (`build/renderer/`) instead of the dev server.
 
 ## Verification
 
@@ -36,9 +36,14 @@ bun run verify    # format check, lint, typecheck, unit tests, UI smoke test
 ## Packaging
 
 ```sh
-bun run dist:win  # portable Windows exe in release/
-bun run open      # launch the newest built exe
+bun run dist        # package for the current OS
+bun run dist:win    # portable Windows exe
+bun run dist:mac    # dmg (unsigned)
+bun run dist:linux  # AppImage
+bun run open        # launch the packaged app from release/
 ```
+
+Artifacts land in `release/`. Windows and Linux packages can be built from any machine; a macOS dmg needs a Mac. The `Build` workflow packages all three on GitHub Actions (run it manually or push a `v*` tag), so full cross-platform releases do not require a machine per OS. The macOS build is unsigned; Gatekeeper asks for a right-click → Open the first time.
 
 ## Layout
 
@@ -47,5 +52,7 @@ bun run open      # launch the newest built exe
 - `src/renderer/` — React UI. `reviewModel.ts` + `reviewActions.ts` hold the review logic; `hooks/` owns scan, history, compare, and overlay plumbing; each component has a co-located CSS file.
 - `src/shared/` — types and IPC payload validation shared by both processes.
 - `scripts/` — unit tests, UI smoke test, fixture generation.
+- `build/` — compile output (gitignored): `build/renderer/` is vite's build, `build/electron/` the compiled main/preload/shared code.
+- `release/` — packaged installers and executables (gitignored).
 
 `AGENTS.md` describes the working conventions and the canonical vocabulary used across code and UI.

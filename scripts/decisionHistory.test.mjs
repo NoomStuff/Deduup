@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { decisionHistoryReducer } from "../dist-test/renderer/hooks/useDecisionHistory.js";
+import { decisionHistoryReducer } from "../src/renderer/hooks/useDecisionHistory.ts";
 
 const empty = { decisions: {}, undoStack: [], redoStack: [] };
 const addOne = (state) =>

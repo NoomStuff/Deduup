@@ -1,7 +1,9 @@
 import { rmSync } from "node:fs";
 import { resolve } from "node:path";
 
-const targets = ["dist", "dist-electron", "release", ".cache", "tsconfig.electron.tsbuildinfo", "tsconfig.renderer.tsbuildinfo"];
+// build/ holds intermediates (renderer + electron compile output), release/
+// holds packaged artifacts, .cache/ holds tsbuildinfo files and test screenshots.
+const targets = ["build", "release", ".cache"];
 
 for (const target of targets) {
    try {
