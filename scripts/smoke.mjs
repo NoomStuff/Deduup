@@ -84,11 +84,14 @@ const run = async () => {
       const bandTags = await window.locator(".similarityBand__tag").count();
       check("similarity bands render on the filmstrip", bandTags > 0, `bands: ${bandTags}`);
 
-      // Navigation marks the current set seen and moves forward.
+      // Navigation moves forward without creating review choices or progress.
       await window.keyboard.press("ArrowRight");
       await window.waitForTimeout(250);
-      const seenDots = await window.locator(".filmstrip__item--seen").count();
-      check("navigating marks a set as seen", seenDots > 0, `seen dots: ${seenDots}`);
+      const navigatedData = await window.evaluate(() => window.imageDeduplicator.loadData());
+      check(
+         "navigation creates no viewed state or review choices",
+         Object.keys(navigatedData.decisions).length === 0 && (await window.locator(".toolbar__progress").count()) === 0
+      );
 
       // Keyboard marking: key 1 marks the first image of the set.
       await window.keyboard.press("1");
@@ -104,11 +107,47 @@ const run = async () => {
       await window.waitForTimeout(350);
       await window.screenshot({ path: path.join(artifactsDir, "03-confirm.png") });
       await window.keyboard.press("Escape");
+      await window.waitForSelector(".confirmDialog", { state: "detached", timeout: 5_000 });
 
       // Undo removes the mark made a moment ago.
       await window.keyboard.press("Control+z");
       await window.waitForTimeout(200);
       check("undo clears the mark", (await window.locator(".imageCard__chip--marked").count()) === 0);
+
+      const copies = await window.locator(".imageCard").count();
+      await window
+         .locator(".imageCard")
+         .first()
+         .click({ button: "right", modifiers: ["Shift"] });
+      await window.waitForFunction((count) => document.querySelectorAll(".imageCard__chip--marked").length === count - 1, copies);
+      check("Shift+right-click keeps only the chosen copy", (await window.locator(".contextMenu").count()) === 0);
+      await window.keyboard.press("Control+z");
+      await window.waitForFunction(() => document.querySelectorAll(".imageCard__chip--marked").length === 0);
+      const beforeAdvance = await window.textContent(".toolbar__counter");
+      await window.keyboard.press("Control+1");
+      await window.waitForFunction((previous) => document.querySelector(".toolbar__counter")?.textContent !== previous, beforeAdvance);
+      check("Ctrl+1 marks and advances", true);
+      await window.keyboard.press("ArrowLeft");
+      await window.keyboard.press("Control+z");
+      await window.waitForFunction(() => document.querySelectorAll(".imageCard__chip--marked").length === 0);
+
+      await window
+         .locator(".imageCard")
+         .first()
+         .click({ modifiers: ["Alt"] });
+      await window.locator(".imageCard").nth(1).click();
+      await window.waitForSelector(".compare__stage");
+      await window.waitForFunction(() => [...document.querySelectorAll(".compare__stage img")].every((image) => image.complete && image.naturalWidth > 0));
+      await window.locator(".compare__action--left").hover();
+      const faithful = await window.evaluate(
+         () =>
+            getComputedStyle(document.querySelector(".compare__layer--top")).opacity === "1" &&
+            [...document.querySelectorAll(".compare__stage img")].every((image) => getComputedStyle(image).filter === "none")
+      );
+      check("comparison wipe shows opaque copies without brightness changes", faithful);
+      await window.screenshot({ path: path.join(artifactsDir, "10-comparison.png") });
+      await window.keyboard.press("Escape");
+      await window.waitForSelector(".compare__stage", { state: "detached", timeout: 5_000 });
 
       // Preview opens for the selected image and wheel-zooms via the native listener.
       await window.locator(".imageCard").first().click();
@@ -183,6 +222,7 @@ const run = async () => {
       const setCount = await window.locator(".filmstrip__item").count();
       check("over-cap chains split into multiple sets", setCount >= 3, `sets: ${setCount}`);
       await window.screenshot({ path: path.join(artifactsDir, "06-filmstrip.png") });
+      check("core flows show no unexpected error notifications", (await window.locator(".notificationToast--error").count()) === 0);
    } finally {
       await app.close();
    }

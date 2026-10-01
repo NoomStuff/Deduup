@@ -30,7 +30,7 @@ import { useReviewContextMenu } from "./hooks/useReviewContextMenu.js";
 import { useReviewPersistence } from "./hooks/useReviewPersistence.js";
 import { useScanController } from "./hooks/useScanController.js";
 import { useTooltip } from "./hooks/useTooltip.js";
-import { countBandAutoselectOverrides, countBandMarkOverrides, countBandSets, createReviewActions } from "./reviewActions.js";
+import { countBandMarkOverrides, countBandSets, createReviewActions } from "./reviewActions.js";
 import {
    createConfirmAction,
    emptyImageSetDecision,
@@ -39,11 +39,9 @@ import {
    getFolderName,
    getFileWorkflowState,
    getMovePreview,
-   getReviewedSetCount,
    getResumeIndex,
    getSetNumber,
    getSimilarityBands,
-   setImageSetDecision,
 } from "./reviewModel.js";
 
 export const App = () => {
@@ -53,14 +51,16 @@ export const App = () => {
       canUndo,
       canRedo,
       updateDecisions,
-      updateDecisionsEphemeral,
       replaceDecisions,
       clearHistory,
+      reconcileHistory,
       undo: undoLastDecision,
       redo: redoLastDecision,
    } = useDecisionHistory();
    const [currentIndex, setCurrentIndex] = useState(0);
    const [loading, setLoading] = useState(true);
+   const [hydrated, setHydrated] = useState(false);
+   const [scanId, setScanId] = useState<string | null>(null);
    const [selectedImagePath, setSelectedImagePath] = useState<string | null>(null);
    const [previewImage, setPreviewImage] = useState<ImageItem | null>(null);
    const [isFinalReviewOpen, setIsFinalReviewOpen] = useState(false);
@@ -90,14 +90,32 @@ export const App = () => {
    }, [shortcutOverrides]);
 
    const currentSet = groups[currentIndex] ?? null;
+   const librarySessionRef = useRef({ groups, currentIndex, scanRoot });
+   librarySessionRef.current = { groups, currentIndex, scanRoot };
+   useEffect(
+      () =>
+         window.imageDeduplicator.onLibraryUpdate((result) => {
+            const previous = librarySessionRef.current;
+            if (result.scanRoot !== previous.scanRoot) return;
+            const anchor = previous.groups[previous.currentIndex]?.images[0]?.originalPath;
+            const anchoredIndex = result.groups.findIndex((group) => group.images.some((image) => image.originalPath === anchor));
+            reconcileHistory(previous.groups, result.groups);
+            setGroups(result.groups);
+            setScanId(result.scanId);
+            setCurrentIndex(anchoredIndex >= 0 ? anchoredIndex : Math.max(0, Math.min(previous.currentIndex, result.groups.length - 1)));
+            setDuplicateFolderHasContent(result.duplicateFolderHasContent);
+            setDuplicateFolderPath(result.duplicateFolderPath);
+            setLastFileAction(result.lastFileAction);
+            setScanWarnings(result.scanWarningCount > 0 ? { count: result.scanWarningCount, paths: result.scanWarningPaths } : null);
+         }),
+      [reconcileHistory]
+   );
    const currentDecision = currentSet === null ? emptyImageSetDecision() : getDecision(decisions, currentSet.id);
-   const reviewedSetCount = useMemo(() => getReviewedSetCount(groups, decisions), [decisions, groups]);
    const movePreview = useMemo(() => getMovePreview(groups, decisions), [decisions, groups]);
    const duplicatePreview = useMemo(() => getDuplicatePreview(groups, decisions), [decisions, groups]);
    const fileWorkflow = useMemo(() => getFileWorkflowState(groups, decisions), [decisions, groups]);
    const similarityBands = useMemo(() => getSimilarityBands(groups), [groups]);
    const selectedImage = currentSet?.images.find((image) => image.originalPath === selectedImagePath) ?? null;
-   usePreviewPreloader(groups, currentIndex);
 
    const reportError = useCallback(
       (title: string, unknownError: unknown, fallback: string): void => {
@@ -111,6 +129,7 @@ export const App = () => {
       setDuplicateFolderPath(result.duplicateFolderPath);
       setLastFileAction(result.lastFileAction);
    }, []);
+   useEffect(() => window.imageDeduplicator.onLibraryError((message) => notify({ tone: "error", title: "Library update failed", message })), [notify]);
    const {
       apply: applyMoves,
       clearResults: clearFileResults,
@@ -121,10 +140,13 @@ export const App = () => {
       restore: restoreDuplicateFolder,
       restoreResult,
       trash: trashDuplicateFolder,
-   } = useFileWorkflowActions({ decisions, clearHistory, notify, onRefresh: refreshFileState, reportError });
+   } = useFileWorkflowActions({ clearHistory, notify, onRefresh: refreshFileState, reportError });
+   const fileOperationActive = isApplying || isRestoringDuplicate || isTrashingDuplicate;
 
    const applyScanResult = useCallback(
       (result: LoadDataResult): void => {
+         setHydrated(true);
+         setScanId(result.scanId);
          setGroups(result.groups);
          replaceDecisions(result.decisions);
          setScanRoot(result.scanRoot);
@@ -154,13 +176,13 @@ export const App = () => {
       reportError,
    });
 
-   const reviewActive = !loading && !isScanning && !isStartupOpen && currentSet !== null;
+   const reviewActive = !loading && !isScanning && !fileOperationActive && !isStartupOpen && currentSet !== null;
+   usePreviewPreloader(reviewActive ? groups : [], currentIndex);
 
    const { isDragOver, openNewFolder, handleDragOver, handleDragLeave, handleDrop } = useFolderSelection({
       hasReview: groups.length > 0,
       confirmMajorActions,
       setConfirmAction,
-      setScanRoot,
       startScan,
       setIsStartupOpen,
       notify,
@@ -180,6 +202,8 @@ export const App = () => {
       const api = window.imageDeduplicator;
       api.loadData()
          .then((result) => {
+            setHydrated(true);
+            setScanId(result.scanId);
             setGroups(result.groups);
             replaceDecisions(result.decisions);
             setScanRoot(result.scanRoot);
@@ -187,12 +211,13 @@ export const App = () => {
             setCurrentIndex(getResumeIndex(result.groups, result.currentSetId));
             setDuplicateFolderHasContent(result.duplicateFolderHasContent);
             setLastFileAction(result.lastFileAction);
+            setScanWarnings(result.scanWarningCount > 0 ? { count: result.scanWarningCount, paths: result.scanWarningPaths } : null);
          })
          .catch((unknownError: unknown) => reportError("Couldn’t load the review", unknownError, "Failed to load duplicate sets"))
          .finally(() => setLoading(false));
    }, [notify, replaceDecisions, reportError, setScanRoot]);
 
-   useReviewPersistence({ loading, decisions, currentSet, reportError });
+   useReviewPersistence({ loading: loading || !hydrated || isScanning || fileOperationActive, scanId, decisions, currentSet, reportError });
 
    useEffect(() => {
       if (currentSet === null) {
@@ -208,33 +233,17 @@ export const App = () => {
    // The compare controller sits above the review actions in the dependency
    // chain (goTo closes it, its keep uses the actions), so the keep callback is
    // wired through a ref once the actions exist below.
-   const keepImageRef = useRef<(image: ImageItem, advance: boolean) => void>(() => undefined);
+   const keepImageRef = useRef<(image: ImageItem, other: ImageItem, advance: boolean) => void>(() => undefined);
    const travelTimerRef = useRef<number | null>(null);
    const { beginCompare, closeCompare, compare, comparePick, keepCompareImage, openAdjacentCompare } = useCompareController({
       currentSet,
-      onKeep: (image, advance) => keepImageRef.current(image, advance),
+      onKeep: (image, other, advance) => keepImageRef.current(image, other, advance),
    });
 
    const goTo = useCallback(
       (index: number): void => {
          const nextIndex = Math.max(0, Math.min(groups.length - 1, index));
-         if (nextIndex === currentIndex) {
-            // Pressing next on the last set still counts as having seen it.
-            if (index > currentIndex && currentSet !== null) {
-               updateDecisionsEphemeral((existing) => {
-                  const decision = getDecision(existing, currentSet.id);
-                  return setImageSetDecision(existing, currentSet.id, { ...decision, seen: true });
-               });
-            }
-            return;
-         }
-
-         if (currentSet !== null) {
-            updateDecisionsEphemeral((existing) => {
-               const decision = getDecision(existing, currentSet.id);
-               return setImageSetDecision(existing, currentSet.id, { ...decision, seen: true });
-            });
-         }
+         if (nextIndex === currentIndex) return;
          hideTooltip();
          setTravelDirection(nextIndex > currentIndex ? "right" : "left");
          closeCompare();
@@ -248,7 +257,7 @@ export const App = () => {
             setTravelDirection("idle");
          }, 180);
       },
-      [closeCompare, currentSet, currentIndex, groups.length, hideTooltip, updateDecisionsEphemeral]
+      [closeCompare, currentIndex, groups.length, hideTooltip]
    );
 
    const goToAdjacentSimilarityBand = useCallback(
@@ -281,25 +290,20 @@ export const App = () => {
       clearSimilarityBandChoices,
       markImageSet,
       markSimilarityBand,
-      markSimilarityBandSeen,
       toggleImageRemoval,
       toggleOnlyImageKept,
-   } = createReviewActions({ currentIndex, decisions, groups, goTo, updateDecisions });
+      keepComparedImage,
+   } = createReviewActions({ currentIndex, groups, goTo, updateDecisions });
 
    useEffect(() => {
-      keepImageRef.current = (image, advance) => {
-         if (currentSet !== null) toggleOnlyImageKept(currentSet, image, advance);
+      keepImageRef.current = (image, other, advance) => {
+         if (currentSet !== null) keepComparedImage(currentSet, image, other, advance);
       };
    });
 
    // Band actions sweep many sets at once, so they confirm before overwriting
    // choices the user made by hand. File moves and recycling always confirm.
    const requestBandAutoselect = (imageSet: ImageSet): void => {
-      const overrides = countBandAutoselectOverrides(groups, decisions, imageSet);
-      if (confirmMajorActions && overrides > 0) {
-         setConfirmAction({ ...createConfirmAction("autoSelectBand", { count: overrides }), setId: imageSet.id });
-         return;
-      }
       autoSelectBand(imageSet);
    };
 
@@ -431,26 +435,13 @@ export const App = () => {
    // useCommands reads the latest object through its ref.
 
    const commands: Commands = (() => {
-      const requestRescan = (): void => {
-         if (scanRoot === null) return;
-         if (confirmMajorActions) setConfirmAction(createConfirmAction("rescan"));
-         else {
-            setIsStartupOpen(false);
-            void startScan(scanRoot);
-         }
-      };
-
       return {
          openFolder: {
-            enabled: () => !loading && !isScanning,
+            enabled: () => !loading && !isScanning && !fileOperationActive,
             run: () => void openNewFolder(),
          },
-         rescan: {
-            enabled: () => scanRoot !== null && !loading && !isScanning,
-            run: requestRescan,
-         },
          startScreen: {
-            enabled: () => !loading && !isScanning,
+            enabled: () => !loading && !isScanning && !fileOperationActive,
             run: () => {
                setIsSettingsOpen(false);
                setIsInfoOpen(false);
@@ -458,15 +449,15 @@ export const App = () => {
             },
          },
          undo: {
-            enabled: () => canUndo && !isScanning,
+            enabled: () => canUndo && !isScanning && !fileOperationActive && confirmAction === null,
             run: () => undoLastDecision(),
          },
          redo: {
-            enabled: () => canRedo && !isScanning,
+            enabled: () => canRedo && !isScanning && !fileOperationActive && confirmAction === null,
             run: () => redoLastDecision(),
          },
          clearAll: {
-            enabled: () => groups.length > 0 && !isScanning,
+            enabled: () => groups.length > 0 && !isScanning && !fileOperationActive,
             run: () => setConfirmAction(createConfirmAction("clearAll")),
          },
          markSet: {
@@ -581,8 +572,7 @@ export const App = () => {
    }, [hideTooltip, isInfoOpen, isSettingsOpen, isFinalReviewOpen, isStartupOpen]);
 
    // Mouse back/forward navigates only while the plain review is interactive;
-   // firing under overlays would mark sets seen behind the startup screen or
-   // leave a preview showing an image from a set that is no longer current.
+   // Navigating under an overlay would leave its image tied to a different set.
    const reviewNavigationActive =
       reviewActive &&
       menu === null &&
@@ -593,6 +583,25 @@ export const App = () => {
       !isFinalReviewOpen &&
       !isSettingsOpen &&
       !isInfoOpen;
+
+   const reviewBusy =
+      loading ||
+      isScanning ||
+      fileOperationActive ||
+      menu !== null ||
+      contextMenu !== null ||
+      confirmAction !== null ||
+      previewImage !== null ||
+      compare !== null ||
+      comparePick !== null ||
+      isFinalReviewOpen ||
+      isSettingsOpen ||
+      isInfoOpen;
+   useEffect(() => {
+      void window.imageDeduplicator
+         .setReviewBusy(reviewBusy)
+         .catch((error: unknown) => reportError("Library updates paused", error, "Unable to update review activity"));
+   }, [reviewBusy, reportError]);
 
    useEffect(() => {
       if (!reviewNavigationActive) return undefined;
@@ -615,29 +624,22 @@ export const App = () => {
          return;
       }
 
-      const targetSet = confirmAction.setId === undefined ? currentSet : (groups.find((imageSet) => imageSet.id === confirmAction.setId) ?? currentSet);
+      const targetSet = confirmAction.setId === undefined ? currentSet : (groups.find((imageSet) => imageSet.id === confirmAction.setId) ?? null);
       switch (confirmAction.kind) {
          case "markSet":
             if (targetSet !== null) markImageSet(targetSet);
-            break;
-         case "autoSelectBand":
-            if (targetSet !== null) autoSelectBand(targetSet);
             break;
          case "markBand":
             if (targetSet !== null) markSimilarityBand(targetSet);
             break;
          case "applyMoves":
-            void applyMoves();
+            if (confirmAction.decisions !== undefined && confirmAction.scanId !== undefined) void applyMoves(confirmAction.decisions, confirmAction.scanId);
             break;
          case "clearAll":
             confirmClearAllDecisions();
             break;
          case "trashDuplicate":
             void trashDuplicateFolder();
-            break;
-         case "rescan":
-            setIsStartupOpen(false);
-            void startScan(scanRoot);
             break;
          case "switchFolder":
             setIsStartupOpen(false);
@@ -648,7 +650,6 @@ export const App = () => {
 
    const folderName = getFolderName(scanRoot);
    const duplicateDestination = duplicateFolderPath ?? "No managed duplicate folder";
-   const reviewPercent = groups.length === 0 ? 0 : Math.round((reviewedSetCount / groups.length) * 100);
 
    return (
       <ShortcutsContext.Provider value={shortcutOverrides}>
@@ -664,20 +665,18 @@ export const App = () => {
                menu={menu}
                readyToMoveCount={fileWorkflow.readyToMoveCount}
                reviewActive={reviewActive}
-               reviewPercent={reviewPercent}
                onMenuChange={setMenu}
                onToggleFinalReview={() => setIsFinalReviewOpen(!isFinalReviewOpen)}
                totalSets={groups.length}
             />
 
-            <div className="app__content">
+            <div className="app__content" inert={fileOperationActive}>
                {loading ? (
                   <LoadingScreen />
                ) : isScanning ? (
                   <ScanningScreen folderName={getFolderName(scanningPath)} folderPath={scanningPath} progress={scanProgress} onCancel={cancelScan} />
                ) : isStartupOpen || currentSet === null ? (
                   <StartupScreen
-                     canRescan={scanRoot !== null}
                      hasSavedReview={groups.length > 0}
                      savedSetCount={groups.length}
                      isDragOver={isDragOver}
@@ -686,13 +685,6 @@ export const App = () => {
                      onDragOver={handleDragOver}
                      onDrop={handleDrop}
                      onOpenFolder={() => void openNewFolder()}
-                     onRescan={() => {
-                        if (confirmMajorActions) setConfirmAction(createConfirmAction("rescan"));
-                        else {
-                           setIsStartupOpen(false);
-                           void startScan(scanRoot);
-                        }
-                     }}
                      onShowOnLaunchChange={setShowStartupOnLaunch}
                      showOnLaunch={showStartupOnLaunch}
                   />
@@ -725,7 +717,14 @@ export const App = () => {
                            if (selectedImage !== null) openAdjacentCompare(selectedImage);
                         }}
                         onImageClick={handleImageClick}
-                        onImageContextMenu={openImageContextMenu}
+                        onImageContextMenu={(event, image) => {
+                           if (event.shiftKey) {
+                              event.preventDefault();
+                              event.stopPropagation();
+                              setSelectedImagePath(image.originalPath);
+                              toggleOnlyImageKept(currentSet, image, event.ctrlKey);
+                           } else openImageContextMenu(event, image);
+                        }}
                         onImageDoubleClick={handleImageDoubleClick}
                         onImageSetContextMenu={openSetContextMenu}
                         onMarkSelected={() => {
@@ -776,7 +775,6 @@ export const App = () => {
                   onClose={closeContextMenu}
                   onMarkImageSet={() => requestMarkImageSet(contextSet)}
                   onMarkBand={() => requestMarkBand(contextSet)}
-                  onMarkBandSeen={() => markSimilarityBandSeen(contextSet)}
                   onOpenImage={() => {
                      if (contextImage !== null) void openImage(contextImage);
                   }}
@@ -812,14 +810,17 @@ export const App = () => {
                   lastFileAction={lastFileAction}
                   movePreview={movePreview}
                   moveResult={moveResult}
-                  onApply={() =>
-                     setConfirmAction(
-                        createConfirmAction("applyMoves", {
+                  onApply={() => {
+                     if (scanId === null) return;
+                     setConfirmAction({
+                        ...createConfirmAction("applyMoves", {
                            count: fileWorkflow.readyToMoveCount,
                            destination: duplicateFolderPath ?? "the managed duplicate folder",
-                        })
-                     )
-                  }
+                        }),
+                        decisions,
+                        scanId,
+                     });
+                  }}
                   onClose={() => setIsFinalReviewOpen(false)}
                   onKeepImage={keepFromFinalReview}
                   onOpenFolder={() => {

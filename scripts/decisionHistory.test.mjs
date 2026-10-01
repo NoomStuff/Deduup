@@ -6,7 +6,7 @@ const empty = { decisions: {}, undoStack: [], redoStack: [] };
 const addOne = (state) =>
    decisionHistoryReducer(state, {
       type: "update",
-      updater: (current) => ({ ...current, [`set_${Object.keys(current).length + 1}`]: { deletedImages: [], seen: true } }),
+      updater: (current) => ({ ...current, [`set_${Object.keys(current).length + 1}`]: { deletedImages: [] } }),
    });
 
 test("an update pushes history and clears redo", () => {
@@ -32,24 +32,6 @@ test("an update that changes nothing is ignored", () => {
    assert.equal(untouched, empty);
 });
 
-test("ephemeral updates change decisions without entering the undo stack", () => {
-   const one = addOne(empty);
-   const ephemeral = decisionHistoryReducer(one, {
-      type: "update",
-      ephemeral: true,
-      updater: (current) => ({ ...current, set_009: { deletedImages: [], seen: true } }),
-   });
-   assert.deepEqual(Object.keys(ephemeral.decisions), ["set_1", "set_009"]);
-   // Navigation seen-marks must not crowd out real choices: the stack still
-   // holds exactly the one tracked update.
-   assert.equal(ephemeral.undoStack.length, 1);
-   assert.equal(ephemeral.redoStack.length, 0);
-
-   // Undo rewinds to the last tracked snapshot, taking the ephemeral mark with it.
-   const undone = decisionHistoryReducer(ephemeral, { type: "undo" });
-   assert.deepEqual(undone.decisions, {});
-});
-
 test("undo and redo walk the stacks", () => {
    const one = addOne(empty);
    const two = addOne(one);
@@ -70,7 +52,7 @@ test("undo and redo walk the stacks", () => {
 
 test("replacing decisions resets the history", () => {
    const one = addOne(empty);
-   const replaced = decisionHistoryReducer(one, { type: "replace", decisions: { set_009: { deletedImages: [], seen: false } } });
+   const replaced = decisionHistoryReducer(one, { type: "replace", decisions: { set_009: { deletedImages: [] } } });
    assert.deepEqual(Object.keys(replaced.decisions), ["set_009"]);
    assert.equal(replaced.undoStack.length, 0);
    assert.equal(replaced.redoStack.length, 0);

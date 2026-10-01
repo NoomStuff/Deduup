@@ -1,42 +1,34 @@
 import type { Decisions, ImageItem, ImageSet, ImageSetDecision } from "../shared/types.js";
 import type { ConfirmAction, ConfirmKind, FileWorkflowState, ImageDeleteState, ImageSetState, MovePreview, SimilarityBand } from "./appTypes.js";
 
-export const emptyImageSetDecision = (): ImageSetDecision => ({ deletedImages: [], seen: false });
+export const emptyImageSetDecision = (): ImageSetDecision => ({ deletedImages: [] });
 
 export const getDecision = (decisions: Decisions, setId: string): ImageSetDecision => decisions[setId] ?? emptyImageSetDecision();
 
-const normalizeDecisionForSave = (decision: ImageSetDecision): ImageSetDecision | null => {
+const normalizeDecisionForSave = (decision: ImageSetDecision): ImageSetDecision => {
    const deletedImages = [...new Set(decision.deletedImages.filter((path) => path.length > 0))];
-   if (!decision.seen && deletedImages.length === 0) {
-      return null;
-   }
-
-   return { deletedImages, seen: decision.seen };
+   return { deletedImages };
 };
 
 const areDecisionsEqual = (left: ImageSetDecision, right: ImageSetDecision): boolean =>
-   left.seen === right.seen &&
-   left.deletedImages.length === right.deletedImages.length &&
-   left.deletedImages.every((path, index) => path === right.deletedImages[index]);
+   left.deletedImages.length === right.deletedImages.length && left.deletedImages.every((path, index) => path === right.deletedImages[index]);
 
 export { areDecisionsEqual };
 
-export const setImageSetDecision = (decisions: Decisions, setId: string, decision: ImageSetDecision): Decisions => {
-   const normalized = normalizeDecisionForSave(decision);
-   if (normalized === null) {
-      if (decisions[setId] === undefined) {
-         return decisions;
-      }
-
-      return Object.fromEntries(Object.entries(decisions).filter(([existingSetId]) => existingSetId !== setId));
+export const setImageSetDecisions = (decisions: Decisions, updates: Iterable<readonly [string, ImageSetDecision]>): Decisions => {
+   let next = decisions;
+   for (const [setId, decision] of updates) {
+      const normalized = normalizeDecisionForSave(decision);
+      const previous = next[setId];
+      if (previous !== undefined && areDecisionsEqual(previous, normalized)) continue;
+      if (next === decisions) next = { ...decisions };
+      next[setId] = normalized;
    }
-
-   if (decisions[setId] !== undefined && areDecisionsEqual(decisions[setId], normalized)) {
-      return decisions;
-   }
-
-   return { ...decisions, [setId]: normalized };
+   return next;
 };
+
+export const setImageSetDecision = (decisions: Decisions, setId: string, decision: ImageSetDecision): Decisions =>
+   setImageSetDecisions(decisions, [[setId, decision]]);
 
 export const getDeletedImagePaths = (decision: ImageSetDecision): Set<string> => new Set(decision.deletedImages);
 
@@ -45,22 +37,17 @@ const getDeletedImagesForSet = (imageSet: ImageSet, decision: ImageSetDecision):
    return new Set(decision.deletedImages.filter((path) => imagePaths.has(path)));
 };
 
-export const getImageSetDecision = (imageSet: ImageSet, deletedPaths: Set<string>, seen = true): ImageSetDecision => {
+export const getImageSetDecision = (imageSet: ImageSet, deletedPaths: Set<string>): ImageSetDecision => {
    const imagePaths = imageSet.images.map((image) => image.originalPath);
    const deleted = imagePaths.filter((path) => deletedPaths.has(path));
-   return { deletedImages: deleted, seen };
+   return { deletedImages: deleted };
 };
-
-const isImageSetSeen = (decision: ImageSetDecision | undefined): boolean => decision?.seen === true;
-
-export const getReviewedSetCount = (imageSets: ImageSet[], decisions: Decisions): number =>
-   imageSets.filter((imageSet) => isImageSetSeen(decisions[imageSet.id])).length;
 
 const getMovePreviewByStatus = (imageSets: ImageSet[], decisions: Decisions, sourceStatus: ImageItem["sourceStatus"]): MovePreview[] => {
    const rows: MovePreview[] = [];
    for (const imageSet of imageSets) {
       const decision = decisions[imageSet.id];
-      if (sourceStatus === "available" && (decision === undefined || !isImageSetSeen(decision))) {
+      if (sourceStatus === "available" && decision === undefined) {
          continue;
       }
 
@@ -109,7 +96,7 @@ export const getFileWorkflowState = (imageSets: ImageSet[], decisions: Decisions
 };
 
 export const getImageSetState = (imageSet: ImageSet, decision: ImageSetDecision | undefined): ImageSetState => {
-   if (decision?.seen !== true) {
+   if (decision === undefined) {
       return "open";
    }
 
@@ -118,7 +105,7 @@ export const getImageSetState = (imageSet: ImageSet, decision: ImageSetDecision 
       return "allDeleted";
    }
 
-   return deletedCount > 0 ? "someDeleted" : "seen";
+   return deletedCount > 0 ? "someDeleted" : "open";
 };
 
 export const getImageSetLabel = (imageSet: ImageSet, decision: ImageSetDecision): string => {
@@ -244,15 +231,6 @@ export const createConfirmAction = (kind: ConfirmKind, details: ConfirmDetails =
       };
    }
 
-   if (kind === "autoSelectBand") {
-      return {
-         kind,
-         title: "Autoselect this band?",
-         body: `The largest copy in every set of the band is kept and the rest are marked. ${count} set${count === 1 ? "" : "s"} with existing marks get re-picked.`,
-         confirmLabel: "Autoselect band",
-      };
-   }
-
    if (kind === "applyMoves") {
       return {
          kind,
@@ -268,15 +246,6 @@ export const createConfirmAction = (kind: ConfirmKind, details: ConfirmDetails =
          title: "Recycle the duplicate folder?",
          body: "Everything in the managed duplicate folder moves to the Recycle Bin. This app cannot restore it afterwards.",
          confirmLabel: "Recycle folder",
-      };
-   }
-
-   if (kind === "rescan") {
-      return {
-         kind,
-         title: "Rescan this folder?",
-         body: "Scan results and all marks will be replaced. Move or recycle the duplicate folder first if it has content.",
-         confirmLabel: "Rescan",
       };
    }
 

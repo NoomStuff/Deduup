@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { countBandAutoselectOverrides, countBandMarkOverrides, createReviewActions } from "../src/renderer/reviewActions.ts";
+import { countBandMarkOverrides, createReviewActions } from "../src/renderer/reviewActions.ts";
 
 // reviewActions reaches for window timers when advancing; stub them for Node.
 // Assignment (not declaration): a module-scope declaration would shadow the real global.
@@ -49,12 +49,11 @@ test("toggling marks one image and toggling again clears it", () => {
    const first = bind([twoSet]);
    first.actions.toggleImageRemoval(twoSet, twoSet.images[0], false);
    assert.deepEqual(first.result()["set_001"]?.deletedImages, ["C:/lib/a.jpg"]);
-   assert.equal(first.result()["set_001"]?.seen, true);
 
-   // The set itself stays marked as seen; only the removal choice is undone.
+   // A deliberate choice to leave no candidates remains protected from bulk autoselection.
    const second = bind([twoSet], first.result());
    second.actions.toggleImageRemoval(twoSet, twoSet.images[0], false);
-   assert.deepEqual(second.result()["set_001"], { deletedImages: [], seen: true });
+   assert.deepEqual(second.result()["set_001"], { deletedImages: [] });
 });
 
 test("toggling an image that is no longer at its source changes nothing", () => {
@@ -64,6 +63,15 @@ test("toggling an image that is no longer at its source changes nothing", () => 
    assert.deepEqual(run.result(), {});
 });
 
+test("successive toggles use the latest choices before a renderer rebind", () => {
+   const run = bind([twoSet]);
+   run.actions.toggleImageRemoval(twoSet, twoSet.images[0], false);
+   run.actions.toggleImageRemoval(twoSet, twoSet.images[1], false);
+   assert.deepEqual(run.result()["set_001"].deletedImages, ["C:/lib/a.jpg", "C:/lib/b.jpg"]);
+   run.actions.toggleImageRemoval(twoSet, twoSet.images[0], false);
+   assert.deepEqual(run.result()["set_001"].deletedImages, ["C:/lib/b.jpg"]);
+});
+
 test("keep only this marks the others and a second use restores them", () => {
    const first = bind([twoSet]);
    first.actions.toggleOnlyImageKept(twoSet, twoSet.images[1], false);
@@ -71,15 +79,14 @@ test("keep only this marks the others and a second use restores them", () => {
 
    const second = bind([twoSet], first.result());
    second.actions.toggleOnlyImageKept(twoSet, twoSet.images[1], false);
-   assert.deepEqual(second.result()["set_001"], { deletedImages: [], seen: true });
+   assert.deepEqual(second.result()["set_001"], { deletedImages: [] });
 });
 
-test("marking a set marks every available copy as seen", () => {
+test("marking a set marks only available copies", () => {
    const mixed = makeSet("set_001", 1, [image("a.jpg"), { ...image("b.jpg"), sourceStatus: "movedByApp" }]);
    const run = bind([mixed]);
    run.actions.markImageSet(mixed);
    assert.deepEqual(run.result()["set_001"]?.deletedImages, ["C:/lib/a.jpg"]);
-   assert.equal(run.result()["set_001"]?.seen, true);
 });
 
 test("autoselect keeps the largest copy and marks the rest", () => {
@@ -111,15 +118,8 @@ test("band actions apply to every set that shares the displayed similarity", () 
 
    const cleared = bind(groups, marked.result());
    cleared.actions.clearSimilarityBandChoices(band[0]);
-   assert.equal(cleared.result()["set_001"], undefined);
-   assert.equal(cleared.result()["set_002"], undefined);
-
-   const seen = bind(groups);
-   seen.actions.markSimilarityBandSeen(band[0]);
-   assert.deepEqual(seen.result()["set_001"]?.deletedImages, []);
-   assert.equal(seen.result()["set_001"]?.seen, true);
-   assert.deepEqual(seen.result()["set_002"]?.deletedImages, []);
-   assert.equal(seen.result()["set_003"], undefined);
+   assert.deepEqual(cleared.result()["set_001"], { deletedImages: [] });
+   assert.deepEqual(cleared.result()["set_002"], { deletedImages: [] });
 });
 
 test("autoselecting a band keeps the largest of every set in it", () => {
@@ -140,36 +140,54 @@ test("band override counters flag only sets whose choices would change", () => {
    ];
 
    // A fresh band has nothing to overwrite.
-   assert.equal(countBandAutoselectOverrides(groups, {}, groups[0]), 0);
    assert.equal(countBandMarkOverrides(groups, {}, groups[0]), 0);
 
    // Keeping the smaller copy of set 1 is a manual choice autoselect would
    // re-pick; set 2's marks already match the autoselect outcome.
    const manual = {
-      set_001: { deletedImages: ["C:/lib/a_big.jpg"], seen: true },
-      set_002: { deletedImages: ["C:/lib/b_small.jpg"], seen: true },
+      set_001: { deletedImages: ["C:/lib/a_big.jpg"] },
+      set_002: { deletedImages: ["C:/lib/b_small.jpg"] },
    };
-   assert.equal(countBandAutoselectOverrides(groups, manual, groups[0]), 1);
    // Marking the whole band would still add marks to both sets.
    assert.equal(countBandMarkOverrides(groups, manual, groups[0]), 2);
 });
 
 test("clearing a set keeps marks on images that are no longer at their source", () => {
    const mixed = makeSet("set_001", 1, [image("a.jpg"), { ...image("b.jpg"), sourceStatus: "movedByApp" }]);
-   const decisions = { set_001: { deletedImages: ["C:/lib/a.jpg", "C:/lib/b.jpg"], seen: true } };
+   const decisions = { set_001: { deletedImages: ["C:/lib/a.jpg", "C:/lib/b.jpg"] } };
    const run = bind([mixed], decisions);
    run.actions.clearImageSetChoices(mixed);
    assert.deepEqual(run.result()["set_001"]?.deletedImages, ["C:/lib/b.jpg"]);
-   assert.equal(run.result()["set_001"]?.seen, false);
 });
 
 test("clearing all choices resets every set", () => {
    const groups = [twoSet, makeSet("set_002", 5, [image("c.jpg")])];
    const decisions = {
-      set_001: { deletedImages: ["C:/lib/a.jpg"], seen: true },
-      set_002: { deletedImages: ["C:/lib/c.jpg"], seen: true },
+      set_001: { deletedImages: ["C:/lib/a.jpg"] },
+      set_002: { deletedImages: ["C:/lib/c.jpg"] },
    };
    const run = bind(groups, decisions);
    run.actions.clearAllChoices();
-   assert.deepEqual(run.result(), {});
+   assert.deepEqual(run.result(), { set_001: { deletedImages: [] }, set_002: { deletedImages: [] } });
+});
+
+test("band autoselection preserves manual candidates and explicit keep-all choices", () => {
+   const groups = [
+      makeSet("set_001", 1.2, [image("a_small.jpg"), image("a_big.jpg", 900, 700)]),
+      makeSet("set_002", 1.2, [image("b_small.jpg"), image("b_big.jpg", 900, 700)]),
+      makeSet("set_003", 1.2, [image("c_small.jpg"), image("c_big.jpg", 900, 700)]),
+   ];
+   const choices = { set_001: { deletedImages: ["C:/lib/a_big.jpg"] }, set_002: { deletedImages: [] } };
+   const run = bind(groups, choices);
+   run.actions.autoSelectBand(groups[0]);
+   assert.equal(run.result().set_001, choices.set_001);
+   assert.equal(run.result().set_002, choices.set_002);
+   assert.deepEqual(run.result().set_003.deletedImages, ["C:/lib/c_small.jpg"]);
+});
+
+test("choosing a comparison keeper affects only that pair", () => {
+   const set = makeSet("set_001", 1.2, [image("a.jpg"), image("b.jpg"), image("c.jpg"), image("d.jpg")]);
+   const run = bind([set], { set_001: { deletedImages: ["C:/lib/a.jpg", "C:/lib/d.jpg"] } });
+   run.actions.keepComparedImage(set, set.images[0], set.images[1], false);
+   assert.deepEqual(run.result().set_001.deletedImages, ["C:/lib/b.jpg", "C:/lib/d.jpg"]);
 });

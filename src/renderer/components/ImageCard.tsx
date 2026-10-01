@@ -4,6 +4,7 @@ import { FolderOpen, ImageOff, Trash2 } from "lucide-react";
 import type { ImageItem } from "../../shared/types.js";
 import type { ImageCaptionMode, ImageDeleteState } from "../appTypes.js";
 import { formatBytes, formatDate } from "../reviewModel.js";
+import "./ImageCard.css";
 
 type CardLoadState = "loading" | "loaded" | "failed";
 
@@ -59,7 +60,7 @@ export const ImageCard = memo(function ImageCard({
          onDoubleClick={(event) => onDoubleClick(event, image)}
          onContextMenu={(event) => onContextMenu(event, image)}
       >
-         {showIndexHint && isAvailable && (
+         {showIndexHint && isAvailable && index < 9 && (
             <span className="imageCard__indexHint" aria-hidden="true">
                Ctrl+{index + 1}
             </span>

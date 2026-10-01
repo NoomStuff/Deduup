@@ -64,7 +64,7 @@ const topics: { id: HelpTab; label: string; body: ReactNode }[] = [
                   without leaving the shelf.
                </li>
                <li>
-                  <strong>X</strong> marks every copy in the set; <strong>V</strong> autoselects every set in the band.
+                  <strong>X</strong> marks every copy in the set; <strong>V</strong> autoselects sets without existing choices in the band.
                </li>
                <li>Right-click a copy, a set tile, or a band tag for its full menu, including Keep only this.</li>
             </ul>
@@ -75,7 +75,7 @@ const topics: { id: HelpTab; label: string; body: ReactNode }[] = [
             </p>
             <h3>The filmstrip</h3>
             <p>
-               The dot under a set tile marks its state: gray is unopened, green is seen, amber has marks, and red means every copy is marked. Click a tile to
+               The dot under a set tile marks its choices: gray has no removal candidates, amber has some, and red means every copy is marked. Click a tile to
                jump there; a band tag jumps to its whole group.
             </p>
          </>

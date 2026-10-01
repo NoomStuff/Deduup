@@ -1,6 +1,6 @@
 # Image Deduplicator
 
-A local-first desktop tool for finding, reviewing, and safely removing duplicate images. It exists to reclaim disk space and speed up duplicate review without ever putting your files at risk.
+A local-first desktop tool for finding, reviewing, and safely removing duplicate images. It exists to reclaim disk space and speed up duplicate review through explicit, reversible file moves.
 
 ## How removal stays safe
 
@@ -11,6 +11,16 @@ Similarity is ranked evidence, not truth. Nothing leaves your library without an
 3. **Undo move** restores everything byte-for-byte, or **Recycle** sends the duplicate folder to the Recycle Bin when you are happy.
 
 Moving and recycling always ask for confirmation. The detector hashes image layout (64-bit difference hash), so it groups near-identical copies: resizes, re-encodes, and light edits. Rotated, cropped, or mirrored variants are out of scope by design.
+
+## Reviewing a changing library
+
+The app watches the selected folder and refreshes automatically. It reuses hashes for unchanged images and checks the folder periodically as a fallback. Changes made while the app was closed appear after reopening it. There is no manual rescan command.
+
+Refresh preserves choices for unchanged images and keeps the current set in view when possible. Changed or removed files lose their old removal marks. Updates wait while a review panel or menu is open, during file operations, and while images remain in the managed duplicate folder. Restore or recycle those moved images to resume updates.
+
+Visiting a set does not record a decision or advance a viewed counter. Band autoselection skips sets with explicit choices, including Keep all. In a two-image comparison, Keep changes only those two images. Keep only this remains a separate whole-set action.
+
+Older profiles retain saved removal candidates when they migrate. The migration drops old empty visit records because they cannot reliably distinguish a visit from an explicit Keep all choice.
 
 ## Development
 
@@ -31,7 +41,7 @@ Useful launch-time flags (any Electron app accepts these; they are how automated
 bun run verify    # format check, lint, typecheck, unit tests, UI smoke test
 ```
 
-`bun run test:ui` builds the app and walks the core flows in real Electron against a generated fixture library (`scripts/makeFixtures.mjs`); screenshots land in `.cache/ui-smoke/`.
+`bun run test:ui` builds the app and walks the core flows in real Electron against a generated fixture library (`scripts/makeFixtures.mjs`). It also checks file recovery after restart, old-profile migration, and automatic library refresh. Screenshots land in `.cache/ui-smoke/` and `.cache/library-refresh-smoke/`.
 
 ## Packaging
 

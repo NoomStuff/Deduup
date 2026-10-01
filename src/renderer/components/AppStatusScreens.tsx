@@ -1,5 +1,5 @@
 import type { DragEventHandler } from "react";
-import { FolderOpen, Image as ImageIcon, LoaderCircle, Redo2, RotateCw, TriangleAlert, X } from "lucide-react";
+import { FolderOpen, Image as ImageIcon, LoaderCircle, Redo2, TriangleAlert, X } from "lucide-react";
 import type { ScanProgress } from "../../shared/types.js";
 import type { ScanWarnings } from "../appTypes.js";
 import { useBindingDisplay } from "../commands.js";
@@ -115,12 +115,10 @@ export const ScanWarningsBanner = ({ warnings, onDismiss }: { warnings: ScanWarn
 interface StartupScreenProps {
    hasSavedReview: boolean;
    savedSetCount: number;
-   canRescan: boolean;
    showOnLaunch: boolean;
    isDragOver: boolean;
    onOpenFolder: () => void;
    onContinue: () => void;
-   onRescan: () => void;
    onShowOnLaunchChange: (checked: boolean) => void;
    onDragOver: DragEventHandler<HTMLElement>;
    onDragLeave: DragEventHandler<HTMLElement>;
@@ -130,12 +128,10 @@ interface StartupScreenProps {
 const StartupScreenBody = ({
    hasSavedReview,
    savedSetCount,
-   canRescan,
    showOnLaunch,
    isDragOver,
    onOpenFolder,
    onContinue,
-   onRescan,
    onShowOnLaunchChange,
    onDragOver,
    onDragLeave,
@@ -181,14 +177,10 @@ const StartupScreenBody = ({
                   Continue review
                   {hasSavedReview && (
                      <small>
-                        {savedSetCount} set{savedSetCount === 1 ? "" : "s"} in progress
+                        {savedSetCount} set{savedSetCount === 1 ? "" : "s"}. Updates automatically.
                      </small>
                   )}
                </span>
-            </button>
-            <button className="startupAction" disabled={!canRescan} onClick={onRescan} title={canRescan ? undefined : "Scan a folder first"} type="button">
-               <RotateCw aria-hidden="true" />
-               <span className="startupAction__label">Rescan folder</span>
             </button>
          </div>
          <div className="startup__preference">

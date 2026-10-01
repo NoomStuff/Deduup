@@ -1,8 +1,9 @@
 import assert from "node:assert/strict";
-import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, rm, stat, utimes, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import test from "node:test";
+import sharp from "sharp";
 import { ScanCancelledError, collectImagePaths, groupImages, scanImages } from "../src/main/scanner.ts";
 
 const createImage = (hash, index) => ({
@@ -13,6 +14,39 @@ const createImage = (hash, index) => ({
    height: 1,
    size: 1,
    modifiedAt: 0,
+});
+
+test("incremental scanning reuses unchanged hashes and rejects a changed cached image", async () => {
+   const root = await mkdtemp(path.join(os.tmpdir(), "deduplicator-cache-"));
+   try {
+      const file = path.join(root, "image.png");
+      await sharp({ create: { width: 32, height: 32, channels: 3, background: "red" } })
+         .png()
+         .toFile(file);
+      await utimes(file, 1000, 1000);
+      const initial = await scanImages([file], () => undefined);
+      const cache = new Map(initial.map((image) => [image.originalPath, image]));
+      const unchanged = await scanImages([file], () => undefined, undefined, undefined, cache);
+      assert.equal(unchanged[0], initial[0]);
+      await new Promise((resolve) => setTimeout(resolve, 10));
+      await writeFile(file, Buffer.alloc(initial[0].size));
+      await utimes(file, 1000, 1000);
+      assert.equal((await stat(file)).mtimeMs, initial[0].modifiedAt);
+      const warnings = [];
+      assert.deepEqual(
+         await scanImages(
+            [file],
+            () => undefined,
+            (path) => warnings.push(path),
+            undefined,
+            cache
+         ),
+         []
+      );
+      assert.deepEqual(warnings, [file]);
+   } finally {
+      await rm(root, { recursive: true, force: true });
+   }
 });
 
 test("groups planted matches across the supported distance range", async () => {
@@ -108,6 +142,19 @@ test("keeps groups whose average stays within the similarity cap", async () => {
    assert.equal(groups.length, 1);
    assert.equal(groups[0]?.images.length, 3);
    assert.ok((groups[0]?.similarity ?? 0) <= 13);
+});
+
+test("keeps identical hashes together across large-group chunk boundaries", async () => {
+   const center = (1n << 13n) - 1n;
+   const tail = (1n << 26n) - 1n;
+   const last = (1n << 39n) - 1n;
+   const hashes = [...Array(255).fill(0n), center, center, ...Array(255).fill(tail), ...Array(255).fill(last)];
+   const groups = await groupImages(hashes.map(createImage), () => undefined);
+   assert.equal(groups.flatMap((group) => group.images).length, hashes.length);
+   const centerHash = center.toString(16).padStart(16, "0");
+   const centerSets = groups.filter((group) => group.images.some((image) => image.hash === centerHash));
+   assert.equal(centerSets.length, 1);
+   assert.equal(centerSets[0].images.filter((image) => image.hash === centerHash).length, 2);
 });
 
 test("finds every match inside the distance threshold", async () => {

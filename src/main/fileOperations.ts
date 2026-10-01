@@ -1,16 +1,18 @@
-import { copyFile, mkdir, readFile, readdir, rename, rm, stat, writeFile } from "node:fs/promises";
+import { constants, createReadStream } from "node:fs";
+import { createHash } from "node:crypto";
+import { copyFile, link, lstat, mkdir, readFile, readdir, realpath, rm, utimes, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { duplicateOwnershipMarkerContents, duplicateOwnershipMarkerName } from "../shared/constants.js";
 import type { MoveResult, PlannedMove } from "../shared/types.js";
 import { isObject } from "../shared/schema.js";
 
-const isMissingPathError = (error: unknown): boolean => isObject(error) && (error["code"] === "ENOENT" || error["code"] === "ENOTDIR");
-const pathKey = (filePath: string): string => path.normalize(filePath).toLowerCase();
+export const isMissingPathError = (error: unknown): boolean => isObject(error) && (error["code"] === "ENOENT" || error["code"] === "ENOTDIR");
+const pathKey = (filePath: string): string => (process.platform === "win32" ? path.normalize(filePath).toLowerCase() : path.normalize(filePath));
 const markerPath = (duplicatePath: string): string => path.join(duplicatePath, duplicateOwnershipMarkerName);
 
 const pathExists = async (filePath: string): Promise<boolean> => {
    try {
-      await stat(filePath);
+      await lstat(filePath);
       return true;
    } catch (error: unknown) {
       if (isMissingPathError(error)) return false;
@@ -18,14 +20,57 @@ const pathExists = async (filePath: string): Promise<boolean> => {
    }
 };
 
-const moveAcrossVolumes = async (source: string, destination: string): Promise<void> => {
-   try {
-      await rename(source, destination);
-   } catch (error: unknown) {
-      if (!isObject(error) || error["code"] !== "EXDEV") throw error;
-      await copyFile(source, destination);
-      await rm(source);
+export const fileChecksum = async (filePath: string): Promise<string> => {
+   const before = await lstat(filePath);
+   if (!before.isFile()) throw new Error(`Not a regular image file: ${filePath}`);
+   const hash = createHash("sha256");
+   for await (const chunk of createReadStream(filePath)) hash.update(chunk as Buffer);
+   const after = await lstat(filePath);
+   if (before.dev !== after.dev || before.ino !== after.ino || before.size !== after.size || before.mtimeMs !== after.mtimeMs) {
+      throw new Error(`The file changed while it was being read: ${filePath}`);
    }
+   return hash.digest("hex");
+};
+
+export const assertPathWithinRoot = async (root: string, candidate: string): Promise<void> => {
+   const realRoot = await realpath(root);
+   let ancestor = path.resolve(candidate);
+   for (;;) {
+      try {
+         const resolved = await realpath(ancestor);
+         const relative = path.relative(realRoot, resolved);
+         if (relative === ".." || relative.startsWith(`..${path.sep}`) || path.isAbsolute(relative))
+            throw new Error(`The file path leaves the scan folder: ${candidate}`);
+         return;
+      } catch (error: unknown) {
+         if (!isMissingPathError(error) || ancestor === path.dirname(ancestor)) throw error;
+         ancestor = path.dirname(ancestor);
+      }
+   }
+};
+
+const moveAcrossVolumes = async (source: string, destination: string): Promise<void> => {
+   const sourceStat = await lstat(source);
+   if (!sourceStat.isFile()) throw new Error(`Not a regular image file: ${source}`);
+   try {
+      // Creating a link cannot replace a destination created after preflight.
+      await link(source, destination);
+   } catch (error: unknown) {
+      if (!isObject(error) || !["EXDEV", "EPERM", "EOPNOTSUPP", "ENOSYS"].includes(String(error["code"]))) throw error;
+      await copyFile(source, destination, constants.COPYFILE_EXCL);
+      if ((await fileChecksum(source)) !== (await fileChecksum(destination))) throw new Error(`The copied file could not be verified: ${destination}`);
+      await utimes(destination, sourceStat.atime, sourceStat.mtime);
+   }
+   const currentStat = await lstat(source);
+   if (
+      sourceStat.dev !== currentStat.dev ||
+      sourceStat.ino !== currentStat.ino ||
+      sourceStat.size !== currentStat.size ||
+      sourceStat.mtimeMs !== currentStat.mtimeMs
+   ) {
+      throw new Error(`The source changed during the move and was left untouched: ${source}`);
+   }
+   await rm(source);
 };
 
 const failureMessage = (error: unknown, fallback: string): string => (error instanceof Error ? error.message : fallback);
@@ -36,7 +81,7 @@ export const collectManagedFolderFiles = async (duplicatePath: string): Promise<
       for (const entry of await readdir(folderPath, { withFileTypes: true })) {
          const entryPath = path.join(folderPath, entry.name);
          if (entry.isDirectory()) await visit(entryPath);
-         else if (entry.isFile() && pathKey(entryPath) !== pathKey(markerPath(duplicatePath))) files.push(entryPath);
+         else if (pathKey(entryPath) !== pathKey(markerPath(duplicatePath))) files.push(entryPath);
       }
    };
 
@@ -47,6 +92,8 @@ export const collectManagedFolderFiles = async (duplicatePath: string): Promise<
 export const assertManagedFolder = async (duplicatePath: string): Promise<void> => {
    let marker: string;
    try {
+      if (!(await lstat(duplicatePath)).isDirectory() || !(await lstat(markerPath(duplicatePath))).isFile())
+         throw new Error(`The managed folder or ownership marker is not a regular directory and file: ${duplicatePath}`);
       marker = await readFile(markerPath(duplicatePath), "utf8");
    } catch (error: unknown) {
       if (isMissingPathError(error)) throw new Error(`The managed duplicate folder is not owned by this app: ${duplicatePath}`);
@@ -57,6 +104,7 @@ export const assertManagedFolder = async (duplicatePath: string): Promise<void> 
 
 export const ensureManagedFolder = async (duplicatePath: string): Promise<void> => {
    await mkdir(duplicatePath, { recursive: true });
+   if (!(await lstat(duplicatePath)).isDirectory()) throw new Error(`The managed duplicate folder is not a regular directory: ${duplicatePath}`);
    if (await pathExists(markerPath(duplicatePath))) {
       await assertManagedFolder(duplicatePath);
       return;
@@ -67,7 +115,12 @@ export const ensureManagedFolder = async (duplicatePath: string): Promise<void> 
    await writeFile(markerPath(duplicatePath), duplicateOwnershipMarkerContents, { encoding: "utf8", flag: "wx" });
 };
 
-export const applyFileMoves = async (moves: PlannedMove[]): Promise<MoveResult> => {
+interface MoveCallbacks {
+   beforeMove?: (move: PlannedMove) => Promise<void>;
+   afterMove?: (move: PlannedMove) => void;
+}
+
+export const applyFileMoves = async (moves: PlannedMove[], callbacks: MoveCallbacks = {}): Promise<MoveResult> => {
    const result: MoveResult = { moved: [], skipped: [], errors: [] };
    for (const move of moves) {
       try {
@@ -76,8 +129,30 @@ export const applyFileMoves = async (moves: PlannedMove[]): Promise<MoveResult> 
             continue;
          }
          if (await pathExists(move.to)) throw new Error(`The managed destination already exists: ${move.to}`);
+         const sourceStat = await lstat(move.from);
+         if (!sourceStat.isFile()) throw new Error(`Not a regular image file: ${move.from}`);
+         if (
+            move.expectedSource !== undefined &&
+            (sourceStat.size !== move.expectedSource.size ||
+               sourceStat.mtimeMs !== move.expectedSource.modifiedAt ||
+               (move.expectedSource.changedAt !== undefined && sourceStat.ctimeMs !== move.expectedSource.changedAt))
+         ) {
+            throw new Error(`The image changed since the scan. Rescan it before moving: ${move.from}`);
+         }
+         await callbacks.beforeMove?.(move);
+         const checkedStat = await lstat(move.from);
+         if (
+            sourceStat.dev !== checkedStat.dev ||
+            sourceStat.ino !== checkedStat.ino ||
+            sourceStat.size !== checkedStat.size ||
+            sourceStat.mtimeMs !== checkedStat.mtimeMs ||
+            sourceStat.ctimeMs !== checkedStat.ctimeMs
+         ) {
+            throw new Error(`The image changed while preparing the move: ${move.from}`);
+         }
          await mkdir(path.dirname(move.to), { recursive: true });
          await moveAcrossVolumes(move.from, move.to);
+         callbacks.afterMove?.(move);
          result.moved.push(move);
       } catch (error: unknown) {
          result.errors.push({ ...move, message: failureMessage(error, "Unknown move failure") });
@@ -86,7 +161,7 @@ export const applyFileMoves = async (moves: PlannedMove[]): Promise<MoveResult> 
    return result;
 };
 
-export const restoreFileMoves = async (expectedMoves: PlannedMove[], sourcePaths: string[]): Promise<MoveResult> => {
+export const restoreFileMoves = async (expectedMoves: PlannedMove[], sourcePaths: string[], callbacks: MoveCallbacks = {}): Promise<MoveResult> => {
    const result: MoveResult = { moved: [], skipped: [], errors: [] };
    const expectedByDestination = new Map(expectedMoves.map((move) => [pathKey(move.to), move]));
 
@@ -109,8 +184,10 @@ export const restoreFileMoves = async (expectedMoves: PlannedMove[], sourcePaths
             result.skipped.push(move);
             continue;
          }
+         await callbacks.beforeMove?.(move);
          await mkdir(path.dirname(move.to), { recursive: true });
          await moveAcrossVolumes(move.from, move.to);
+         callbacks.afterMove?.(move);
          result.moved.push(move);
       } catch (error: unknown) {
          result.errors.push({ ...move, message: failureMessage(error, "Unknown restore failure") });

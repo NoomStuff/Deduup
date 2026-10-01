@@ -1,7 +1,7 @@
 import { app, BrowserWindow, Menu } from "electron";
 import path from "node:path";
 import { closeDatabase, getDatabase } from "./database.js";
-import { registerIpcHandlers, runScan } from "./ipc.js";
+import { registerIpcHandlers, runScan, startLibraryMonitoring, stopLibraryMonitoring } from "./ipc.js";
 import { registerPreviewProtocol } from "./previewProtocol.js";
 import { createWindow } from "./window.js";
 
@@ -17,6 +17,7 @@ if (!app.requestSingleInstanceLock()) {
       registerPreviewProtocol();
       Menu.setApplicationMenu(null);
       const window = createWindow();
+      if (scanArg === undefined) startLibraryMonitoring(window.webContents);
       // Test/dev hook: --scan=<path> starts a scan as soon as the renderer is up,
       // so automated runs never have to drive the native folder dialog.
       if (scanArg !== undefined) {
@@ -39,10 +40,11 @@ if (!app.requestSingleInstanceLock()) {
    });
 
    app.on("activate", () => {
-      if (BrowserWindow.getAllWindows().length === 0) createWindow();
+      if (BrowserWindow.getAllWindows().length === 0) startLibraryMonitoring(createWindow().webContents);
    });
 
    app.on("window-all-closed", () => {
+      stopLibraryMonitoring();
       closeDatabase();
       if (process.platform !== "darwin") app.quit();
    });

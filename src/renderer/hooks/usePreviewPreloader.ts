@@ -55,10 +55,16 @@ export const usePreviewPreloader = (groups: ImageSet[], currentIndex: number): v
                pump();
             };
             probe.onload = done;
-            probe.onerror = done;
+            probe.onerror = () => {
+               warmedUrls.delete(url);
+               done();
+            };
             probe.src = url;
          }
       };
       pump();
+      return () => {
+         if (generationCounter === generation) generationCounter += 1;
+      };
    }, [currentIndex, groups]);
 };

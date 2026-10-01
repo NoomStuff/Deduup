@@ -15,7 +15,6 @@ interface MenuBarProps {
    canRedo: boolean;
    currentNumber: string;
    totalSets: number;
-   reviewPercent: number;
    readyToMoveCount: number;
    finalReviewOpen: boolean;
    onToggleFinalReview: () => void;
@@ -24,7 +23,7 @@ interface MenuBarProps {
 type MenuEntry = CommandId | "divider";
 
 const menuItems: Record<string, MenuEntry[]> = {
-   File: ["openFolder", "rescan", "startScreen"],
+   File: ["openFolder", "startScreen"],
    Edit: ["undo", "redo", "clearAll"],
    Review: [
       "markSet",
@@ -129,6 +128,7 @@ const AppMenu = ({
 export const MenuBar = ({ menu, onMenuChange, ...props }: MenuBarProps) => {
    const undoHint = useBindingDisplay("undo");
    const redoHint = useBindingDisplay("redo");
+   const finalReviewHint = useBindingDisplay("finalReview");
    useEffect(() => {
       if (menu === null) return undefined;
       const close = (event: PointerEvent): void => {
@@ -189,16 +189,6 @@ export const MenuBar = ({ menu, onMenuChange, ...props }: MenuBarProps) => {
                   {props.currentNumber}
                   <span>/{props.totalSets}</span>
                </p>
-               <div
-                  aria-label={`${props.reviewPercent}% reviewed`}
-                  aria-valuemax={100}
-                  aria-valuemin={0}
-                  aria-valuenow={props.reviewPercent}
-                  className="toolbar__progress"
-                  role="progressbar"
-               >
-                  <span style={{ width: `${props.reviewPercent}%` }} />
-               </div>
                <span aria-hidden="true" className="toolbar__divider" />
                <button
                   className={`toolbar__finalStep${props.readyToMoveCount > 0 && !props.finalReviewOpen ? " toolbar__finalStep--hot" : ""}`}
@@ -208,7 +198,7 @@ export const MenuBar = ({ menu, onMenuChange, ...props }: MenuBarProps) => {
                   {...props.getTooltipProps(
                      "Final review",
                      props.finalReviewOpen ? "Already open, press Esc to close it." : "See everything marked for removal before anything moves.",
-                     "M"
+                     finalReviewHint
                   )}
                >
                   Final review

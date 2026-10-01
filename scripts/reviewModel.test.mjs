@@ -9,7 +9,6 @@ import {
    getLargestImage,
    getMovePreview,
    getResumeIndex,
-   getReviewedSetCount,
    getSetNumber,
    getSimilarityBands,
    getSimilarityColor,
@@ -49,53 +48,45 @@ test("auto-keep breaks pixel ties by file size, then by name", () => {
    assert.equal(byName.file, "a.jpg");
 });
 
-test("set decision normalization drops empty decisions and dedupes paths", () => {
-   const withDuplicatePaths = setImageSetDecision({}, "set_001", { deletedImages: ["a", "a", "b"], seen: true });
+test("decisions dedupe paths and preserve explicit keep-all choices", () => {
+   const withDuplicatePaths = setImageSetDecision({}, "set_001", { deletedImages: ["a", "a", "b"] });
    assert.deepEqual(withDuplicatePaths["set_001"]?.deletedImages, ["a", "b"]);
 
    const untouched = setImageSetDecision({}, "set_001", emptyImageSetDecision());
-   assert.deepEqual(untouched, {});
-   assert.equal(untouched["set_001"], undefined);
+   assert.deepEqual(untouched["set_001"], { deletedImages: [] });
 });
 
-test("clearing a saved decision removes it from the record", () => {
-   const saved = setImageSetDecision({}, "set_001", { deletedImages: ["a"], seen: true });
+test("clearing candidates retains the explicit keep-all choice", () => {
+   const saved = setImageSetDecision({}, "set_001", { deletedImages: ["a"] });
    const cleared = setImageSetDecision(saved, "set_001", emptyImageSetDecision());
-   assert.equal(Object.keys(cleared).length, 0);
+   assert.deepEqual(cleared["set_001"], { deletedImages: [] });
 });
 
 test("getDecision falls back to an empty decision", () => {
-   assert.deepEqual(getDecision({}, "missing"), { deletedImages: [], seen: false });
+   assert.deepEqual(getDecision({}, "missing"), { deletedImages: [] });
 });
 
-test("set states track seen and deleted counts", () => {
+test("set states reflect candidate counts without visits", () => {
    assert.equal(getImageSetState(threeSet, undefined), "open");
-   assert.equal(getImageSetState(threeSet, { deletedImages: [], seen: true }), "seen");
+   assert.equal(getImageSetState(threeSet, { deletedImages: [] }), "open");
 
-   const oneMarked = { deletedImages: threeSet.images.slice(0, 1).map((item) => item.originalPath), seen: true };
+   const oneMarked = { deletedImages: threeSet.images.slice(0, 1).map((item) => item.originalPath) };
    assert.equal(getImageSetState(threeSet, oneMarked), "someDeleted");
 
-   const allMarked = { deletedImages: threeSet.images.map((item) => item.originalPath), seen: true };
+   const allMarked = { deletedImages: threeSet.images.map((item) => item.originalPath) };
    assert.equal(getImageSetState(threeSet, allMarked), "allDeleted");
 });
 
 test("set labels report kept over total", () => {
-   const oneMarked = { deletedImages: [threeSet.images[0].originalPath], seen: true };
+   const oneMarked = { deletedImages: [threeSet.images[0].originalPath] };
    assert.equal(getImageSetLabel(threeSet, oneMarked), "2/3");
 });
 
-test("only seen sets count as reviewed", () => {
-   const decisions = {
-      set_001: { deletedImages: [], seen: true },
-   };
-   assert.equal(getReviewedSetCount([threeSet, makeSet("set_002", 3, threeSet.images)], decisions), 1);
-});
-
-test("move preview lists marked images from seen sets only", () => {
+test("move preview lists candidates without a viewed prerequisite", () => {
    const marked = threeSet.images[1].originalPath;
-   const decisions = { set_001: { deletedImages: [marked], seen: true }, set_002: { deletedImages: [marked], seen: false } };
+   const decisions = { set_001: { deletedImages: [marked] }, set_002: { deletedImages: [marked] } };
    const preview = getMovePreview([threeSet, makeSet("set_002", 3, threeSet.images)], decisions);
-   assert.equal(preview.length, 1);
+   assert.equal(preview.length, 2);
    assert.equal(preview[0]?.file, "b.jpg");
    assert.equal(preview[0]?.setId, "set_001");
    assert.equal(preview[0]?.originalPath, marked);
@@ -110,8 +101,8 @@ test("workflow state separates ready, moved, and recycled images", () => {
       ]),
    ];
    const decisions = {
-      set_001: { deletedImages: ["C:/lib/ready.jpg"], seen: true },
-      set_002: { deletedImages: ["C:/lib/recycled.jpg", "C:/lib/ghost.jpg"], seen: true },
+      set_001: { deletedImages: ["C:/lib/ready.jpg"] },
+      set_002: { deletedImages: ["C:/lib/recycled.jpg", "C:/lib/ghost.jpg"] },
    };
    assert.deepEqual(getFileWorkflowState(sets, decisions), {
       markedCount: 4,

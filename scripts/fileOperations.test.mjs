@@ -47,6 +47,52 @@ test("moves files into nested managed destinations", () =>
       assert.equal(await readFile(planned.to, "utf8"), "image");
    }));
 
+test("refuses a destination created after preflight without overwriting it", () =>
+   withWorkspace(async (root) => {
+      const planned = move(root);
+      await mkdir(path.dirname(planned.from), { recursive: true });
+      await writeFile(planned.from, "original");
+      const result = await applyFileMoves([planned], {
+         beforeMove: async () => {
+            await mkdir(path.dirname(planned.to), { recursive: true });
+            await writeFile(planned.to, "external file");
+         },
+      });
+      assert.equal(result.errors.length, 1);
+      assert.equal(await readFile(planned.from, "utf8"), "original");
+      assert.equal(await readFile(planned.to, "utf8"), "external file");
+   }));
+
+test("refuses changed scan files and changes during move preparation", () =>
+   withWorkspace(async (root) => {
+      const planned = move(root);
+      await mkdir(path.dirname(planned.from), { recursive: true });
+      await writeFile(planned.from, "original");
+      const source = await stat(planned.from);
+      planned.expectedSource = { size: source.size, modifiedAt: source.mtimeMs };
+      const prepared = await applyFileMoves([planned], { beforeMove: () => writeFile(planned.from, "changed during preparation") });
+      assert.equal(prepared.errors.length, 1);
+      const stale = await applyFileMoves([planned]);
+      assert.equal(stale.errors.length, 1);
+      assert.equal(await readFile(planned.from, "utf8"), "changed during preparation");
+      assert.equal(await exists(planned.to), false);
+   }));
+
+test("a journal failure stops the move before file mutation", () =>
+   withWorkspace(async (root) => {
+      const planned = move(root);
+      await mkdir(path.dirname(planned.from), { recursive: true });
+      await writeFile(planned.from, "original");
+      const result = await applyFileMoves([planned], {
+         beforeMove: async () => {
+            throw new Error("journal unavailable");
+         },
+      });
+      assert.match(result.errors[0].message, /journal unavailable/u);
+      assert.equal(await readFile(planned.from, "utf8"), "original");
+      assert.equal(await exists(planned.to), false);
+   }));
+
 test("continues a move batch after missing sources and destination collisions", () =>
    withWorkspace(async (root) => {
       const missing = move(root, "missing.jpg");

@@ -56,7 +56,7 @@ export const SettingsPanel = (props: SettingsPanelProps) => {
 
    const updateBindings = (id: CommandId, bindings: string[]): void => {
       const next = Object.fromEntries(Object.entries(props.shortcuts).filter(([key]) => key !== id)) as ShortcutOverrides;
-      if (bindings.length > 0) next[id] = bindings;
+      next[id] = bindings;
       props.onShortcutsChange(next);
       setRecording(null);
       setConflict("");
@@ -162,7 +162,7 @@ export const SettingsPanel = (props: SettingsPanelProps) => {
                </div>
                <div className="settingRow settingRow--toggle">
                   <Toggle checked={props.showStartupOnLaunch} label="Show start screen on launch" onChange={props.onStartupChange} />
-                  <small>The start screen offers open, continue, and rescan when the app starts.</small>
+                  <small>The start screen offers open and continue. Library changes update automatically.</small>
                </div>
             </div>
          ) : (

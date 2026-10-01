@@ -14,17 +14,12 @@ const allowedPreviews = new Map<string, PreviewAccess>();
 const thumbnailCache = new Map<string, Promise<Buffer>>();
 const thumbnailCacheLimit = 256;
 
-// A runaway registry means stale load results kept registering; the renderer
-// has replaced those groups by now, so the old URLs are dead weight.
-const allowedPreviewsLimit = 100_000;
-
 protocol.registerSchemesAsPrivileged([{ scheme: previewProtocol, privileges: { standard: true, secure: true, supportFetchAPI: true } }]);
 
-export const createPreviewUrl = (filePath: string, kind: PreviewKind = "thumbnail"): string => {
-   if (allowedPreviews.size >= allowedPreviewsLimit) allowedPreviews.clear();
+export const createPreviewUrl = (filePath: string, kind: PreviewKind = "thumbnail", revision = ""): string => {
    const normalizedPath = path.normalize(filePath);
    const encodedPath = Buffer.from(normalizedPath, "utf8").toString("base64url");
-   const accessKey = `${kind}/${encodedPath}`;
+   const accessKey = `${kind}/${encodedPath}/${revision}`;
    allowedPreviews.set(accessKey, { filePath: normalizedPath, kind });
    return `${previewProtocol}://file/${accessKey}`;
 };
@@ -60,8 +55,7 @@ const startNextEncode = (): void => {
    encode.run();
 };
 
-const createThumbnail = (filePath: string): Promise<Buffer> => {
-   const cacheKey = filePath.toLowerCase();
+const createThumbnail = (filePath: string, cacheKey: string): Promise<Buffer> => {
    const cached = thumbnailCache.get(cacheKey);
    if (cached !== undefined) {
       // Map iteration order is insertion order: re-insert to keep the entry young.
@@ -101,7 +95,9 @@ const createThumbnail = (filePath: string): Promise<Buffer> => {
    };
    scheduledEncodes.set(cacheKey, encode);
    thumbnailCache.set(cacheKey, promise);
-   void promise.catch(() => thumbnailCache.delete(cacheKey));
+   void promise.catch(() => {
+      if (thumbnailCache.get(cacheKey) === promise) thumbnailCache.delete(cacheKey);
+   });
    startNextEncode();
    return promise;
 };
@@ -123,7 +119,7 @@ export const registerPreviewProtocol = (): void => {
             headers.set("cache-control", "private, max-age=3600");
             return new Response(file.body, { headers, status: file.status, statusText: file.statusText });
          }
-         const thumbnail = await createThumbnail(access.filePath);
+         const thumbnail = await createThumbnail(access.filePath, accessKey);
          headers.set("content-type", "image/webp");
          return new Response(new Uint8Array(thumbnail), { headers });
       } catch {

@@ -1,17 +1,16 @@
 import type { Decisions, ImageItem, ImageSet, ImageSetDecision } from "../shared/types.js";
 import {
-   areDecisionsEqual,
    getDecision,
    getDeletedImagePaths,
    getImageSetDecision,
    getLargestImage,
    getSimilarityLabel,
    setImageSetDecision,
+   setImageSetDecisions,
 } from "./reviewModel.js";
 
 interface ReviewActionOptions {
    currentIndex: number;
-   decisions: Decisions;
    groups: ImageSet[];
    goTo: (index: number) => void;
    updateDecisions: (updater: (current: Decisions) => Decisions) => void;
@@ -24,7 +23,7 @@ const availableImagesDecision = (imageSet: ImageSet, source: Decisions, markForR
       if (markForRemoval) deletedPaths.add(image.originalPath);
       else deletedPaths.delete(image.originalPath);
    }
-   return getImageSetDecision(imageSet, deletedPaths, true);
+   return getImageSetDecision(imageSet, deletedPaths);
 };
 
 const clearedDecision = (imageSet: ImageSet, source: Decisions): ImageSetDecision => {
@@ -32,7 +31,7 @@ const clearedDecision = (imageSet: ImageSet, source: Decisions): ImageSetDecisio
    for (const image of imageSet.images) {
       if (image.sourceStatus === "available") deletedPaths.delete(image.originalPath);
    }
-   return getImageSetDecision(imageSet, deletedPaths, false);
+   return getImageSetDecision(imageSet, deletedPaths);
 };
 
 const autoSelectedDecision = (imageSet: ImageSet, source: Decisions): ImageSetDecision => {
@@ -44,11 +43,8 @@ const autoSelectedDecision = (imageSet: ImageSet, source: Decisions): ImageSetDe
       if (image.originalPath === pick.originalPath) deletedPaths.delete(image.originalPath);
       else deletedPaths.add(image.originalPath);
    }
-   return getImageSetDecision(imageSet, deletedPaths, true);
+   return getImageSetDecision(imageSet, deletedPaths);
 };
-
-const seenDecision = (imageSet: ImageSet, source: Decisions): ImageSetDecision =>
-   getImageSetDecision(imageSet, getDeletedImagePaths(getDecision(source, imageSet.id)), true);
 
 const getBandSets = (groups: ImageSet[], baseSet: ImageSet): ImageSet[] => {
    const similarity = getSimilarityLabel(baseSet.similarity);
@@ -63,24 +59,17 @@ export const countBandSets = (groups: ImageSet[], baseSet: ImageSet): number => 
  * so callers can confirm before re-picking them. Sets whose marks already match
  * the autoselect pick do not count.
  */
-export const countBandAutoselectOverrides = (groups: ImageSet[], decisions: Decisions, baseSet: ImageSet): number =>
-   getBandSets(groups, baseSet).filter((imageSet) => {
-      const current = getDecision(decisions, imageSet.id);
-      if (current.deletedImages.length === 0) return false;
-      return !areDecisionsEqual(current, autoSelectedDecision(imageSet, decisions));
-   }).length;
-
 /** How many sets hold choices that marking the whole band would change. */
 export const countBandMarkOverrides = (groups: ImageSet[], decisions: Decisions, baseSet: ImageSet): number =>
    getBandSets(groups, baseSet).filter((imageSet) => {
       const markedCount = getDeletedImagePaths(getDecision(decisions, imageSet.id)).size;
       const availableCount = imageSet.images.filter((image) => image.sourceStatus === "available").length;
-      return markedCount > 0 && markedCount < availableCount;
+      return decisions[imageSet.id] !== undefined && markedCount < availableCount;
    }).length;
 
-export const createReviewActions = ({ currentIndex, decisions, groups, goTo, updateDecisions }: ReviewActionOptions) => {
-   const decide = (imageSet: ImageSet, decision: ImageSetDecision): void => {
-      updateDecisions((existing) => setImageSetDecision(existing, imageSet.id, decision));
+export const createReviewActions = ({ currentIndex, groups, goTo, updateDecisions }: ReviewActionOptions) => {
+   const decide = (imageSet: ImageSet, transform: (set: ImageSet, source: Decisions) => ImageSetDecision): void => {
+      updateDecisions((existing) => setImageSetDecision(existing, imageSet.id, transform(imageSet, existing)));
    };
 
    const advanceFromImageSet = (imageSet: ImageSet): void => {
@@ -89,7 +78,9 @@ export const createReviewActions = ({ currentIndex, decisions, groups, goTo, upd
    };
 
    const updateDeletedPaths = (imageSet: ImageSet, getNext: (existing: Set<string>) => Set<string>, advance: boolean): void => {
-      decide(imageSet, getImageSetDecision(imageSet, getNext(getDeletedImagePaths(getDecision(decisions, imageSet.id))), true));
+      updateDecisions((existing) =>
+         setImageSetDecision(existing, imageSet.id, getImageSetDecision(imageSet, getNext(getDeletedImagePaths(getDecision(existing, imageSet.id)))))
+      );
       if (advance) advanceFromImageSet(imageSet);
    };
 
@@ -126,13 +117,19 @@ export const createReviewActions = ({ currentIndex, decisions, groups, goTo, upd
       );
    };
 
-   const updateSimilarityBand = (baseSet: ImageSet, getNext: (imageSet: ImageSet, source: Decisions) => ImageSetDecision): void => {
+   const updateSimilarityBand = (
+      baseSet: ImageSet,
+      getNext: (imageSet: ImageSet, source: Decisions) => ImageSetDecision,
+      eligible: (imageSet: ImageSet, source: Decisions) => boolean = () => true
+   ): void => {
       const similarity = getSimilarityLabel(baseSet.similarity);
       updateDecisions((existing) =>
-         groups.reduce(
-            (next, imageSet) =>
-               getSimilarityLabel(imageSet.similarity) === similarity ? setImageSetDecision(next, imageSet.id, getNext(imageSet, next)) : next,
-            existing
+         setImageSetDecisions(
+            existing,
+            groups
+               .filter((imageSet) => getSimilarityLabel(imageSet.similarity) === similarity)
+               .filter((imageSet) => eligible(imageSet, existing))
+               .map((imageSet) => [imageSet.id, getNext(imageSet, existing)] as const)
          )
       );
    };
@@ -140,23 +137,42 @@ export const createReviewActions = ({ currentIndex, decisions, groups, goTo, upd
    const autoSelectBand = (baseSet: ImageSet): void => {
       const similarity = getSimilarityLabel(baseSet.similarity);
       const indexes = groups.flatMap((imageSet, index) => (getSimilarityLabel(imageSet.similarity) === similarity ? [index] : []));
-      updateSimilarityBand(baseSet, autoSelectedDecision);
+      updateSimilarityBand(baseSet, autoSelectedDecision, (set, source) => source[set.id] === undefined);
       const lastIndex = indexes.at(-1) ?? currentIndex;
       if (lastIndex >= currentIndex && lastIndex + 1 < groups.length) window.setTimeout(() => goTo(lastIndex + 1), 80);
    };
 
    return {
-      autoSelectImageSet: (imageSet: ImageSet): void => decide(imageSet, autoSelectedDecision(imageSet, decisions)),
+      autoSelectImageSet: (imageSet: ImageSet): void => decide(imageSet, autoSelectedDecision),
       autoSelectBand,
       clearAllChoices: (): void =>
-         updateDecisions((existing) => groups.reduce((next, imageSet) => setImageSetDecision(next, imageSet.id, clearedDecision(imageSet, next)), existing)),
+         updateDecisions((existing) =>
+            setImageSetDecisions(
+               existing,
+               groups.filter((imageSet) => existing[imageSet.id] !== undefined).map((imageSet) => [imageSet.id, clearedDecision(imageSet, existing)] as const)
+            )
+         ),
       clearImageSetChoices: (imageSet: ImageSet): void =>
          updateDecisions((existing) => setImageSetDecision(existing, imageSet.id, clearedDecision(imageSet, existing))),
-      clearSimilarityBandChoices: (imageSet: ImageSet): void => updateSimilarityBand(imageSet, clearedDecision),
-      markImageSet: (imageSet: ImageSet): void => decide(imageSet, availableImagesDecision(imageSet, decisions, true)),
+      clearSimilarityBandChoices: (imageSet: ImageSet): void => updateSimilarityBand(imageSet, clearedDecision, (set, source) => source[set.id] !== undefined),
+      markImageSet: (imageSet: ImageSet): void => decide(imageSet, (set, source) => availableImagesDecision(set, source, true)),
       markSimilarityBand: (imageSet: ImageSet): void => updateSimilarityBand(imageSet, (set, source) => availableImagesDecision(set, source, true)),
-      markSimilarityBandSeen: (imageSet: ImageSet): void => updateSimilarityBand(imageSet, seenDecision),
       toggleImageRemoval,
       toggleOnlyImageKept,
+      keepComparedImage: (imageSet: ImageSet, keep: ImageItem, other: ImageItem, advance: boolean): void => {
+         if (keep.sourceStatus !== "available" || other.sourceStatus !== "available" || keep.originalPath === other.originalPath) return;
+         const members = new Set(imageSet.images.map((image) => image.originalPath));
+         if (!members.has(keep.originalPath) || !members.has(other.originalPath)) return;
+         updateDeletedPaths(
+            imageSet,
+            (existing) => {
+               const next = new Set(existing);
+               next.delete(keep.originalPath);
+               next.add(other.originalPath);
+               return next;
+            },
+            advance
+         );
+      },
    };
 };

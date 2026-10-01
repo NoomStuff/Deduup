@@ -24,7 +24,6 @@ export interface CommandDefinition {
 
 const definitions = {
    openFolder: { label: "Open folder…", group: "File", keys: ["Ctrl+O"] },
-   rescan: { label: "Rescan folder", group: "File" },
    startScreen: { label: "Start screen", group: "File" },
 
    undo: { label: "Undo", group: "Edit", keys: ["Ctrl+Z"], stayLive: true },
@@ -33,12 +32,18 @@ const definitions = {
 
    markSet: { label: "Mark the whole set for removal", group: "Review", keys: ["X"] },
    autoselectSet: { label: "Autoselect this set", group: "Review" },
-   autoselectBand: { label: "Autoselect the whole band", group: "Review", keys: ["V"] },
+   autoselectBand: { label: "Autoselect undecided sets in this band", group: "Review", keys: ["V"] },
    clearSet: { label: "Clear this set's marks", group: "Review" },
    compareSelected: { label: "Compare with another copy", group: "Review", keys: ["C"] },
    previewSelected: { label: "Preview the selected image", group: "Review", keys: ["Enter"] },
-   toggleSelected: { label: "Mark or unmark the selected copy", group: "Review", keys: ["Delete"] },
-   toggleImageByNumber: { label: "Mark or unmark the Nth copy", group: "Review", keys: ["1"], display: "1–9", fixed: true },
+   toggleSelected: { label: "Mark or unmark the selected copy", group: "Review", keys: ["Delete", "Ctrl+Delete"] },
+   toggleImageByNumber: {
+      label: "Mark or unmark the Nth copy",
+      group: "Review",
+      keys: ["1", "2", "3", "4", "5", "6", "7", "8", "9", "Ctrl+1", "Ctrl+2", "Ctrl+3", "Ctrl+4", "Ctrl+5", "Ctrl+6", "Ctrl+7", "Ctrl+8", "Ctrl+9"],
+      display: "1–9 / Ctrl+1–9",
+      fixed: true,
+   },
    previousSet: { label: "Previous set", group: "Review", keys: ["←", "A"], repeat: true },
    nextSet: { label: "Next set", group: "Review", keys: ["→", "D", "Space"], repeat: true },
    previousBand: { label: "Previous similarity band", group: "Review", keys: ["Ctrl+←"], repeat: true },
@@ -108,6 +113,7 @@ const keyNames: Record<string, string> = { ArrowLeft: "←", ArrowRight: "→", 
 export const bindingFromEvent = (event: KeyboardEvent): string => {
    const parts: string[] = [];
    if (event.ctrlKey) parts.push("Ctrl");
+   if (event.metaKey) parts.push("Meta");
    if (event.altKey) parts.push("Alt");
    if (event.shiftKey && (event.key.length > 1 || /[a-z]/i.test(event.key))) parts.push("Shift");
    const key = event.key === " " ? "Space" : (keyNames[event.key] ?? event.key);
@@ -153,7 +159,7 @@ export const useCommands = (commands: Commands, blocked: boolean, overrides: Sho
          const normalized = binding.toUpperCase();
          const { commands: current, blocked: isBlocked, overrides: currentOverrides } = latest.current;
          const id = (Object.keys(commandDefinitions) as CommandId[]).find((candidate) => {
-            if (candidate === "toggleImageByNumber") return /^[1-9]$/.test(event.key) && !event.ctrlKey && !event.altKey;
+            if (candidate === "toggleImageByNumber") return /^[1-9]$/.test(event.key) && !event.altKey && !event.metaKey && !event.shiftKey;
             return bindingsFor(candidate, currentOverrides).some((keys) => keys.toUpperCase() === normalized);
          });
          if (id === undefined) return;

@@ -20,7 +20,7 @@
       "format:check": "prettier --check .",
       "test": "bun run typecheck && bun test scripts",
       "verify": "bun run format:check && bun run lint && bun run test && bun run test:ui",
-      "test:ui": "bun run build && node scripts/smoke.mjs",
+      "test:ui": "bun run build && node scripts/smoke.mjs && node scripts/fileWorkflow.smoke.mjs && node scripts/libraryRefresh.smoke.mjs",
       "fixtures": "node scripts/makeFixtures.mjs",
       "typecheck": "tsc -b --force"
    },

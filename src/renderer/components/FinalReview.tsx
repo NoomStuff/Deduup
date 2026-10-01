@@ -144,6 +144,7 @@ export const FinalReview = ({
                            In the duplicate folder <span>{duplicatePreview.length}</span>
                            <small>undoable</small>
                         </h3>
+                        <p className="moveSection__hint">Restore or recycle these images before new library changes appear.</p>
                         <div className="moveGrid">
                            {duplicatePreview.map((row) => (
                               <MoveCard key={row.originalPath} quarantined row={row} onKeepImage={onKeepImage} />

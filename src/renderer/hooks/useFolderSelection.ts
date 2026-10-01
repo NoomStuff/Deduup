@@ -9,8 +9,6 @@ interface FolderSelectionOptions {
    hasReview: boolean;
    confirmMajorActions: boolean;
    setConfirmAction: (action: ConfirmAction | null) => void;
-   /** App owns the scan root; the hook reports the chosen folder through it. */
-   setScanRoot: (rootPath: string | null) => void;
    startScan: (folderPath: string | null) => Promise<void>;
    setIsStartupOpen: (open: boolean) => void;
    notify: (notification: NotificationInput) => void;
@@ -25,7 +23,6 @@ export const useFolderSelection = ({
    hasReview,
    confirmMajorActions,
    setConfirmAction,
-   setScanRoot,
    startScan,
    setIsStartupOpen,
    notify,
@@ -48,7 +45,6 @@ export const useFolderSelection = ({
          setConfirmAction(createConfirmAction("switchFolder", { folderPath }));
          return;
       }
-      setScanRoot(folderPath);
       setIsStartupOpen(false);
       void startScan(folderPath);
    };

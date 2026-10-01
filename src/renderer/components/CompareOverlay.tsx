@@ -9,7 +9,6 @@ import { OverlayPanel } from "./OverlayPanel.js";
 import "./CompareOverlay.css";
 
 export const CompareOverlay = ({ compare, onClose, onKeep }: { compare: CompareState; onClose: () => void; onKeep: (image: ImageItem) => void }) => {
-   const [focusedSide, setFocusedSide] = useState<"left" | "right" | null>(null);
    const { stageRef, transform, isZoomed, isPanning, panHandlers } = usePanZoom();
    const [thumbState, setThumbState] = useState({ left: false, right: false });
    const [fullState, setFullState] = useState({ left: false, right: false });
@@ -43,7 +42,6 @@ export const CompareOverlay = ({ compare, onClose, onKeep }: { compare: CompareS
       const next = revealTargetRef.current;
       if (next !== null) {
          next.target.style.setProperty("--compare-reveal", String(next.value * 100) + "%");
-         next.target.style.setProperty("--compare-reveal-opacity", String(next.value));
       }
       revealFrameRef.current = null;
    }, []);
@@ -80,22 +78,14 @@ export const CompareOverlay = ({ compare, onClose, onKeep }: { compare: CompareS
             <div>
                <p className="overlayLabel">Compare</p>
                <h2 id="compare-title">Pick the copy to keep</h2>
-               <p className="compare__hint">Move across the image to wipe between the copies. Scroll to zoom, drag to pan while zoomed.</p>
+               <p className="compare__hint">Choose between these two copies. Other images stay unchanged. Move across to wipe, scroll to zoom, drag to pan.</p>
             </div>
             <button aria-label="Close comparison" className="iconButton" onClick={onClose} type="button">
                <X aria-hidden="true" />
             </button>
          </div>
          <div className="compare__content">
-            <button
-               className="compare__action compare__action--left"
-               onClick={() => onKeep(compare.left)}
-               onBlur={() => setFocusedSide(null)}
-               onFocus={() => setFocusedSide("left")}
-               onMouseEnter={() => setFocusedSide("left")}
-               onMouseLeave={() => setFocusedSide(null)}
-               type="button"
-            >
+            <button className="compare__action compare__action--left" onClick={() => onKeep(compare.left)} type="button">
                <strong aria-label={`Image ${compare.leftIndex + 1}`} className="compare__actionIndex">
                   {compare.leftIndex + 1}
                </strong>
@@ -115,7 +105,6 @@ export const CompareOverlay = ({ compare, onClose, onKeep }: { compare: CompareS
                style={
                   {
                      "--compare-reveal": String(compare.reveal * 100) + "%",
-                     "--compare-reveal-opacity": compare.reveal,
                   } as CSSProperties
                }
             >
@@ -123,7 +112,7 @@ export const CompareOverlay = ({ compare, onClose, onKeep }: { compare: CompareS
                <div className="compare__layer">
                   <img
                      alt={compare.left.file}
-                     className={"compare__bottom" + (focusedSide === "left" ? " compare__image--focused" : "")}
+                     className="compare__bottom"
                      onLoad={() => setThumbState((current) => (current.left ? current : { ...current, left: true }))}
                      ref={leftThumbRef}
                      src={compare.left.previewUrl}
@@ -133,11 +122,7 @@ export const CompareOverlay = ({ compare, onClose, onKeep }: { compare: CompareS
                      <img
                         alt=""
                         aria-hidden="true"
-                        className={
-                           "compare__bottom compare__full" +
-                           (fullState.left ? " compare__full--visible" : "") +
-                           (focusedSide === "left" ? " compare__image--focused" : "")
-                        }
+                        className={"compare__bottom compare__full" + (fullState.left ? " compare__full--visible" : "")}
                         onLoad={() => setFullState((current) => (current.left ? current : { ...current, left: true }))}
                         src={compare.left.fullPreviewUrl}
                         style={{ transform: cssTransform }}
@@ -147,7 +132,7 @@ export const CompareOverlay = ({ compare, onClose, onKeep }: { compare: CompareS
                <div className="compare__layer compare__layer--top">
                   <img
                      alt={compare.right.file}
-                     className={"compare__top" + (focusedSide === "right" ? " compare__image--focused" : "")}
+                     className="compare__top"
                      onLoad={() => setThumbState((current) => (current.right ? current : { ...current, right: true }))}
                      ref={rightThumbRef}
                      src={compare.right.previewUrl}
@@ -157,11 +142,7 @@ export const CompareOverlay = ({ compare, onClose, onKeep }: { compare: CompareS
                      <img
                         alt=""
                         aria-hidden="true"
-                        className={
-                           "compare__top compare__full" +
-                           (fullState.right ? " compare__full--visible" : "") +
-                           (focusedSide === "right" ? " compare__image--focused" : "")
-                        }
+                        className={"compare__top compare__full" + (fullState.right ? " compare__full--visible" : "")}
                         onLoad={() => setFullState((current) => (current.right ? current : { ...current, right: true }))}
                         src={compare.right.fullPreviewUrl}
                         style={{ transform: cssTransform }}
@@ -172,15 +153,7 @@ export const CompareOverlay = ({ compare, onClose, onKeep }: { compare: CompareS
                <span className="compare__label compare__label--left">{compare.leftIndex + 1}</span>
                <span className="compare__label compare__label--right">{compare.rightIndex + 1}</span>
             </div>
-            <button
-               className="compare__action compare__action--right"
-               onClick={() => onKeep(compare.right)}
-               onBlur={() => setFocusedSide(null)}
-               onFocus={() => setFocusedSide("right")}
-               onMouseEnter={() => setFocusedSide("right")}
-               onMouseLeave={() => setFocusedSide(null)}
-               type="button"
-            >
+            <button className="compare__action compare__action--right" onClick={() => onKeep(compare.right)} type="button">
                <strong aria-label={`Image ${compare.rightIndex + 1}`} className="compare__actionIndex">
                   {compare.rightIndex + 1}
                </strong>

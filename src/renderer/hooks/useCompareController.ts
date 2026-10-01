@@ -4,7 +4,7 @@ import type { CompareState } from "../appTypes.js";
 
 interface CompareControllerOptions {
    currentSet: ImageSet | null;
-   onKeep: (image: ImageItem, advance: boolean) => void;
+   onKeep: (image: ImageItem, other: ImageItem, advance: boolean) => void;
 }
 
 /** Owns two-image comparison: picking a second image, adjacent compare, and the keep action. */
@@ -66,7 +66,9 @@ export const useCompareController = ({ currentSet, onKeep }: CompareControllerOp
    };
 
    const keepCompareImage = (image: ImageItem, advance: boolean): void => {
-      onKeep(image, advance);
+      if (compare === null) return;
+      const other = image.originalPath === compare.left.originalPath ? compare.right : compare.left;
+      onKeep(image, other, advance);
       setCompare(null);
    };
 

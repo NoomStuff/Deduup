@@ -126,7 +126,6 @@
 
 .compare__layer--top {
    clip-path: inset(0 0 0 var(--compare-reveal, 50%));
-   opacity: var(--compare-reveal-opacity, 0.5);
 }
 
 .compare__stage img {
@@ -137,10 +136,6 @@
    object-fit: contain;
    pointer-events: none;
    user-select: none;
-}
-
-.compare__image--focused {
-   filter: brightness(1.12);
 }
 
 /* The full decode fades over its thumbnail once zoomed, so the step up in

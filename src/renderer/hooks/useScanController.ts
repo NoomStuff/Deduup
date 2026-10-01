@@ -31,13 +31,20 @@ export const useScanController = ({ notify, onScanApplied, reportError }: ScanCo
    // The event bridges attach once; callbacks stay fresh through the ref.
    useEffect(() => {
       const api = window.imageDeduplicator;
-      const unsubscribeProgress = api.onScanProgress((progress) => setScanProgress(progress));
+      const unsubscribeProgress = api.onScanProgress((progress) => {
+         setIsScanning(true);
+         setScanProgress(progress);
+      });
       const unsubscribeComplete = api.onScanComplete((result) => {
          callbacksRef.current.onScanApplied(result);
          setIsScanning(false);
          setScanningPath(null);
       });
-      const unsubscribeError = api.onAppError((message) => callbacksRef.current.notify({ tone: "error", title: "Scan failed", message }));
+      const unsubscribeError = api.onAppError((message) => {
+         setIsScanning(false);
+         setScanningPath(null);
+         callbacksRef.current.notify({ tone: "error", title: "Scan failed", message });
+      });
       return () => {
          unsubscribeProgress();
          unsubscribeComplete();

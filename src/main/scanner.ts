@@ -12,6 +12,7 @@ export interface ScannedImage {
    height: number;
    size: number;
    modifiedAt: number;
+   changedAt: number;
 }
 
 export interface GroupedImages {
@@ -112,12 +113,23 @@ const createDifferenceHash = (pixels: Buffer): string => {
    return hash.toString(16).padStart(16, "0");
 };
 
-const scanImage = async (filePath: string, reportWarning?: ScanWarningReporter): Promise<ScannedImage | null> => {
+const scanImage = async (filePath: string, reportWarning?: ScanWarningReporter, cached?: ScannedImage): Promise<ScannedImage | null> => {
    try {
+      const before = await stat(filePath);
+      if (!before.isFile()) throw new Error("The image is not a regular file");
+      if (cached?.size === before.size && cached.modifiedAt === before.mtimeMs && cached.changedAt === before.ctimeMs) return cached;
       const source = sharp(filePath, { animated: false, failOn: "none" }).rotate();
       const metadata = await source.metadata();
       const pixels = await source.clone().resize(9, 8, { fit: "fill" }).greyscale().raw().toBuffer();
       const fileStat = await stat(filePath);
+      if (
+         before.dev !== fileStat.dev ||
+         before.ino !== fileStat.ino ||
+         before.size !== fileStat.size ||
+         before.mtimeMs !== fileStat.mtimeMs ||
+         before.ctimeMs !== fileStat.ctimeMs
+      )
+         throw new Error("The image changed while scanning");
       return {
          file: path.basename(filePath),
          originalPath: path.normalize(filePath),
@@ -126,6 +138,7 @@ const scanImage = async (filePath: string, reportWarning?: ScanWarningReporter):
          height: metadata.height,
          size: fileStat.size,
          modifiedAt: fileStat.mtimeMs,
+         changedAt: fileStat.ctimeMs,
       };
    } catch (error: unknown) {
       console.warn(`Skipping unreadable image: ${filePath}`, error);
@@ -138,7 +151,8 @@ export const scanImages = async (
    paths: string[],
    reportProgress: ScanProgressReporter,
    reportWarning?: ScanWarningReporter,
-   signal?: AbortSignal
+   signal?: AbortSignal,
+   cachedImages: Map<string, ScannedImage> = new Map()
 ): Promise<ScannedImage[]> => {
    const results: (ScannedImage | null)[] = Array.from({ length: paths.length }, () => null);
    let nextIndex = 0;
@@ -157,7 +171,7 @@ export const scanImages = async (
          if (filePath === undefined) {
             continue;
          }
-         results[index] = await scanImage(filePath, reportWarning);
+         results[index] = await scanImage(filePath, reportWarning, cachedImages.get(filePath));
          completed += 1;
          if (completed % progressStride === 0 || completed === paths.length) {
             reportProgress({ phase: "hashing", completed, total: paths.length, currentFile: path.basename(filePath) });
@@ -378,14 +392,26 @@ export const groupImages = async (images: ScannedImage[], reportProgress: ScanPr
          return;
       }
       if (group.length > splitWorkLimit) {
-         // Too big for the exile algorithm. Hash-sorted slices keep the most
-         // similar images together (fixed-width hex sorts numerically), each
-         // slice is re-connected at the match threshold, and every component
-         // is at most slice-sized, so the recursive admit always lands in the
-         // bounded exile path below.
+         // Keep each identical-hash population intact at chunk boundaries.
+         // A population above the work limit has zero distance and can be
+         // admitted directly without running the exile algorithm.
          const sorted = [...group].sort((left, right) => (left.hash < right.hash ? -1 : left.hash > right.hash ? 1 : 0));
-         for (let offset = 0; offset < sorted.length; offset += splitWorkLimit) {
-            const chunk = sorted.slice(offset, offset + splitWorkLimit);
+         const chunks: ScannedImage[][] = [];
+         let chunk: ScannedImage[] = [];
+         for (let offset = 0; offset < sorted.length;) {
+            let end = offset + 1;
+            while (end < sorted.length && sorted[end]?.hash === sorted[offset]?.hash) end += 1;
+            const population = sorted.slice(offset, end);
+            if (chunk.length > 0 && chunk.length + population.length > splitWorkLimit) {
+               chunks.push(chunk);
+               chunk = [];
+            }
+            if (population.length > splitWorkLimit) chunks.push(population);
+            else chunk.push(...population);
+            offset = end;
+         }
+         if (chunk.length > 0) chunks.push(chunk);
+         for (const chunk of chunks) {
             for (const component of await getConnectedGroups(chunk, () => undefined, signal)) {
                await admit(component);
             }

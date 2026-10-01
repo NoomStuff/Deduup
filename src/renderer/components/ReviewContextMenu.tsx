@@ -1,6 +1,6 @@
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import type { MouseEventHandler } from "react";
-import { Check, Eraser, FolderOpen, Image as ImageIcon, Search, Sparkles, Trash2 } from "lucide-react";
+import { Eraser, FolderOpen, Image as ImageIcon, Search, Sparkles, Trash2 } from "lucide-react";
 import type { ImageItem } from "../../shared/types.js";
 import type { ContextMenuState } from "../appTypes.js";
 import { useBindingDisplay } from "../commands.js";
@@ -20,7 +20,6 @@ interface ReviewContextMenuProps {
    onClose: () => void;
    onMarkImageSet: () => void;
    onMarkBand: () => void;
-   onMarkBandSeen: () => void;
    onOpenImage: () => void;
    onPreviewImage: () => void;
    onShowImage: () => void;
@@ -186,14 +185,6 @@ export const ReviewContextMenu = (props: ReviewContextMenuProps) => {
                >
                   <Trash2 aria-hidden="true" />
                   <span>Mark whole band</span>
-               </button>
-               <button
-                  className="contextMenu__command contextMenu__command--success contextMenu__command--important"
-                  onClick={command(props.onMarkBandSeen, props.onClose)}
-                  type="button"
-               >
-                  <Check aria-hidden="true" />
-                  <span>Mark all seen</span>
                </button>
                <div className="contextMenu__divider" />
                <button className="contextMenu__command contextMenu__command--accent" onClick={command(props.onAutoSelectBand, props.onClose)} type="button">

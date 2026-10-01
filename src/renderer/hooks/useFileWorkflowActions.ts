@@ -1,34 +1,35 @@
-import { useEffect, useState } from "react";
+import { useRef, useState } from "react";
 import type { Decisions, LoadDataResult, MoveResult } from "../../shared/types.js";
 import type { NotificationInput } from "./useNotifications.js";
 
 interface FileWorkflowActionsOptions {
-   decisions: Decisions;
    clearHistory: () => void;
    notify: (notification: NotificationInput) => void;
    onRefresh: (result: LoadDataResult) => void;
    reportError: (title: string, error: unknown, fallback: string) => void;
 }
 
-export const useFileWorkflowActions = ({ decisions, clearHistory, notify, onRefresh, reportError }: FileWorkflowActionsOptions) => {
+export const useFileWorkflowActions = ({ clearHistory, notify, onRefresh, reportError }: FileWorkflowActionsOptions) => {
    const [moveResult, setMoveResult] = useState<MoveResult | null>(null);
    const [restoreResult, setRestoreResult] = useState<MoveResult | null>(null);
    const [isApplying, setIsApplying] = useState(false);
    const [isTrashing, setIsTrashing] = useState(false);
    const [isRestoring, setIsRestoring] = useState(false);
 
-   useEffect(() => setMoveResult(null), [decisions]);
+   const busyRef = useRef(false);
    const clearResults = (): void => {
       setMoveResult(null);
       setRestoreResult(null);
    };
 
-   const apply = async (): Promise<void> => {
+   const apply = async (decisions: Decisions, scanId: string): Promise<void> => {
+      if (busyRef.current) return;
+      busyRef.current = true;
       const api = window.imageDeduplicator;
       setIsApplying(true);
       setRestoreResult(null);
       try {
-         const result = await api.applyMoves(decisions);
+         const result = await api.applyMoves(decisions, scanId);
          setMoveResult(result);
          onRefresh(await api.loadData());
          clearHistory();
@@ -40,11 +41,14 @@ export const useFileWorkflowActions = ({ decisions, clearHistory, notify, onRefr
       } catch (error: unknown) {
          reportError("Couldn’t move marked images", error, "Failed to move marked images");
       } finally {
+         busyRef.current = false;
          setIsApplying(false);
       }
    };
 
    const trash = async (): Promise<void> => {
+      if (busyRef.current) return;
+      busyRef.current = true;
       const api = window.imageDeduplicator;
       setIsTrashing(true);
       try {
@@ -55,11 +59,14 @@ export const useFileWorkflowActions = ({ decisions, clearHistory, notify, onRefr
       } catch (error: unknown) {
          reportError("Couldn’t recycle duplicates", error, "Failed to recycle moved duplicates");
       } finally {
+         busyRef.current = false;
          setIsTrashing(false);
       }
    };
 
    const restore = async (): Promise<void> => {
+      if (busyRef.current) return;
+      busyRef.current = true;
       const api = window.imageDeduplicator;
       setIsRestoring(true);
       try {
@@ -75,6 +82,7 @@ export const useFileWorkflowActions = ({ decisions, clearHistory, notify, onRefr
       } catch (error: unknown) {
          reportError("Couldn’t restore images", error, "Failed to restore moved images");
       } finally {
+         busyRef.current = false;
          setIsRestoring(false);
       }
    };

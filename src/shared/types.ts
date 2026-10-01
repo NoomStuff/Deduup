@@ -8,6 +8,7 @@ export interface ImageItem {
    height: number;
    size: number;
    modifiedAt: number;
+   changedAt: number;
    previewUrl: string;
    fullPreviewUrl: string;
    exists: boolean;
@@ -25,7 +26,6 @@ export interface ImageSet {
 
 export interface ImageSetDecision {
    deletedImages: string[];
-   seen: boolean;
 }
 
 export type Decisions = Record<string, ImageSetDecision>;
@@ -35,6 +35,7 @@ export interface PlannedMove {
    file: string;
    from: string;
    to: string;
+   expectedSource?: { size: number; modifiedAt: number; changedAt?: number };
 }
 
 export interface MoveResult {
@@ -44,6 +45,7 @@ export interface MoveResult {
 }
 
 export interface LoadDataResult {
+   scanId: string;
    groups: ImageSet[];
    decisions: Decisions;
    scanRoot: string | null;
@@ -78,9 +80,12 @@ export interface AppApi {
    onScanProgress: (listener: (progress: ScanProgress) => void) => () => void;
    onScanComplete: (listener: (result: LoadDataResult) => void) => () => void;
    onAppError: (listener: (message: string) => void) => () => void;
-   saveDecisions: (decisions: Decisions) => Promise<void>;
-   saveCurrentSet: (setId: string) => Promise<void>;
-   applyMoves: (decisions: Decisions) => Promise<MoveResult>;
+   onLibraryUpdate: (listener: (result: LoadDataResult) => void) => () => void;
+   onLibraryError: (listener: (message: string) => void) => () => void;
+   setReviewBusy: (busy: boolean) => Promise<void>;
+   saveDecisions: (decisions: Decisions, scanId: string) => Promise<void>;
+   saveCurrentSet: (setId: string, scanId: string) => Promise<void>;
+   applyMoves: (decisions: Decisions, scanId: string) => Promise<MoveResult>;
    getDuplicateFolderStatus: () => Promise<boolean>;
    restoreDuplicateFolder: () => Promise<MoveResult>;
    trashDuplicateFolder: () => Promise<void>;

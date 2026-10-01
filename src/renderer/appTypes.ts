@@ -1,4 +1,4 @@
-import type { ImageItem, ImageSet } from "../shared/types.js";
+import type { Decisions, ImageItem, ImageSet } from "../shared/types.js";
 
 export interface CompareState {
    left: ImageItem;
@@ -9,10 +9,10 @@ export interface CompareState {
 }
 
 export type TravelDirection = "idle" | "left" | "right";
-export type ImageSetState = "open" | "seen" | "someDeleted" | "allDeleted";
+export type ImageSetState = "open" | "someDeleted" | "allDeleted";
 export type ImageDeleteState = "active" | "deleted";
 export type ImageCaptionMode = "none" | "names" | "details";
-export type ConfirmKind = "markSet" | "markBand" | "autoSelectBand" | "applyMoves" | "clearAll" | "trashDuplicate" | "rescan" | "switchFolder";
+export type ConfirmKind = "markSet" | "markBand" | "applyMoves" | "clearAll" | "trashDuplicate" | "switchFolder";
 
 export interface SimilarityBand {
    label: string;
@@ -27,6 +27,8 @@ export interface ConfirmAction {
    confirmLabel: string;
    setId?: string;
    folderPath?: string;
+   decisions?: Decisions;
+   scanId?: string;
 }
 
 export interface MovePreview {
