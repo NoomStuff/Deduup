@@ -5,3 +5,4 @@ release/
 *.tsbuildinfo
 bun.lockb
 package-lock.json
+jobs.json\nlinux-job.log\nverify-job.log
