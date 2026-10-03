@@ -57,13 +57,10 @@ const stop = async (child) => {
    if (process.platform === "win32") spawnSync("taskkill", ["/PID", String(child.pid), "/T", "/F"]);
    else child.kill();
    // SIGTERM is normally enough; escalate so a wedged app can never hang the run.
-   for (const [delay, signal] of [
-      [5000, "SIGKILL"],
-      [5000, "SIGKILL"],
-   ]) {
+   for (let attempt = 0; attempt < 2; attempt++) {
       const exited = await Promise.race([
          new Promise((resolve) => child.once("exit", () => resolve(true))),
-         new Promise((resolve) => setTimeout(() => resolve(false), delay)),
+         new Promise((resolve) => setTimeout(() => resolve(false), 5000)),
       ]);
       if (exited) return;
       child.kill("SIGKILL");
@@ -72,7 +69,10 @@ const stop = async (child) => {
 
 const launchAndScan = async (binary, fixtures) => {
    const profile = await mkdtemp(path.join(os.tmpdir(), "deduup-packaged-"));
-   const child = spawn(binary, [`--user-data-dir=${profile}`, `--scan=${fixtures}`], { stdio: ["ignore", "pipe", "pipe"] });
+   // CI runners cannot give chrome-sandbox its required root ownership, so the
+   // Linux check starts without it; user machines are unaffected.
+   const sandboxArgs = process.platform === "linux" ? ["--no-sandbox"] : [];
+   const child = spawn(binary, [...sandboxArgs, `--user-data-dir=${profile}`, `--scan=${fixtures}`], { stdio: ["ignore", "pipe", "pipe"] });
    let output = "";
    child.stdout.on("data", (chunk) => {
       output += String(chunk);
