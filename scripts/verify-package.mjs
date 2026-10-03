@@ -52,8 +52,26 @@ const windowsWindowShown = (pid) =>
    Number.parseInt(powershellJson(`(Get-Process | Where-Object Id -eq ${pid} | Where-Object { $_.MainWindowTitle }).Count`).trim(), 10) > 0;
 const windowsProcessAlive = (pid) => powershellJson(`if (Get-Process -Id ${pid} -ErrorAction SilentlyContinue) { 'alive' } else { 'gone' }`).trim() === "alive";
 
+const stop = async (child) => {
+   if (child.exitCode !== null || child.signalCode !== null) return;
+   if (process.platform === "win32") spawnSync("taskkill", ["/PID", String(child.pid), "/T", "/F"]);
+   else child.kill();
+   // SIGTERM is normally enough; escalate so a wedged app can never hang the run.
+   for (const [delay, signal] of [
+      [5000, "SIGKILL"],
+      [5000, "SIGKILL"],
+   ]) {
+      const exited = await Promise.race([
+         new Promise((resolve) => child.once("exit", () => resolve(true))),
+         new Promise((resolve) => setTimeout(() => resolve(false), delay)),
+      ]);
+      if (exited) return;
+      child.kill("SIGKILL");
+   }
+};
+
 const launchAndScan = async (binary, fixtures) => {
-   const profile = await mkdtemp(path.join(os.tmpdir(), "twinspot-packaged-"));
+   const profile = await mkdtemp(path.join(os.tmpdir(), "deduup-packaged-"));
    const child = spawn(binary, [`--user-data-dir=${profile}`, `--scan=${fixtures}`], { stdio: ["ignore", "pipe", "pipe"] });
    let output = "";
    child.stdout.on("data", (chunk) => {
@@ -62,32 +80,39 @@ const launchAndScan = async (binary, fixtures) => {
    child.stderr.on("data", (chunk) => {
       output += String(chunk);
    });
+   // A spawn failure surfaces only as an "error" event; without this listener
+   // the run would hang instead of reporting why the app never started.
+   const spawnFailure = new Promise((resolve, reject) =>
+      child.once("error", (error) => reject(new Error(`Could not start the packaged app: ${error.message}\n${output}`)))
+   );
+   spawnFailure.catch(() => undefined);
    try {
-      if (process.platform === "win32") {
-         const deadline = Date.now() + 30_000;
-         while (!windowsWindowShown(child.pid)) {
-            if (!windowsProcessAlive(child.pid)) throw new Error(`The packaged app exited before showing a window.\n${output}`);
-            if (Date.now() > deadline) throw new Error("The packaged app never showed a window.");
-            await new Promise((resolve) => setTimeout(resolve, 500));
+      const ran = (async () => {
+         if (process.platform === "win32") {
+            const deadline = Date.now() + 30_000;
+            while (!windowsWindowShown(child.pid)) {
+               if (!windowsProcessAlive(child.pid)) throw new Error(`The packaged app exited before showing a window.\n${output}`);
+               if (Date.now() > deadline) throw new Error(`The packaged app never showed a window.\n${output}`);
+               await new Promise((resolve) => setTimeout(resolve, 500));
+            }
+            // Give the --scan hook time to hash the fixtures; a broken native
+            // module usually takes the process down here.
+            await new Promise((resolve) => setTimeout(resolve, 8000));
+         } else {
+            // Without a display server there is no window title to poll; staying
+            // alive through the scan is the packaging signal.
+            await new Promise((resolve) => setTimeout(resolve, 12_000));
          }
-         // Give the --scan hook time to hash the fixtures; a broken native
-         // module usually takes the process down here.
-         await new Promise((resolve) => setTimeout(resolve, 8000));
-      } else {
-         // Without a display server there is no window title to poll; staying
-         // alive through the scan is the packaging signal.
-         await new Promise((resolve) => setTimeout(resolve, 12_000));
-      }
-      if (child.exitCode !== null) throw new Error(`The packaged app exited early with code ${child.exitCode}.\n${output}`);
+         if (child.exitCode !== null || child.signalCode !== null)
+            throw new Error(`The packaged app exited early (code ${child.exitCode}, signal ${child.signalCode}).\n${output}`);
+      })();
+      await Promise.race([
+         ran,
+         spawnFailure,
+         new Promise((resolve, reject) => setTimeout(() => reject(new Error(`The packaged-app check timed out after 60s.\n${output}`)), 60_000)),
+      ]);
    } finally {
-      if (child.exitCode === null) {
-         if (process.platform === "win32") spawnSync("taskkill", ["/PID", String(child.pid), "/T", "/F"]);
-         else child.kill();
-      }
-      await new Promise((resolve) => {
-         if (child.exitCode !== null) resolve(undefined);
-         else child.once("exit", () => resolve(undefined));
-      });
+      await stop(child).catch(() => undefined);
       await rm(profile, { recursive: true, force: true }).catch(() => undefined);
    }
 };
