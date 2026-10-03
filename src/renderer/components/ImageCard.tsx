@@ -1,4 +1,4 @@
-import { memo, useEffect, useRef, useState } from "react";
+import { memo, useLayoutEffect, useRef, useState } from "react";
 import type { MouseEvent } from "react";
 import { FolderOpen, ImageOff, Trash2 } from "lucide-react";
 import type { ImageItem } from "../../shared/types.js";
@@ -35,7 +35,9 @@ export const ImageCard = memo(function ImageCard({
    const imgRef = useRef<HTMLImageElement | null>(null);
    const previewUrl = image.previewUrl;
 
-   useEffect(() => {
+   // Checked in a layout effect so preloaded bytes (the preloader has almost
+   // always fetched them) paint on the first render: no skeleton frame, no fade.
+   useLayoutEffect(() => {
       setLoadState("loading");
       // A cached image can finish before React attaches onLoad.
       const img = imgRef.current;
@@ -67,8 +69,8 @@ export const ImageCard = memo(function ImageCard({
          )}
          {isComparePick && <span className="imageCard__chip imageCard__chip--compare">1/2 picked</span>}
          {state === "deleted" && isAvailable && (
-            <span className="imageCard__chip imageCard__chip--marked">
-               <Trash2 aria-hidden="true" /> Marked
+            <span className="imageCard__chip imageCard__chip--discarded">
+               <Trash2 aria-hidden="true" /> Discarded
             </span>
          )}
          {isAvailable ? (
@@ -76,7 +78,7 @@ export const ImageCard = memo(function ImageCard({
                {loadState === "loading" && <span className="skeleton imageCard__skeleton" aria-hidden="true" />}
                <img
                   alt={image.file}
-                  className={loadState === "loaded" ? "imageCard__img imageCard__img--loaded" : "imageCard__img"}
+                  className="imageCard__img"
                   decoding="async"
                   draggable={false}
                   loading="lazy"

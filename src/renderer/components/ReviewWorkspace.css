@@ -286,6 +286,13 @@
    height: 16px;
 }
 
+.filmstripWrap {
+   position: relative;
+   display: flex;
+   flex: 1;
+   min-width: 0;
+}
+
 .filmstrip {
    display: flex;
    align-items: flex-end;
@@ -299,18 +306,32 @@
    padding: 4px 6px 10px;
 }
 
-/* Fade the tiles only on sides that actually hide content; the gradient is
-   horizontal, so the scrollbar keeps full strength. */
-.filmstrip--fade-left {
-   mask-image: linear-gradient(to right, transparent 0, #000 26px, #000 100%);
+/* Edge fades are overlays that stop above the scrollbar, so tiles hint at
+   hidden content while the scrollbar itself stays at full strength. */
+.filmstrip__fade {
+   position: absolute;
+   top: 0;
+   bottom: 10px;
+   z-index: 1;
+   width: 26px;
+   pointer-events: none;
+   opacity: 0;
+   transition: opacity 160ms ease-out;
 }
 
-.filmstrip--fade-right {
-   mask-image: linear-gradient(to right, #000 0, #000 calc(100% - 26px), transparent 100%);
+.filmstrip__fade--left {
+   left: 0;
+   background: linear-gradient(to right, var(--bg) 20%, transparent);
 }
 
-.filmstrip--fade-left.filmstrip--fade-right {
-   mask-image: linear-gradient(to right, transparent 0, #000 26px, #000 calc(100% - 26px), transparent 100%);
+.filmstrip__fade--right {
+   right: 0;
+   background: linear-gradient(to left, var(--bg) 20%, transparent);
+}
+
+.filmstripWrap--fade-left .filmstrip__fade--left,
+.filmstripWrap--fade-right .filmstrip__fade--right {
+   opacity: 1;
 }
 
 .filmstrip::-webkit-scrollbar {
@@ -328,13 +349,16 @@
 }
 
 .similarityBand {
+   position: relative;
    display: flex;
+   /* The level box stays centered on the tile row. */
    align-items: center;
    gap: 9px;
    flex: none;
 }
 
 .similarityBand__tag {
+   position: relative;
    display: grid;
    place-items: center;
    height: 34px;
@@ -345,14 +369,13 @@
    font-size: 12px;
    font-weight: 800;
    font-variant-numeric: tabular-nums;
-   transition:
-      background 130ms ease,
-      transform 200ms var(--bounce);
+   /* No hover lift: the connector ties the box to the tile baseline, so the
+      box cannot move without detaching the curve from the line. */
+   transition: background 130ms ease;
 }
 
 .similarityBand__tag:hover {
    background: color-mix(in srgb, var(--band-color) 28%, transparent);
-   transform: translateY(-1px);
 }
 
 .similarityBand__items {
@@ -364,6 +387,11 @@
    padding: 0 1px 8px;
 }
 
+/* The similarity line, plus a curve that leaves the tile baseline and meets
+   the level box at its bottom middle. The connector lives inside the box so
+   its arc sits on the box's horizontal centerline and its horizontal run
+   continues into the line under the tiles. Hovering the box lights the line
+   and the curve together. */
 .similarityBand__items::after {
    content: "";
    position: absolute;
@@ -374,6 +402,27 @@
    border-radius: var(--radius-lg);
    background: var(--band-color);
    opacity: 0.45;
+   transition: opacity 130ms ease;
+   pointer-events: none;
+}
+
+.similarityBand__link {
+   position: absolute;
+   left: 50%;
+   right: -10px;
+   bottom: -12px;
+   height: 12px;
+   border-left: 2px solid var(--band-color);
+   border-bottom: 2px solid var(--band-color);
+   border-bottom-left-radius: 12px;
+   opacity: 0.45;
+   transition: opacity 130ms ease;
+   pointer-events: none;
+}
+
+.similarityBand:has(.similarityBand__tag:hover) .similarityBand__items::after,
+.similarityBand:has(.similarityBand__tag:hover) .similarityBand__link {
+   opacity: 1;
 }
 
 .filmstrip__item {

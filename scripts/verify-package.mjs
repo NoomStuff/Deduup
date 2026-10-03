@@ -1,0 +1,97 @@
+import { spawn, spawnSync } from "node:child_process";
+import { existsSync } from "node:fs";
+import { mkdtemp, rm } from "node:fs/promises";
+import os from "node:os";
+import path from "node:path";
+import process from "node:process";
+
+// Verifies the packaged app in release/win-unpacked (or the mac/linux unpacked
+// bundle) before it ships: Windows version resources must be branded, and the
+// app must start, scan a small fixture library through the bundled sharp, and
+// stay alive. Deeper flows are covered by the unpackaged smoke tests.
+const productName = "Deduup";
+
+const executablePath = () => {
+   const base =
+      process.platform === "win32"
+         ? "release/win-unpacked"
+         : process.platform === "linux"
+           ? process.arch === "arm64"
+              ? "release/linux-arm64-unpacked"
+              : "release/linux-unpacked"
+           : process.arch === "arm64"
+             ? "release/mac-arm64"
+             : "release/mac";
+   const binary =
+      process.platform === "darwin" ? path.join(base, `${productName}.app`, "Contents", "MacOS", productName) : path.join(base, `${productName}.exe`);
+   if (!existsSync(binary)) throw new Error(`Missing packaged executable: ${binary}`);
+   return binary;
+};
+
+const powershellJson = (script) => {
+   const result = spawnSync("powershell", ["-NoProfile", "-Command", script], { encoding: "utf8" });
+   if (result.status !== 0 || result.stdout === null) throw new Error(`PowerShell failed: ${result.stderr}`);
+   return result.stdout;
+};
+
+const assertWindowsBranding = (binary) => {
+   const metadata = JSON.parse(powershellJson(`(Get-Item -LiteralPath '${binary.replace(/'/gu, "''")}').VersionInfo | ConvertTo-Json -Compress`));
+   if (metadata.FileDescription !== productName || metadata.ProductName !== productName) {
+      throw new Error(`Unbranded Windows executable: FileDescription=${metadata.FileDescription}, ProductName=${metadata.ProductName}`);
+   }
+   if (Object.values(metadata).some((value) => typeof value === "string" && /electron/i.test(value))) {
+      throw new Error(`Executable metadata still mentions Electron: ${JSON.stringify(metadata)}`);
+   }
+};
+
+const windowsWindowShown = (pid) =>
+   Number.parseInt(powershellJson(`(Get-Process | Where-Object Id -eq ${pid} | Where-Object { $_.MainWindowTitle }).Count`).trim(), 10) > 0;
+const windowsProcessAlive = (pid) => powershellJson(`if (Get-Process -Id ${pid} -ErrorAction SilentlyContinue) { 'alive' } else { 'gone' }`).trim() === "alive";
+
+const launchAndScan = async (binary, fixtures) => {
+   const profile = await mkdtemp(path.join(os.tmpdir(), "twinspot-packaged-"));
+   const child = spawn(binary, [`--user-data-dir=${profile}`, `--scan=${fixtures}`], { stdio: ["ignore", "pipe", "pipe"] });
+   let output = "";
+   child.stdout.on("data", (chunk) => {
+      output += String(chunk);
+   });
+   child.stderr.on("data", (chunk) => {
+      output += String(chunk);
+   });
+   try {
+      if (process.platform === "win32") {
+         const deadline = Date.now() + 30_000;
+         while (!windowsWindowShown(child.pid)) {
+            if (!windowsProcessAlive(child.pid)) throw new Error(`The packaged app exited before showing a window.\n${output}`);
+            if (Date.now() > deadline) throw new Error("The packaged app never showed a window.");
+            await new Promise((resolve) => setTimeout(resolve, 500));
+         }
+         // Give the --scan hook time to hash the fixtures; a broken native
+         // module usually takes the process down here.
+         await new Promise((resolve) => setTimeout(resolve, 8000));
+      } else {
+         // Without a display server there is no window title to poll; staying
+         // alive through the scan is the packaging signal.
+         await new Promise((resolve) => setTimeout(resolve, 12_000));
+      }
+      if (child.exitCode !== null) throw new Error(`The packaged app exited early with code ${child.exitCode}.\n${output}`);
+   } finally {
+      if (child.exitCode === null) {
+         if (process.platform === "win32") spawnSync("taskkill", ["/PID", String(child.pid), "/T", "/F"]);
+         else child.kill();
+      }
+      await new Promise((resolve) => {
+         if (child.exitCode !== null) resolve(undefined);
+         else child.once("exit", () => resolve(undefined));
+      });
+      await rm(profile, { recursive: true, force: true }).catch(() => undefined);
+   }
+};
+
+const binary = executablePath();
+if (process.platform === "win32") assertWindowsBranding(binary);
+const fixtures = path.resolve(".cache/verify-package/fixtures");
+const generated = spawnSync(process.execPath, ["scripts/makeFixtures.mjs", fixtures], { stdio: "inherit" });
+if (generated.status !== 0 || !existsSync(fixtures)) throw new Error("Fixture generation failed.");
+await launchAndScan(binary, fixtures);
+console.log(`Packaged app at ${binary} launched, scanned, and closed cleanly.`);

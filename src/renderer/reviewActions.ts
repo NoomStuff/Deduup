@@ -16,11 +16,11 @@ interface ReviewActionOptions {
    updateDecisions: (updater: (current: Decisions) => Decisions) => void;
 }
 
-const availableImagesDecision = (imageSet: ImageSet, source: Decisions, markForRemoval: boolean): ImageSetDecision => {
+const availableImagesDecision = (imageSet: ImageSet, source: Decisions, discard: boolean): ImageSetDecision => {
    const deletedPaths = getDeletedImagePaths(getDecision(source, imageSet.id));
    for (const image of imageSet.images) {
       if (image.sourceStatus !== "available") continue;
-      if (markForRemoval) deletedPaths.add(image.originalPath);
+      if (discard) deletedPaths.add(image.originalPath);
       else deletedPaths.delete(image.originalPath);
    }
    return getImageSetDecision(imageSet, deletedPaths);
@@ -56,15 +56,15 @@ export const countBandSets = (groups: ImageSet[], baseSet: ImageSet): number => 
 
 /**
  * How many sets in the band hold choices that band-autoselect would overwrite,
- * so callers can confirm before re-picking them. Sets whose marks already match
+ * so callers can confirm before re-picking them. Sets whose discards already match
  * the autoselect pick do not count.
  */
-/** How many sets hold choices that marking the whole band would change. */
-export const countBandMarkOverrides = (groups: ImageSet[], decisions: Decisions, baseSet: ImageSet): number =>
+
+export const countBandDiscardOverrides = (groups: ImageSet[], decisions: Decisions, baseSet: ImageSet): number =>
    getBandSets(groups, baseSet).filter((imageSet) => {
-      const markedCount = getDeletedImagePaths(getDecision(decisions, imageSet.id)).size;
+      const discardedCount = getDeletedImagePaths(getDecision(decisions, imageSet.id)).size;
       const availableCount = imageSet.images.filter((image) => image.sourceStatus === "available").length;
-      return decisions[imageSet.id] !== undefined && markedCount < availableCount;
+      return decisions[imageSet.id] !== undefined && discardedCount < availableCount;
    }).length;
 
 export const createReviewActions = ({ currentIndex, groups, goTo, updateDecisions }: ReviewActionOptions) => {
@@ -155,8 +155,8 @@ export const createReviewActions = ({ currentIndex, groups, goTo, updateDecision
       clearImageSetChoices: (imageSet: ImageSet): void =>
          updateDecisions((existing) => setImageSetDecision(existing, imageSet.id, clearedDecision(imageSet, existing))),
       clearSimilarityBandChoices: (imageSet: ImageSet): void => updateSimilarityBand(imageSet, clearedDecision, (set, source) => source[set.id] !== undefined),
-      markImageSet: (imageSet: ImageSet): void => decide(imageSet, (set, source) => availableImagesDecision(set, source, true)),
-      markSimilarityBand: (imageSet: ImageSet): void => updateSimilarityBand(imageSet, (set, source) => availableImagesDecision(set, source, true)),
+      discardSet: (imageSet: ImageSet): void => decide(imageSet, (set, source) => availableImagesDecision(set, source, true)),
+      discardBand: (imageSet: ImageSet): void => updateSimilarityBand(imageSet, (set, source) => availableImagesDecision(set, source, true)),
       toggleImageRemoval,
       toggleOnlyImageKept,
       keepComparedImage: (imageSet: ImageSet, keep: ImageItem, other: ImageItem, advance: boolean): void => {

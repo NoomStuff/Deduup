@@ -66,25 +66,25 @@ export const getMovePreview = (imageSets: ImageSet[], decisions: Decisions): Mov
 export const getDuplicatePreview = (imageSets: ImageSet[], decisions: Decisions): MovePreview[] => getMovePreviewByStatus(imageSets, decisions, "movedByApp");
 
 export const getFileWorkflowState = (imageSets: ImageSet[], decisions: Decisions): FileWorkflowState => {
-   const state: FileWorkflowState = { markedCount: 0, readyToMoveCount: 0, movedCount: 0, recycledCount: 0, missingCount: 0 };
+   const state: FileWorkflowState = { discardedCount: 0, readyToMoveCount: 0, movedCount: 0, recycledCount: 0, missingCount: 0 };
    for (const imageSet of imageSets) {
-      const markedPaths = getDeletedImagesForSet(imageSet, getDecision(decisions, imageSet.id));
+      const discardedPaths = getDeletedImagesForSet(imageSet, getDecision(decisions, imageSet.id));
       for (const image of imageSet.images) {
          if (image.sourceStatus === "movedByApp") {
-            state.markedCount += 1;
+            state.discardedCount += 1;
             state.movedCount += 1;
             continue;
          }
          if (image.sourceStatus === "recycledByApp") {
-            state.markedCount += 1;
+            state.discardedCount += 1;
             state.recycledCount += 1;
             continue;
          }
-         if (!markedPaths.has(image.originalPath)) {
+         if (!discardedPaths.has(image.originalPath)) {
             continue;
          }
 
-         state.markedCount += 1;
+         state.discardedCount += 1;
          if (image.sourceStatus === "available") {
             state.readyToMoveCount += 1;
          } else {
@@ -167,9 +167,9 @@ export const getResumeIndex = (groups: ImageSet[], currentSetId: string | null):
 };
 
 /**
- * The auto-keep pick: the largest copy by pixel count, then by file size, then by
+ * The auto-keep pick: the largest image by pixel count, then by file size, then by
  * name for stability. Deliberately ignores filenames beyond tie-breaking so the
- * choice is always explainable as "kept the largest copy".
+ * choice is always explainable as "kept the largest image".
  */
 export const getLargestImage = (imageSet: ImageSet): ImageItem => {
    const sortedImages = [...imageSet.images].sort((a, b) => b.width * b.height - a.width * a.height || b.size - a.size || a.file.localeCompare(b.file));
@@ -213,21 +213,21 @@ interface ConfirmDetails {
 export const createConfirmAction = (kind: ConfirmKind, details: ConfirmDetails = {}): ConfirmAction => {
    const { count = 0, destination = "the managed duplicate folder", folderPath } = details;
 
-   if (kind === "markSet") {
+   if (kind === "discardSet") {
       return {
          kind,
-         title: "Mark this set for removal?",
-         body: "Every image in the current set will be marked for removal. You can undo this before anything moves.",
-         confirmLabel: "Mark set",
+         title: "Discard this set?",
+         body: "Every image in the current set will be discarded. You can undo this before anything moves.",
+         confirmLabel: "Discard set",
       };
    }
 
-   if (kind === "markBand") {
+   if (kind === "discardBand") {
       return {
          kind,
-         title: "Mark this band for removal?",
-         body: `Every available image in ${count} set${count === 1 ? "" : "s"} will be marked for removal, including sets you already marked. You can undo this before anything moves.`,
-         confirmLabel: "Mark band",
+         title: "Discard this band?",
+         body: `Every available image in ${count} set${count === 1 ? "" : "s"} will be discarded, including images you already discarded. You can undo this before anything moves.`,
+         confirmLabel: "Discard band",
       };
    }
 
@@ -235,7 +235,7 @@ export const createConfirmAction = (kind: ConfirmKind, details: ConfirmDetails =
       return {
          kind,
          title: `Move ${count} image${count === 1 ? "" : "s"} to the duplicate folder?`,
-         body: `Marked images move into ${destination} and stay there, recoverable, until you recycle the folder.`,
+         body: `Discarded images move into ${destination} and stay there, recoverable, until you recycle the folder.`,
          confirmLabel: `Move ${count}`,
       };
    }
@@ -253,7 +253,7 @@ export const createConfirmAction = (kind: ConfirmKind, details: ConfirmDetails =
       return {
          kind,
          title: "Scan a different folder?",
-         body: "Opening a new folder replaces the current scan and all marks. Source files are never touched.",
+         body: "Opening a new folder replaces the current scan and all discard choices. Source files are never touched.",
          confirmLabel: "Scan folder",
          ...(folderPath === undefined ? {} : { folderPath }),
       };
@@ -262,7 +262,7 @@ export const createConfirmAction = (kind: ConfirmKind, details: ConfirmDetails =
    return {
       kind,
       title: "Clear every choice?",
-      body: "All marks in this scan will be cleared. Source files stay untouched.",
+      body: "All discard choices in this scan will be cleared. Source files stay untouched.",
       confirmLabel: "Clear all",
    };
 };

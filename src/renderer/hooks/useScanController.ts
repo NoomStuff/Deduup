@@ -63,12 +63,12 @@ export const useScanController = ({ notify, onScanApplied, reportError }: ScanCo
          // The scan can outlive the cancel click: if saving already happened on
          // the main side, its result is authoritative and still gets applied.
          if (clearCancelRequest()) {
-            notify({ tone: "info", title: "Scan finished", message: "The scan completed just as the cancel arrived, so its results are shown." });
+            notify({ tone: "info", title: "Scan finished", message: "The cancel arrived after the scan completed." });
          }
          onScanApplied(result);
       } catch (error: unknown) {
          if (cancelRequestedRef.current) {
-            notify({ tone: "info", title: "Scan cancelled", message: "Nothing was changed; the saved review is intact." });
+            notify({ tone: "info", title: "Scan cancelled", message: "The saved review is untouched." });
          } else {
             reportError("Scan failed", error, "Failed to scan the selected folder");
          }

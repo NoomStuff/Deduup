@@ -1,9 +1,10 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { MouseEvent } from "react";
-import type { FileActionStatus, ImageSet, ImageItem, LoadDataResult } from "../shared/types.js";
+import type { AvailableUpdate, FileActionStatus, ImageSet, ImageItem, LoadDataResult, UpdateStatus } from "../shared/types.js";
 import type { ConfirmAction, ImageCaptionMode, ScanWarnings, TravelDirection } from "./appTypes.js";
 import type { Commands, ShortcutOverrides } from "./commands.js";
 import { loadShortcutOverrides, saveShortcutOverrides, ShortcutsContext, useCommands } from "./commands.js";
+import { AboutPanel } from "./components/AboutPanel.js";
 import { CompareOverlay } from "./components/CompareOverlay.js";
 import { ConfirmDialog } from "./components/ConfirmDialog.js";
 import { FinalReview } from "./components/FinalReview.js";
@@ -15,7 +16,7 @@ import { ReviewContextMenu } from "./components/ReviewContextMenu.js";
 import { ReviewHintBar } from "./components/ReviewHintBar.js";
 import { ReviewWorkspace } from "./components/ReviewWorkspace.js";
 import { SettingsPanel } from "./components/SettingsPanel.js";
-import { TitleBar } from "./components/TitleBar.js";
+import { TitleBar, type UpdateChipActions } from "./components/TitleBar.js";
 import { TooltipBubble } from "./components/TooltipBubble.js";
 import { LoadingScreen, ScanWarningsBanner, ScanningScreen, StartupScreen } from "./components/AppStatusScreens.js";
 import { useCompareController } from "./hooks/useCompareController.js";
@@ -30,7 +31,7 @@ import { useReviewContextMenu } from "./hooks/useReviewContextMenu.js";
 import { useReviewPersistence } from "./hooks/useReviewPersistence.js";
 import { useScanController } from "./hooks/useScanController.js";
 import { useTooltip } from "./hooks/useTooltip.js";
-import { countBandMarkOverrides, countBandSets, createReviewActions } from "./reviewActions.js";
+import { countBandDiscardOverrides, countBandSets, createReviewActions } from "./reviewActions.js";
 import {
    createConfirmAction,
    emptyImageSetDecision,
@@ -75,6 +76,7 @@ export const App = () => {
    const [menu, setMenu] = useState<string | null>(null);
    const [isSettingsOpen, setIsSettingsOpen] = useState(false);
    const [isInfoOpen, setIsInfoOpen] = useState(false);
+   const [isAboutOpen, setIsAboutOpen] = useState(false);
    const [confirmMajorActions, setConfirmMajorActions] = usePreference(preferenceKeys.confirmMajorActions, true);
    const [wrapImageShelf, setWrapImageShelf] = usePreference(preferenceKeys.wrapImageShelf, true);
    const [showStartupOnLaunch, setShowStartupOnLaunch] = usePreference(preferenceKeys.showStartupOnLaunch, true);
@@ -84,6 +86,8 @@ export const App = () => {
    const [isStartupOpen, setIsStartupOpen] = useState(showStartupOnLaunch);
    const { tooltip, hideTooltip, getTooltipProps } = useTooltip();
    const { notifications, notify, dismissNotification } = useNotifications();
+   const [availableUpdate, setAvailableUpdate] = useState<AvailableUpdate | null>(null);
+   const [updateStatus, setUpdateStatus] = useState<UpdateStatus | null>(null);
 
    useEffect(() => {
       saveShortcutOverrides(shortcutOverrides);
@@ -123,6 +127,46 @@ export const App = () => {
       },
       [notify]
    );
+
+   // One update check per launch once the app is up; failures stay silent, the
+   // chip only appears when a newer release exists.
+   useEffect(() => {
+      if (loading) return undefined;
+      let active = true;
+      void window.imageDeduplicator
+         .checkForUpdate()
+         .then((update) => {
+            if (active) setAvailableUpdate(update);
+         })
+         .catch(() => undefined);
+      return () => {
+         active = false;
+      };
+   }, [loading]);
+   useEffect(() => window.imageDeduplicator.onUpdateStatus(setUpdateStatus), []);
+
+   const updateActions = useMemo<UpdateChipActions>(
+      () => ({
+         download: () => {
+            if (availableUpdate === null) return;
+            void window.imageDeduplicator.downloadUpdate(availableUpdate.version).catch(() => undefined);
+         },
+         restart: () => {
+            void window.imageDeduplicator
+               .restartToUpdate()
+               .catch((error: unknown) => reportError("Couldn’t apply the update", error, "Failed to restart into the update"));
+         },
+         release: () => {
+            if (availableUpdate === null) return;
+            void window.imageDeduplicator.openExternal(availableUpdate.url).catch(() => undefined);
+         },
+         reveal: () => {
+            void window.imageDeduplicator.revealUpdateDownload().catch(() => undefined);
+         },
+      }),
+      [availableUpdate, reportError]
+   );
+
    const refreshFileState = useCallback((result: LoadDataResult): void => {
       setGroups(result.groups);
       setDuplicateFolderHasContent(result.duplicateFolderHasContent);
@@ -288,8 +332,8 @@ export const App = () => {
       clearAllChoices,
       clearImageSetChoices,
       clearSimilarityBandChoices,
-      markImageSet,
-      markSimilarityBand,
+      discardSet,
+      discardBand,
       toggleImageRemoval,
       toggleOnlyImageKept,
       keepComparedImage,
@@ -307,21 +351,21 @@ export const App = () => {
       autoSelectBand(imageSet);
    };
 
-   const requestMarkBand = (imageSet: ImageSet): void => {
-      const overrides = countBandMarkOverrides(groups, decisions, imageSet);
+   const requestDiscardBand = (imageSet: ImageSet): void => {
+      const overrides = countBandDiscardOverrides(groups, decisions, imageSet);
       if (confirmMajorActions && overrides > 0) {
-         setConfirmAction({ ...createConfirmAction("markBand", { count: countBandSets(groups, imageSet) }), setId: imageSet.id });
+         setConfirmAction({ ...createConfirmAction("discardBand", { count: countBandSets(groups, imageSet) }), setId: imageSet.id });
          return;
       }
-      markSimilarityBand(imageSet);
+      discardBand(imageSet);
    };
 
-   const requestMarkImageSet = (imageSet: ImageSet): void => {
+   const requestDiscardSet = (imageSet: ImageSet): void => {
       if (confirmMajorActions) {
-         setConfirmAction({ ...createConfirmAction("markSet"), setId: imageSet.id });
+         setConfirmAction({ ...createConfirmAction("discardSet"), setId: imageSet.id });
          return;
       }
-      markImageSet(imageSet);
+      discardSet(imageSet);
    };
 
    const confirmClearAllDecisions = (): void => {
@@ -421,11 +465,11 @@ export const App = () => {
       if (imageSet !== undefined && image !== undefined) toggleImageRemoval(imageSet, image, false);
    };
 
-   // The hint bar retires itself after the first mark, so it never nags.
-   const hasAnyMarks = useMemo(() => Object.values(decisions).some((decision) => decision.deletedImages.length > 0), [decisions]);
+   // The hint bar retires itself after the first discard, so it never nags.
+   const hasAnyDiscards = useMemo(() => Object.values(decisions).some((decision) => decision.deletedImages.length > 0), [decisions]);
    useEffect(() => {
-      if (!reviewHintsDismissed && hasAnyMarks) setReviewHintsDismissed(true);
-   }, [hasAnyMarks, reviewHintsDismissed, setReviewHintsDismissed]);
+      if (!reviewHintsDismissed && hasAnyDiscards) setReviewHintsDismissed(true);
+   }, [hasAnyDiscards, reviewHintsDismissed, setReviewHintsDismissed]);
 
    const reviewCommandsActive = reviewActive && compare === null;
 
@@ -460,10 +504,10 @@ export const App = () => {
             enabled: () => groups.length > 0 && !isScanning && !fileOperationActive,
             run: () => setConfirmAction(createConfirmAction("clearAll")),
          },
-         markSet: {
+         discardSet: {
             enabled: () => reviewCommandsActive,
             run: () => {
-               if (currentSet !== null) requestMarkImageSet(currentSet);
+               if (currentSet !== null) requestDiscardSet(currentSet);
             },
          },
          autoselectSet: {
@@ -488,7 +532,7 @@ export const App = () => {
             enabled: () => reviewCommandsActive && selectedImage !== null,
             run: () => {
                if (currentSet === null || selectedImage === null) return;
-               // Two copies compare directly; with more, the user picks the partner.
+               // Two images compare directly; with more, the user picks the partner.
                const availableCount = currentSet.images.filter((image) => image.sourceStatus === "available").length;
                if (availableCount > 2) beginCompare(selectedImage);
                else openAdjacentCompare(selectedImage);
@@ -514,7 +558,7 @@ export const App = () => {
                if (currentSet !== null && image !== undefined) toggleImageRemoval(currentSet, image, event?.ctrlKey === true);
             },
          },
-         // While a compare is open the arrows keep the shown copy instead.
+         // While a compare is open the arrows keep the shown image instead.
          previousSet: {
             enabled: () => reviewActive,
             run: () => {
@@ -549,6 +593,22 @@ export const App = () => {
             enabled: () => !loading && !isScanning && !isFinalReviewOpen,
             run: () => setIsSettingsOpen(true),
          },
+         about: {
+            enabled: () => !loading && !isScanning && !isFinalReviewOpen,
+            run: () => {
+               setIsSettingsOpen(false);
+               setIsInfoOpen(false);
+               setIsAboutOpen(true);
+            },
+         },
+         releasesPage: {
+            enabled: () => !loading && !isScanning && !isFinalReviewOpen,
+            run: () => {
+               void window.imageDeduplicator
+                  .openExternal("https://github.com/NoomStuff/Deduup/releases")
+                  .catch((error: unknown) => reportError("Couldn’t open the releases page", error, "Failed to open the releases page"));
+            },
+         },
       };
    })();
 
@@ -562,6 +622,7 @@ export const App = () => {
       isFinalReviewOpen ||
       isSettingsOpen ||
       isInfoOpen ||
+      isAboutOpen ||
       isStartupOpen;
    useCommands(commands, commandsBlocked, shortcutOverrides);
 
@@ -582,7 +643,8 @@ export const App = () => {
       compare === null &&
       !isFinalReviewOpen &&
       !isSettingsOpen &&
-      !isInfoOpen;
+      !isInfoOpen &&
+      !isAboutOpen;
 
    const reviewBusy =
       loading ||
@@ -596,7 +658,8 @@ export const App = () => {
       comparePick !== null ||
       isFinalReviewOpen ||
       isSettingsOpen ||
-      isInfoOpen;
+      isInfoOpen ||
+      isAboutOpen;
    useEffect(() => {
       void window.imageDeduplicator
          .setReviewBusy(reviewBusy)
@@ -626,11 +689,11 @@ export const App = () => {
 
       const targetSet = confirmAction.setId === undefined ? currentSet : (groups.find((imageSet) => imageSet.id === confirmAction.setId) ?? null);
       switch (confirmAction.kind) {
-         case "markSet":
-            if (targetSet !== null) markImageSet(targetSet);
+         case "discardSet":
+            if (targetSet !== null) discardSet(targetSet);
             break;
-         case "markBand":
-            if (targetSet !== null) markSimilarityBand(targetSet);
+         case "discardBand":
+            if (targetSet !== null) discardBand(targetSet);
             break;
          case "applyMoves":
             if (confirmAction.decisions !== undefined && confirmAction.scanId !== undefined) void applyMoves(confirmAction.decisions, confirmAction.scanId);
@@ -654,7 +717,12 @@ export const App = () => {
    return (
       <ShortcutsContext.Provider value={shortcutOverrides}>
          <div className="app">
-            <TitleBar title={isScanning ? getFolderName(scanningPath) : folderName} />
+            <TitleBar
+               title={isScanning ? getFolderName(scanningPath) : folderName}
+               update={availableUpdate}
+               updateActions={updateActions}
+               updateStatus={updateStatus}
+            />
             <MenuBar
                canRedo={canRedo}
                canUndo={canUndo}
@@ -708,7 +776,6 @@ export const App = () => {
                         similarityBands={similarityBands}
                         travelDirection={travelDirection}
                         wrapShelf={wrapImageShelf}
-                        onAutoselectSet={() => autoSelectImageSet(currentSet)}
                         onBeginComparePick={() => {
                            if (selectedImage !== null) beginCompare(selectedImage);
                         }}
@@ -716,6 +783,10 @@ export const App = () => {
                         onCompareSelected={() => {
                            if (selectedImage !== null) openAdjacentCompare(selectedImage);
                         }}
+                        onDiscardSelected={() => {
+                           if (selectedImage !== null) toggleImageRemoval(currentSet, selectedImage, false);
+                        }}
+                        onDiscardSet={() => requestDiscardSet(currentSet)}
                         onImageClick={handleImageClick}
                         onImageContextMenu={(event, image) => {
                            if (event.shiftKey) {
@@ -727,10 +798,6 @@ export const App = () => {
                         }}
                         onImageDoubleClick={handleImageDoubleClick}
                         onImageSetContextMenu={openSetContextMenu}
-                        onMarkSelected={() => {
-                           if (selectedImage !== null) toggleImageRemoval(currentSet, selectedImage, false);
-                        }}
-                        onMarkSet={() => requestMarkImageSet(currentSet)}
                         onNavigate={goTo}
                         onOpenContextMenu={setContextMenu}
                         onOpenSetFolder={() => void openFolder(currentSet.folderPath)}
@@ -760,6 +827,8 @@ export const App = () => {
 
             {isInfoOpen && <HelpPanel onClose={() => setIsInfoOpen(false)} />}
 
+            {isAboutOpen && <AboutPanel onClose={() => setIsAboutOpen(false)} />}
+
             {contextMenu !== null && contextSet !== null && (
                <ReviewContextMenu
                   context={contextMenu}
@@ -773,8 +842,8 @@ export const App = () => {
                   onClearImageSet={() => clearImageSetChoices(contextSet)}
                   onClearBand={() => clearSimilarityBandChoices(contextSet)}
                   onClose={closeContextMenu}
-                  onMarkImageSet={() => requestMarkImageSet(contextSet)}
-                  onMarkBand={() => requestMarkBand(contextSet)}
+                  onDiscardSet={() => requestDiscardSet(contextSet)}
+                  onDiscardBand={() => requestDiscardBand(contextSet)}
                   onOpenImage={() => {
                      if (contextImage !== null) void openImage(contextImage);
                   }}

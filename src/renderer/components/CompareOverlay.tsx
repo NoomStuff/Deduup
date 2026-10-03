@@ -77,8 +77,8 @@ export const CompareOverlay = ({ compare, onClose, onKeep }: { compare: CompareS
          <div className="compare__header">
             <div>
                <p className="overlayLabel">Compare</p>
-               <h2 id="compare-title">Pick the copy to keep</h2>
-               <p className="compare__hint">Choose between these two copies. Other images stay unchanged. Move across to wipe, scroll to zoom, drag to pan.</p>
+               <h2 id="compare-title">Pick the image to keep</h2>
+               <p className="compare__hint">Choose between these two images. The others stay unchanged. Move across to wipe, scroll to zoom, drag to pan.</p>
             </div>
             <button aria-label="Close comparison" className="iconButton" onClick={onClose} type="button">
                <X aria-hidden="true" />

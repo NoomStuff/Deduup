@@ -217,20 +217,11 @@
    gap: 16px;
 }
 
-.startup__mark {
-   display: grid;
-   place-items: center;
+.startup__mark img {
+   display: block;
    width: 52px;
    height: 52px;
-   border: 1px solid rgba(var(--accent-rgb), 0.4);
    border-radius: var(--radius-md);
-   background: rgba(var(--accent-rgb), 0.1);
-   color: var(--accent);
-}
-
-.startup__mark svg {
-   width: 26px;
-   height: 26px;
 }
 
 .startup__heading h1 {

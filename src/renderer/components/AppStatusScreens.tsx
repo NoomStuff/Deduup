@@ -1,5 +1,5 @@
 import type { DragEventHandler } from "react";
-import { FolderOpen, Image as ImageIcon, LoaderCircle, Redo2, TriangleAlert, X } from "lucide-react";
+import { FolderOpen, LoaderCircle, Redo2, TriangleAlert, X } from "lucide-react";
 import type { ScanProgress } from "../../shared/types.js";
 import type { ScanWarnings } from "../appTypes.js";
 import { useBindingDisplay } from "../commands.js";
@@ -147,12 +147,12 @@ const StartupScreenBody = ({
       )}
       <section aria-labelledby="startup-title" className="startup__panel">
          <div className="startup__heading">
-            <span className="startup__mark">
-               <ImageIcon aria-hidden="true" />
+            <span className="startup__mark" aria-hidden="true">
+               <img alt="" src="icon.png" />
             </span>
             <div>
-               <h1 id="startup-title">Image Deduplicator</h1>
-               <p>Find the copies worth removing. Nothing moves until you say so.</p>
+               <h1 id="startup-title">Deduup</h1>
+               <p>Clear identical files with ease. Nothing moves until you say so.</p>
             </div>
          </div>
          <div className="startup__actions">

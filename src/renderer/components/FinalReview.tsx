@@ -92,10 +92,10 @@ export const FinalReview = ({
       workflow.readyToMoveCount > 0
          ? `${workflow.readyToMoveCount} image${workflow.readyToMoveCount === 1 ? "" : "s"} ready to move`
          : workflow.movedCount > 0
-           ? "Everything marked is in the duplicate folder"
+           ? "Everything discarded is in the duplicate folder"
            : workflow.recycledCount > 0
              ? "The duplicate folder was recycled"
-             : "Nothing is marked yet";
+             : "Nothing is discarded yet";
 
    return (
       <OverlayPanel
@@ -160,7 +160,7 @@ export const FinalReview = ({
                   <div>
                      <strong>
                         {workflow.movedCount > 0
-                           ? "All marked images are in the duplicate folder."
+                           ? "All discarded images are in the duplicate folder."
                            : workflow.recycledCount > 0
                              ? "The duplicate folder was moved to the Recycle Bin."
                              : "Your originals are untouched."}
@@ -170,7 +170,7 @@ export const FinalReview = ({
                            ? "Undo the move, or recycle the folder when you are happy."
                            : workflow.recycledCount > 0
                              ? "This can no longer be undone from the app."
-                             : "Go back to the review and mark the copies you don’t want."}
+                             : "Go back to the review and discard the images you don’t want."}
                      </span>
                   </div>
                </div>
@@ -181,7 +181,7 @@ export const FinalReview = ({
             <div className="finalReview__status" aria-live="polite">
                {isApplying ? (
                   <div className="applyProgress" role="status">
-                     <strong>Moving marked images…</strong>
+                     <strong>Moving discarded images…</strong>
                      <div className="progressBar progressBar--indeterminate" aria-hidden="true">
                         <span />
                      </div>
@@ -210,24 +210,22 @@ export const FinalReview = ({
                )}
             </div>
             <div className="finalReview__actions">
-               {workflow.movedCount > 0 && (
-                  <button
-                     className="ghostButton"
-                     disabled={isApplying || isRestoring || isTrashing}
-                     onClick={onRestore}
-                     type="button"
-                     {...getTooltipProps("Undo move", "Move everything from the duplicate folder back to where it came from.")}
-                  >
-                     <Undo2 aria-hidden="true" />
-                     {isRestoring ? "Undoing…" : "Undo move"}
-                  </button>
-               )}
+               <button
+                  className="ghostButton"
+                  disabled={workflow.movedCount === 0 || isApplying || isRestoring || isTrashing}
+                  onClick={onRestore}
+                  type="button"
+                  {...getTooltipProps("Undo move", "Move everything from the duplicate folder back to where it came from.")}
+               >
+                  <Undo2 aria-hidden="true" />
+                  {isRestoring ? "Undoing…" : "Undo move"}
+               </button>
                <button
                   className="primaryButton"
                   disabled={isApplying || isRestoring || isTrashing || workflow.readyToMoveCount === 0}
                   onClick={onApply}
                   type="button"
-                  {...getTooltipProps("Move marked", "Move every marked image that is still at its source into the duplicate folder.")}
+                  {...getTooltipProps("Move discarded", "Move every discarded image that is still at its source into the duplicate folder.")}
                >
                   <FolderOpen aria-hidden="true" />
                   {isApplying ? "Moving…" : workflow.readyToMoveCount > 0 ? `Move ${workflow.readyToMoveCount}` : "Move"}

@@ -132,7 +132,7 @@ export const SettingsPanel = (props: SettingsPanelProps) => {
                <div className="settingRow">
                   <div>
                      Image captions
-                     <small>Shown under each copy. Details adds dimensions, size, and date.</small>
+                     <small>Shown under each image. Details adds dimensions, size, and date.</small>
                   </div>
                   <div aria-label="Image captions" className="segmentedPicker" role="group">
                      <span
@@ -154,11 +154,11 @@ export const SettingsPanel = (props: SettingsPanelProps) => {
                </div>
                <div className="settingRow settingRow--toggle">
                   <Toggle checked={props.wrapImageShelf} label="Wrap the image shelf onto multiple rows" onChange={props.onWrapChange} />
-                  <small>Otherwise the copies share one scrolling row.</small>
+                  <small>Otherwise the images share one scrolling row.</small>
                </div>
                <div className="settingRow settingRow--toggle">
                   <Toggle checked={props.confirmMajorActions} label="Confirm review actions" onChange={props.onConfirmChange} />
-                  <small>Marks in bulk ask first. Moving and recycling always confirm, no matter what this is set to.</small>
+                  <small>Discards in bulk ask first. Moving and recycling always confirm, no matter what this is set to.</small>
                </div>
                <div className="settingRow settingRow--toggle">
                   <Toggle checked={props.showStartupOnLaunch} label="Show start screen on launch" onChange={props.onStartupChange} />

@@ -31,3 +31,13 @@ test("refresh rebases undo history so undo cannot restore a candidate for a chan
    const undone = decisionHistoryReducer(refreshed, { type: "undo" });
    assert.deepEqual(undone.decisions, { new: { deletedImages: [] } });
 });
+
+test("a discard survives when the app's own move recreated the file with a new creation time", () => {
+   // moveAcrossVolumes' copy fallback and hardlink bookkeeping change ctime
+   // (changedAt) without changing the image; only size and mtime are identity.
+   const created = { ...a, changedAt: 1000 };
+   const movedBack = { ...a, changedAt: 2000 };
+   const next = [{ id: "new", images: [movedBack, b, c] }];
+   const choices = { old: { deletedImages: [a.originalPath] } };
+   assert.deepEqual(reconcileDecisions([{ id: "old", images: [created, b, c] }], next, choices), { new: { deletedImages: [a.originalPath] } });
+});

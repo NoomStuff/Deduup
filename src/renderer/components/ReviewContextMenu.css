@@ -7,17 +7,17 @@
    max-width: 340px;
    border: 1px solid var(--line-strong);
    border-radius: var(--radius-md);
-   background: rgba(var(--surface-rgb), 0.97);
+   background: var(--popover-bg);
    box-shadow: var(--shadow);
    padding: 6px;
    transform-origin: top left;
-   animation: context-pop 130ms var(--ease-out);
+   animation: menu-in 150ms var(--ease-out);
 }
 
-@keyframes context-pop {
+@keyframes menu-in {
    from {
       opacity: 0;
-      transform: scale(0.96) translateY(-3px);
+      transform: translateY(6px);
    }
 }
 

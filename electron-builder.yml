@@ -1,19 +1,34 @@
-appId: local.image-deduplicator
-productName: Image Deduplicator
+appId: dev.deduup.app
+productName: Deduup
 directories:
    output: release
 files:
    - build/renderer/**
    - build/electron/**
+artifactName: ${productName}-${version}-${os}-${arch}.${ext}
+copyright: Copyright © 2026 NoomStuff
+extraResources:
+   - from: LICENSE
+     to: LICENSE
 win:
    icon: public/favicon.ico
-   target: portable
+   target:
+      - target: portable
+      - target: nsis
+nsis:
+   oneClick: false
+   allowToChangeInstallationDirectory: true
+   artifactName: ${productName}-${version}-${os}-${arch}-Installer.${ext}
 mac:
-   icon: public/icon.png
+   icon: public/icon.icns
    identity: null
-   category: public.app-category.utilities
+   category: public.app-category.photography
    target: dmg
 linux:
    icon: public/icon.png
-   category: Utility
+   category: Graphics
    target: AppImage
+publish:
+   provider: github
+   owner: NoomStuff
+   repo: Deduup

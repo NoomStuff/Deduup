@@ -69,3 +69,20 @@
 .helpPanel__body kbd {
    margin: 0 1px;
 }
+
+/* Inline prose link rendered as a button so external pages open through the main process. */
+.helpPanel__link {
+   padding: 0;
+   border: none;
+   background: none;
+   color: var(--accent-bright);
+   font: inherit;
+   text-decoration: underline;
+   text-decoration-color: color-mix(in srgb, var(--accent) 45%, transparent);
+   text-underline-offset: 3px;
+   cursor: pointer;
+}
+
+.helpPanel__link:hover {
+   color: var(--text-strong);
+}

@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { countBandMarkOverrides, createReviewActions } from "../src/renderer/reviewActions.ts";
+import { countBandDiscardOverrides, createReviewActions } from "../src/renderer/reviewActions.ts";
 
 // reviewActions reaches for window timers when advancing; stub them for Node.
 // Assignment (not declaration): a module-scope declaration would shadow the real global.
@@ -85,7 +85,7 @@ test("keep only this marks the others and a second use restores them", () => {
 test("marking a set marks only available copies", () => {
    const mixed = makeSet("set_001", 1, [image("a.jpg"), { ...image("b.jpg"), sourceStatus: "movedByApp" }]);
    const run = bind([mixed]);
-   run.actions.markImageSet(mixed);
+   run.actions.discardSet(mixed);
    assert.deepEqual(run.result()["set_001"]?.deletedImages, ["C:/lib/a.jpg"]);
 });
 
@@ -111,7 +111,7 @@ test("band actions apply to every set that shares the displayed similarity", () 
    const groups = [...band, beyond];
 
    const marked = bind(groups);
-   marked.actions.markSimilarityBand(band[0]);
+   marked.actions.discardBand(band[0]);
    assert.deepEqual(marked.result()["set_001"]?.deletedImages, ["C:/lib/a.jpg"]);
    assert.deepEqual(marked.result()["set_002"]?.deletedImages, ["C:/lib/b.jpg"]);
    assert.equal(marked.result()["set_003"], undefined);
@@ -140,7 +140,7 @@ test("band override counters flag only sets whose choices would change", () => {
    ];
 
    // A fresh band has nothing to overwrite.
-   assert.equal(countBandMarkOverrides(groups, {}, groups[0]), 0);
+   assert.equal(countBandDiscardOverrides(groups, {}, groups[0]), 0);
 
    // Keeping the smaller copy of set 1 is a manual choice autoselect would
    // re-pick; set 2's marks already match the autoselect outcome.
@@ -149,7 +149,7 @@ test("band override counters flag only sets whose choices would change", () => {
       set_002: { deletedImages: ["C:/lib/b_small.jpg"] },
    };
    // Marking the whole band would still add marks to both sets.
-   assert.equal(countBandMarkOverrides(groups, manual, groups[0]), 2);
+   assert.equal(countBandDiscardOverrides(groups, manual, groups[0]), 2);
 });
 
 test("clearing a set keeps marks on images that are no longer at their source", () => {

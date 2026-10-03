@@ -105,7 +105,7 @@ test("workflow state separates ready, moved, and recycled images", () => {
       set_002: { deletedImages: ["C:/lib/recycled.jpg", "C:/lib/ghost.jpg"] },
    };
    assert.deepEqual(getFileWorkflowState(sets, decisions), {
-      markedCount: 4,
+      discardedCount: 4,
       readyToMoveCount: 1,
       movedCount: 1,
       recycledCount: 1,

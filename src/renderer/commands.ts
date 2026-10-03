@@ -28,17 +28,17 @@ const definitions = {
 
    undo: { label: "Undo", group: "Edit", keys: ["Ctrl+Z"], stayLive: true },
    redo: { label: "Redo", group: "Edit", keys: ["Ctrl+Shift+Z"], stayLive: true },
-   clearAll: { label: "Clear every mark…", group: "Edit" },
+   clearAll: { label: "Clear all choices…", group: "Edit" },
 
-   markSet: { label: "Mark the whole set for removal", group: "Review", keys: ["X"] },
-   autoselectSet: { label: "Autoselect this set", group: "Review" },
-   autoselectBand: { label: "Autoselect undecided sets in this band", group: "Review", keys: ["V"] },
-   clearSet: { label: "Clear this set's marks", group: "Review" },
-   compareSelected: { label: "Compare with another copy", group: "Review", keys: ["C"] },
-   previewSelected: { label: "Preview the selected image", group: "Review", keys: ["Enter"] },
-   toggleSelected: { label: "Mark or unmark the selected copy", group: "Review", keys: ["Delete", "Ctrl+Delete"] },
+   discardSet: { label: "Discard set", group: "Review", keys: ["X"] },
+   autoselectSet: { label: "Autoselect set", group: "Review" },
+   autoselectBand: { label: "Autoselect band", group: "Review", keys: ["V"] },
+   clearSet: { label: "Clear set", group: "Review" },
+   compareSelected: { label: "Compare images", group: "Review", keys: ["C"] },
+   previewSelected: { label: "Preview image", group: "Review", keys: ["Enter"] },
+   toggleSelected: { label: "Toggle Discard", group: "Review", keys: ["Delete", "Ctrl+Delete"] },
    toggleImageByNumber: {
-      label: "Mark or unmark the Nth copy",
+      label: "Toggle Discard (N)",
       group: "Review",
       keys: ["1", "2", "3", "4", "5", "6", "7", "8", "9", "Ctrl+1", "Ctrl+2", "Ctrl+3", "Ctrl+4", "Ctrl+5", "Ctrl+6", "Ctrl+7", "Ctrl+8", "Ctrl+9"],
       display: "1–9 / Ctrl+1–9",
@@ -46,12 +46,14 @@ const definitions = {
    },
    previousSet: { label: "Previous set", group: "Review", keys: ["←", "A"], repeat: true },
    nextSet: { label: "Next set", group: "Review", keys: ["→", "D", "Space"], repeat: true },
-   previousBand: { label: "Previous similarity band", group: "Review", keys: ["Ctrl+←"], repeat: true },
-   nextBand: { label: "Next similarity band", group: "Review", keys: ["Ctrl+→"], repeat: true },
+   previousBand: { label: "Previous band", group: "Review", keys: ["Ctrl+←"], repeat: true },
+   nextBand: { label: "Next band", group: "Review", keys: ["Ctrl+→"], repeat: true },
    finalReview: { label: "Final review", group: "Review", keys: ["M"] },
 
    help: { label: "Help", group: "Help", keys: ["?", "F1"] },
-   settings: { label: "Settings", group: "Help", keys: ["Ctrl+,"] },
+   settings: { label: "Settings…", group: "Help", keys: ["Ctrl+,"] },
+   about: { label: "About", group: "Help" },
+   releasesPage: { label: "Releases page", group: "Help" },
 } satisfies Record<string, CommandDefinition>;
 
 export type CommandId = keyof typeof definitions;
@@ -127,11 +129,11 @@ export const isReservedBinding = (binding: string): boolean => reservedBindings.
 
 /** Flat pointer-gesture list for the help panel; keyboard commands live in settings. */
 export const pointerHelp: { keys: string; action: string }[] = [
-   { keys: "Click", action: "Select a copy" },
-   { keys: "Shift Click", action: "Mark or unmark a copy" },
-   { keys: "Shift Right Click", action: "Keep only this copy" },
-   { keys: "Alt Click", action: "Start a two-image compare" },
-   { keys: "Double Click", action: "Preview a copy full size" },
+   { keys: "Click", action: "Select an image" },
+   { keys: "Shift Click", action: "Toggle Discard on an image" },
+   { keys: "Shift Right Click", action: "Keep only this image" },
+   { keys: "Alt Click", action: "Compare two images" },
+   { keys: "Double Click", action: "Preview an image full size" },
    { keys: "Mouse 4 / 5", action: "Back or forward between sets" },
    { keys: "Right Click", action: "Open the actions menu" },
 ];

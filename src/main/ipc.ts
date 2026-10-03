@@ -1,9 +1,12 @@
-import { BrowserWindow, dialog, ipcMain, shell } from "electron";
+import { app, BrowserWindow, dialog, ipcMain, net, shell } from "electron";
 import { stat } from "node:fs/promises";
 import path from "node:path";
 import type { WebContents } from "electron";
 import { isObject, parseDecisions } from "../shared/schema.js";
 import type { LoadDataResult, ScanProgress, ScanRequest } from "../shared/types.js";
+import { setApplyUpdate, updateManager } from "./updates.js";
+import { fetchAvailableUpdate } from "./updateCheck.js";
+import { isPackagedApp } from "./identity.js";
 import {
    assertScanId,
    getDuplicateFolderStatus,
@@ -139,6 +142,38 @@ export const registerIpcHandlers = (): void => {
          if (window.isMaximized()) window.unmaximize();
          else window.maximize();
       } else if (action === "close") window.close();
+   });
+   ipcMain.handle("app:info", () => ({ name: "Deduup", version: app.getVersion() }));
+   ipcMain.handle("update:check", async () => {
+      // Dev builds report nothing: there is no release to update to while developing.
+      if (!isPackagedApp()) return null;
+      try {
+         const update = await fetchAvailableUpdate(app.getVersion(), (url, init) => net.fetch(url, init));
+         return update === null ? null : updateManager.offer(update);
+      } catch {
+         return null;
+      }
+   });
+   ipcMain.handle("update:download", (_event, version: unknown): Promise<void> => {
+      if (typeof version !== "string") throw new TypeError("Invalid update version");
+      return updateManager.downloadPortable(version);
+   });
+   ipcMain.handle("update:restart", (): void => {
+      // Installs through the window-all-closed path, after the database closes.
+      setApplyUpdate(() => updateManager.install());
+      BrowserWindow.getAllWindows().forEach((window) => window.close());
+   });
+   ipcMain.handle("update:reveal", (): void => {
+      const downloaded = updateManager.downloadedPath;
+      if (downloaded !== null) shell.showItemInFolder(downloaded);
+   });
+   ipcMain.handle("app:open-external", (_event, url: unknown): Promise<void> => {
+      if (typeof url !== "string") throw new TypeError("Invalid URL");
+      const target = new URL(url);
+      // Only project pages: the renderer never needs the wider web.
+      if (target.protocol !== "https:" || target.hostname !== "github.com" || !target.pathname.startsWith("/NoomStuff/"))
+         throw new Error("Only project pages can be opened.");
+      return shell.openExternal(target.href);
    });
    ipcMain.handle("data:load", getLoadResult);
    ipcMain.handle("scan:choose-folder", async (): Promise<string | null> => {

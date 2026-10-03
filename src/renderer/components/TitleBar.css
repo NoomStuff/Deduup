@@ -11,15 +11,11 @@
    line-height: 1.4;
 }
 
-.titlebar__mark {
-   display: grid;
-   place-items: center;
-   color: var(--accent);
-}
-
-.titlebar__mark svg {
-   width: 15px;
-   height: 15px;
+.titlebar__mark img {
+   display: block;
+   width: 16px;
+   height: 16px;
+   border-radius: 4px;
 }
 
 .titlebar__name {

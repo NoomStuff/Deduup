@@ -56,13 +56,9 @@
    min-height: 0;
    object-fit: contain;
    background: rgba(0, 0, 0, 0.32);
-   opacity: 0;
-   transition: opacity 160ms ease-out;
 }
 
-.imageCard__img--loaded {
-   opacity: 1;
-}
+/* The skeleton covers loading; once bytes exist the image simply paints. */
 
 .imageCard__skeleton {
    position: absolute;

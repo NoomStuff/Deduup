@@ -12,14 +12,14 @@ const topics: { id: HelpTab; label: string; body: ReactNode }[] = [
       label: "Introduction",
       body: (
          <>
-            <h3>Find the copies. Keep the best one.</h3>
+            <h3>Find the duplicates. Keep the best one.</h3>
             <p>
                This app scans a folder for images that look the same: exact duplicates, resizes, re-encodes, and light edits. It groups them into sets, so you
                judge each group once instead of file by file.
             </p>
             <p>
-               Reviewing is the whole job. You mark the copies you don't want, confirm the move in the final review, and the app settles them into a managed
-               duplicate folder. Similarity only orders the work; it never removes anything on its own.
+               You discard the images you don't want, confirm the move in the final review, and the app moves them into the duplicate folder. Nothing is removed
+               on its own.
             </p>
          </>
       ),
@@ -29,20 +29,20 @@ const topics: { id: HelpTab; label: string; body: ReactNode }[] = [
       label: "Getting started",
       body: (
          <>
-            <p>You generally work like this.</p>
             <ol>
                <li>Open a folder. Drag it onto the window, or use File in the menu bar.</li>
                <li>The scanner sorts near-identical images into sets along the strip at the bottom, grouped by pixel difference. Lower means more alike.</li>
                <li>
-                  In each set, keep the copy you prefer and mark the rest. Numbers 1–9 mark copies, X marks a whole set, and Autoselect keeps the largest copy.
+                  In each set, keep the image you prefer and discard the rest. Numbers 1–9 discard images, X discards a whole set, and Autoselect (right-click a
+                  set or band) keeps the largest image of a set.
                </li>
-               <li>Open the final review, move the marked images to the duplicate folder, and recycle that folder when you're happy.</li>
+               <li>Open the final review, move the discarded images to the duplicate folder, and recycle that folder when you're happy.</li>
             </ol>
             <h3>Worth knowing</h3>
             <ul>
-               <li>Nothing moves while you review. Marks are undoable, and so are moves until you recycle the folder.</li>
+               <li>Nothing moves while you review. Discards are undoable, and so are moves until you recycle the folder.</li>
                <li>The duplicate folder lives inside your scan folder. Everything in it is recoverable until you recycle it from the final review.</li>
-               <li>Rotated, cropped, and mirrored variants are out of scope by design: the scanner matches image layout.</li>
+               <li>Rotated, cropped, and mirrored variants are not detected.</li>
                <li>Every shortcut can be rebound in Settings, under Keyboard shortcuts.</li>
             </ul>
          </>
@@ -53,30 +53,27 @@ const topics: { id: HelpTab; label: string; body: ReactNode }[] = [
       label: "Reviewing",
       body: (
          <>
-            <p>
-               A set is one group of related images. Its header shows the position, how many copies you're keeping, and the average pixel difference between
-               them. Select a copy and the header offers everything that applies to it.
-            </p>
-            <h3>Marking</h3>
+            <p>A set is one group of related images. Select an image and the header offers the actions that apply to it.</p>
+            <h3>Discarding</h3>
             <ul>
                <li>
-                  Select a copy, then <strong>Mark</strong>. Shift Click and the number keys (with Ctrl held, the numbers appear on the shelf) do the same
-                  without leaving the shelf.
+                  Select an image, then <strong>Discard</strong>. Shift Click and the number keys (Ctrl shows the numbers on the shelf) do the same without
+                  leaving the shelf.
                </li>
                <li>
-                  <strong>X</strong> marks every copy in the set; <strong>V</strong> autoselects sets without existing choices in the band.
+                  <strong>X</strong> discards every image in the set; <strong>V</strong> autoselects sets without existing choices in the band.
                </li>
-               <li>Right-click a copy, a set tile, or a band tag for its full menu, including Keep only this.</li>
+               <li>Right-click an image, a set tile, or a band tag for its full menu, including Keep only this.</li>
             </ul>
             <h3>Comparing</h3>
             <p>
-               Select a copy and press Compare. With exactly two copies the comparison opens right away; with more, you pick the second copy from the shelf.
+               Select an image and press Compare. With exactly two images the comparison opens right away; with more, you pick the second image from the shelf.
                Move across the image to wipe between them, then keep one.
             </p>
             <h3>The filmstrip</h3>
             <p>
-               The dot under a set tile marks its choices: gray has no removal candidates, amber has some, and red means every copy is marked. Click a tile to
-               jump there; a band tag jumps to its whole group.
+               The dot under a set tile reflects its choices: gray has no discards, amber has some, and red means every image is discarded. Click a tile to jump
+               there; a band tag jumps to its whole group.
             </p>
          </>
       ),
@@ -99,7 +96,7 @@ const HelpPanel = ({ onClose }: { onClose: () => void }) => {
          <header className="panelModal__header">
             <div>
                <h2 id="help-title">Help</h2>
-               <p className="helpPanel__sub">Everything you need, nothing you don't. Any shortcut can be rebound in Settings.</p>
+               <p className="helpPanel__sub">Any shortcut can be rebound in Settings.</p>
             </div>
             <button aria-label="Close help" className="iconButton" onClick={onClose} type="button">
                <X aria-hidden="true" />

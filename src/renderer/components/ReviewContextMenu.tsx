@@ -18,8 +18,8 @@ interface ReviewContextMenuProps {
    onClearImageSet: () => void;
    onClearBand: () => void;
    onClose: () => void;
-   onMarkImageSet: () => void;
-   onMarkBand: () => void;
+   onDiscardSet: () => void;
+   onDiscardBand: () => void;
    onOpenImage: () => void;
    onPreviewImage: () => void;
    onShowImage: () => void;
@@ -40,7 +40,7 @@ const command =
 /** Positions itself against the anchor after measuring its real size, so the JS side never hardcodes menu dimensions. */
 export const ReviewContextMenu = (props: ReviewContextMenuProps) => {
    const previewHint = useBindingDisplay("previewSelected");
-   const markSetHint = useBindingDisplay("markSet");
+   const discardSetHint = useBindingDisplay("discardSet");
    const autoselectHint = useBindingDisplay("autoselectBand");
    const menuRef = useRef<HTMLDivElement | null>(null);
    const [position, setPosition] = useState<{ left: number; top: number; ready: boolean }>({ left: 0, top: 0, ready: false });
@@ -110,7 +110,7 @@ export const ReviewContextMenu = (props: ReviewContextMenuProps) => {
                   type="button"
                >
                   <Trash2 aria-hidden="true" />
-                  <span>{props.imageIsDeleted ? "Unmark" : "Mark for removal"}</span>
+                  <span>{props.imageIsDeleted ? "Restore" : "Discard"}</span>
                   <kbd>Shift Click</kbd>
                </button>
                <button
@@ -120,7 +120,7 @@ export const ReviewContextMenu = (props: ReviewContextMenuProps) => {
                   type="button"
                >
                   <Trash2 aria-hidden="true" />
-                  <span>{props.onlyImageIsKept ? "Unmark the others" : "Keep only this"}</span>
+                  <span>{props.onlyImageIsKept ? "Restore the others" : "Keep only this"}</span>
                   <kbd>Shift Right Click</kbd>
                </button>
                <div className="contextMenu__divider" />
@@ -159,12 +159,12 @@ export const ReviewContextMenu = (props: ReviewContextMenuProps) => {
             <>
                <button
                   className="contextMenu__command contextMenu__command--danger contextMenu__command--important"
-                  onClick={command(props.onMarkImageSet, props.onClose)}
+                  onClick={command(props.onDiscardSet, props.onClose)}
                   type="button"
                >
                   <Trash2 aria-hidden="true" />
-                  <span>Mark whole set</span>
-                  <kbd>{markSetHint}</kbd>
+                  <span>Discard set</span>
+                  <kbd>{discardSetHint}</kbd>
                </button>
                <button className="contextMenu__command contextMenu__command--accent" onClick={command(props.onAutoSelectImageSet, props.onClose)} type="button">
                   <Sparkles aria-hidden="true" />
@@ -180,11 +180,11 @@ export const ReviewContextMenu = (props: ReviewContextMenuProps) => {
             <>
                <button
                   className="contextMenu__command contextMenu__command--danger contextMenu__command--important"
-                  onClick={command(props.onMarkBand, props.onClose)}
+                  onClick={command(props.onDiscardBand, props.onClose)}
                   type="button"
                >
                   <Trash2 aria-hidden="true" />
-                  <span>Mark whole band</span>
+                  <span>Discard band</span>
                </button>
                <div className="contextMenu__divider" />
                <button className="contextMenu__command contextMenu__command--accent" onClick={command(props.onAutoSelectBand, props.onClose)} type="button">

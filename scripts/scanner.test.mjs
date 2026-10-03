@@ -89,7 +89,7 @@ test("keeps detections larger than 100 images", async () => {
 });
 
 test("always discovers supported images in nested folders", async () => {
-   const root = await mkdtemp(path.join(os.tmpdir(), "image-deduplicator-scan-"));
+   const root = await mkdtemp(path.join(os.tmpdir(), "deduup-scan-"));
    try {
       const nestedImage = path.join(root, "one", "two", "image.jpg");
       const unsupportedFile = path.join(root, "one", "notes.txt");

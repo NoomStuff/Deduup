@@ -58,13 +58,11 @@ export const useFilmstrip = ({
       animationRef.current = null;
    }, [groupCount]);
 
+   // Edge fades only: passive listeners that never touch scrollLeft, so manual
+   // scrolling is never fought.
    useEffect(() => {
-      if (!reviewActive) {
-         positionedRef.current = false;
-         return;
-      }
       const filmstrip = filmstripRef.current;
-      if (filmstrip === null) return;
+      if (!reviewActive || filmstrip === null) return undefined;
       const updateFade = (): void => {
          const max = Math.max(0, filmstrip.scrollWidth - filmstrip.clientWidth);
          setFade({ left: filmstrip.scrollLeft > 2, right: filmstrip.scrollLeft < max - 2 });
@@ -73,8 +71,30 @@ export const useFilmstrip = ({
       filmstrip.addEventListener("scroll", updateFade, { passive: true });
       const resizeObserver = new ResizeObserver(updateFade);
       resizeObserver.observe(filmstrip);
-      // React only to the set changing (or the strip (re)mounting). Manual
-      // scrolling is never corrected or fought.
+      return () => {
+         filmstrip.removeEventListener("scroll", updateFade);
+         resizeObserver.disconnect();
+      };
+   }, [reviewActive]);
+
+   // The ONLY effect that moves the strip. It places the active set when the
+   // strip first appears (or is rebuilt by a scan/startup swap) and when the
+   // selection changes. State flips that keep both the element and the
+   // selection — overlays, file operations — never scroll it, so a position
+   // the user chose by hand stays.
+   const lastPlacementRef = useRef<{ element: HTMLElement | null; index: number }>({ element: null, index: -1 });
+   useEffect(() => {
+      if (!reviewActive) {
+         positionedRef.current = false;
+         return;
+      }
+      const filmstrip = filmstripRef.current;
+      if (filmstrip === null) return;
+      const elementChanged = lastPlacementRef.current.element !== filmstrip;
+      const indexChanged = lastPlacementRef.current.index !== currentIndex;
+      if (!elementChanged && !indexChanged) return;
+      lastPlacementRef.current = { element: filmstrip, index: currentIndex };
+      if (elementChanged) positionedRef.current = false;
       const frame = window.requestAnimationFrame(() => {
          const active = filmstrip.querySelector<HTMLElement>(".filmstrip__item--active");
          if (active === null) return;
@@ -90,8 +110,6 @@ export const useFilmstrip = ({
       });
       return () => {
          window.cancelAnimationFrame(frame);
-         filmstrip.removeEventListener("scroll", updateFade);
-         resizeObserver.disconnect();
       };
    }, [animate, currentIndex, isScanning, isStartupOpen, loading, reviewActive]);
 

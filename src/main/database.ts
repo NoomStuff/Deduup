@@ -45,7 +45,7 @@ let scanMembership: Map<string, Set<string>> | null = null;
 
 export const getDatabase = (): DatabaseSync => {
    if (database !== null) return database;
-   database = new DatabaseSync(path.join(app.getPath("userData"), "image-deduplicator.sqlite"));
+   database = new DatabaseSync(path.join(app.getPath("userData"), "deduup.sqlite"));
    database.exec(`
       PRAGMA foreign_keys = ON;
       PRAGMA journal_mode = WAL;
@@ -238,7 +238,7 @@ export const loadMovePlan = (decisions: Decisions | null): PlannedMove[] => {
             file: row.file,
             from: row.originalPath,
             to: path.join(duplicatePath, row.setId, relative),
-            expectedSource: { size: row.size, modifiedAt: row.modifiedAt, ...(row.changedAt === 0 ? {} : { changedAt: row.changedAt }) },
+            expectedSource: { size: row.size, modifiedAt: row.modifiedAt },
          },
       ];
    });

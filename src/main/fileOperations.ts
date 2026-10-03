@@ -131,12 +131,11 @@ export const applyFileMoves = async (moves: PlannedMove[], callbacks: MoveCallba
          if (await pathExists(move.to)) throw new Error(`The managed destination already exists: ${move.to}`);
          const sourceStat = await lstat(move.from);
          if (!sourceStat.isFile()) throw new Error(`Not a regular image file: ${move.from}`);
-         if (
-            move.expectedSource !== undefined &&
-            (sourceStat.size !== move.expectedSource.size ||
-               sourceStat.mtimeMs !== move.expectedSource.modifiedAt ||
-               (move.expectedSource.changedAt !== undefined && sourceStat.ctimeMs !== move.expectedSource.changedAt))
-         ) {
+         if (move.expectedSource !== undefined && (sourceStat.size !== move.expectedSource.size || sourceStat.mtimeMs !== move.expectedSource.modifiedAt)) {
+            // Creation time is deliberately not compared: the app's own
+            // move-and-restore round trips re-create the file and change it
+            // without changing the image. Content is verified by the journal
+            // checksum recorded just below, before anything is touched.
             throw new Error(`The image changed since the scan. Rescan it before moving: ${move.from}`);
          }
          await callbacks.beforeMove?.(move);

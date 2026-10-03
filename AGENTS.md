@@ -1,59 +1,56 @@
-# Image Deduplicator
+# Deduup
 
-We will be working on a local-first tool for finding, reviewing, and safely removing redundant images. It exists to reclaim disk space, speed up duplicate review, and leave image libraries easier to manage.
+We are building a local-first desktop tool for finding and safely removing duplicate images, for Windows, macOS, and Linux.
+
+Deduup scans a folder for images that look the same, groups them into reviewable sets, and moves what the user discards into a managed duplicate folder that stays restorable until it is recycled. Speed and safety only matter if the detections are worth trusting.
 
 ## What we optimize for
 
-1. **Speed.** Reviewing a large library should feel immediate. Power users need a flow they can move through quickly.
-2. **Detection quality.** Do not trade reliable, useful detections for implementation convenience or superficial performance wins.
+1. **Speed.** Reviewing a large library should feel immediate. Opening a folder, judging a set, and moving on should take seconds, and detection must scale to six-figure libraries without freezing the workflow.
+2. **Detection quality.** Do not trade reliable, useful groupings for implementation convenience or superficial wins. A wrong grouping costs the user's trust; a missed group costs their disk space.
 3. **Safety.** A user must understand what will happen to their files and remain in control of every removal.
 
-The UI must be understandable without prior knowledge while rewarding fluency with sensible defaults, visible state, and optional accelerators.
+### Key principles
 
-## The user's files are theirs
+- **Similarity is evidence, not truth**: it orders the work and supports low-risk automation, but it never removes anything on its own and never replaces the user's judgment.
+- **Removal is staged**: the user discards files while reviewing, confirms the move in a final review, and recycles the managed folder when happy. Never blur a proposed action with one that has already changed a file.
+- **Explain limits plainly**: rotated, cropped, and mirrored variants are out of scope; say so instead of quietly missing them.
 
-Similarity is ranked evidence, not truth. It can order work and support low-risk automation, but it never replaces the user's judgment about whether an image should leave their library.
+## Scope
 
-Removal is deliberately staged:
+The core job is grouping near-identical images into sets the user can judge once, then moving discarded files safely. Detection hashes image layout (a 64-bit difference hash), so exact duplicates, resizes, re-encodes, and light edits group together.
 
-1. The user marks **removal candidates** while reviewing.
-2. They see those choices in a final review and explicitly confirm them.
-3. Candidates move to the managed duplicate folder inside the scan root.
-4. The user may then move that duplicate folder to the Recycle Bin.
-
-Preserve this clear, reversible path. Never blur a proposed action with one that has already changed a file.
+Rotated, cropped, and mirrored variants, general photo management, and cloud integrations are outside the current scope. Growth needs a reason tied to the review workflow.
 
 ## Canonical language
 
-- **Image**: one file.
+- **Image**: one file. Never call one a "copy": duplication is the relationship between images, not what a file is.
 - **Set** / **detection**: one reviewable collection of related images.
-- **Similarity group**: sets sharing a displayed similarity score. Used as user facing a navigation and bulk-action aid.
-- **Similarity band**: the container that has all owns all the sets that share a displayed similarity score and the sets contained within them.
-- **Removal candidate**: an image selected for removal that remains at its source.
-- **Moved image**: a removal candidate now living in the managed duplicate folder. The UI says "in the duplicate folder"; it is still recoverable until the folder is recycled.
+- **Similarity group**: sets sharing a displayed similarity score, used as a navigation and bulk-action aid.
+- **Similarity band**: the container that owns all the sets sharing a displayed similarity score.
+- **Discarded file**: a file selected for removal that remains at its source.
+- **Moved image**: a discarded file now living in the managed duplicate folder. The UI says "in the duplicate folder"; it is still recoverable until the folder is recycled.
 
-Use these terms consistently in code, UI, tests, and documentation. Avoid calling a removal candidate "deleted" before it has actually left its source.
+Use these terms consistently in code, UI, tests, and documentation. Avoid calling a discarded file "deleted" before it has actually left its source.
 
-## How to make changes
+## Making changes
 
-Every feature should make review or deduplication faster, easier, or more trustworthy. This is not a general photo manager.
+Every feature should make review or deduplication faster, easier, or more trustworthy. Prefer clean, minimal, strictly typed changes that preserve intentional flows; do not introduce abstraction for its own sake.
 
-Prefer clean, minimal, strictly typed changes that preserve intentional flows. Keep the design extensible when there is a concrete need, but do not introduce abstraction for its own sake. Performance must scale to large libraries without freezing the workflow or compromising detection quality.
+Each renderer component owns its CSS in a co-located `.css` file; `theme.css` holds tokens, base styles, and the shared overlay keyframes. Modals and drawers are built on `components/OverlayPanel.tsx`: a dialog is content plus a skin class, never its own closing state. Animations are part of the design: every surface that appears animates in and out.
 
-## Renderer conventions
-
-- Each component owns its CSS in a co-located `.css` file it imports itself. `theme.css` (imported in `main.tsx`) holds tokens, base styles, shared controls, and the shared overlay keyframes.
-- Modals and drawers are built on `components/OverlayPanel.tsx`: it handles the portal, backdrop, focus trap and focus return, stack-aware Escape, and open/close animations. A dialog is content plus a skin class; it never manages its own closing state.
-- The context menu and panels close themselves (outside click, Escape). `useReviewShortcuts` only drives review keys; it does not close overlays.
-- Animations are part of the design: every surface that appears animates in and out, using the shared keyframes in `theme.css` where possible.
-- Reference project for architecture and interaction feel: `C:\Users\NoomS\Coding\Web\Osiris-but-better`.
-
-## Detection scope
-
-The scanner hashes image layout (a 64-bit difference hash), so it groups near-identical copies: exact duplicates, resizes, re-encodes, and light edits. Rotated, cropped, or mirrored variants are out of scope by design. Do not trade scan speed or grouping precision for broader matching without a concrete need.
+The on-disk identifiers — `.image-deduplicator-managed`, its ownership marker, and the sqlite file name — are compatibility surfaces. Changing them needs a migration story.
 
 ## Verifying changes
 
-Agents should always run `bun run verify` (format check, lint, typecheck plus unit tests, and the UI smoke test) or at minimum `bun run test` and `bun run lint` before claiming an outcome. The same checks run in GitHub Actions on every push. For anything that touches the renderer, run `bun run test:ui` as well: it builds the app, launches it in Electron against an isolated profile, generates a deterministic fixture library (`scripts/makeFixtures.mjs`), and walks the core flows through the real DOM. Screenshots from that run land in `.cache/ui-smoke/` — inspect them when a change is visual.
+Run `bun run verify` (format check, lint, typecheck, unit tests, UI smoke test) before claiming an outcome; the same checks run on every push. For anything that touches the renderer, run `bun run test:ui` as well: it builds the app, launches it in Electron against an isolated profile, generates a deterministic fixture library, and walks the core flows through the real DOM. Screenshots land in `.cache/ui-smoke/` — inspect them when a change is visual.
 
-To explore the app manually without touching real scan data, launch the built app with `--user-data-dir=<isolated folder>` plus `--scan=<folder>` (and `IMAGE_DEDUPLICATOR_PROD=1` when running from sources); the scan hook starts the scan without the native folder dialog. Never point a test scan at the real `%APPDATA%` profile: a scan replaces all saved review choices.
+To explore the app manually without touching real scan data, launch the built app with `--user-data-dir=<isolated folder>` plus `--scan=<folder>` (and `IMAGE_DEDUPLICATOR_PROD=1` when running from sources). Never point a test scan at the real `%APPDATA%` profile: a scan replaces all saved review choices.
+
+## Versioning
+
+Bumping the version in `package.json` is what triggers a release: pushing the change to `main` makes CI verify, package all five targets, and publish a GitHub release with auto-update feeds. Choose the number deliberately for the changes made, and open a pull request before a version change lands on `main` unless the user says otherwise. A `v*` tag must match `package.json`'s version or CI fails it.
+
+After a version bump, watch the release to make sure it succeeds; if it fails, resolve the issue and push a fix version.
+
+The product name and repository are Deduup (`NoomStuff/Deduup`); the npm package name stays `image-deduplicator` (deliberate: it keeps existing dev profiles at `%APPDATA%/image-deduplicator`).
