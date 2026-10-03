@@ -25,6 +25,7 @@ mac:
    category: public.app-category.photography
    target: dmg
 linux:
+   executableName: Deduup
    icon: public/icon.png
    category: Graphics
    target: AppImage
