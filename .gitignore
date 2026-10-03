@@ -1,7 +1,0 @@
-node_modules/
-.cache/
-build/
-release/
-*.tsbuildinfo
-bun.lockb
-package-lock.json

@@ -1,0 +1,8 @@
+version: 0.1.4
+files:
+  - url: https://github.com/NoomStuff/Deduup/releases/download/v0.1.4/Deduup-0.1.4-win-x64-Installer.exe
+    sha512: HOGiPFJSarZW/CpUJU8mti4p9fnayDR2gvpLAIdd3nbxlFHZ3Vpmd44MHn4LM8WmS86IkIaqy9/iEYaEqM7yfQ==
+    size: 97865174
+path: https://github.com/NoomStuff/Deduup/releases/download/v0.1.4/Deduup-0.1.4-win-x64-Installer.exe
+sha512: HOGiPFJSarZW/CpUJU8mti4p9fnayDR2gvpLAIdd3nbxlFHZ3Vpmd44MHn4LM8WmS86IkIaqy9/iEYaEqM7yfQ==
+releaseDate: '2026-10-03T05:47:22.064Z'
