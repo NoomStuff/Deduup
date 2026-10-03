@@ -35,7 +35,7 @@ export interface PlannedMove {
    file: string;
    from: string;
    to: string;
-   expectedSource?: { size: number; modifiedAt: number; changedAt?: number };
+   expectedSource?: { size: number; modifiedAt: number };
 }
 
 export interface MoveResult {
@@ -71,8 +71,37 @@ export interface ScanProgress {
 
 export type WindowAction = "minimize" | "maximize" | "close";
 
+export interface AppInfo {
+   name: string;
+   version: string;
+}
+
+/** A newer release on GitHub. mode decides how the update reaches the user. */
+export interface AvailableUpdate {
+   version: string;
+   name: string;
+   url: string;
+   /** automatic: electron-updater downloads and installs. download: the portable exe is verified into Downloads. releases: open the release page. */
+   mode: "automatic" | "download" | "releases";
+}
+
+export interface UpdateStatus {
+   phase: "downloading" | "ready" | "downloaded" | "error";
+   version: string;
+   percent: number | null;
+   message?: string;
+   path?: string;
+}
+
 export interface AppApi {
    windowAction: (action: WindowAction) => Promise<void>;
+   getAppInfo: () => Promise<AppInfo>;
+   checkForUpdate: () => Promise<AvailableUpdate | null>;
+   downloadUpdate: (version: string) => Promise<void>;
+   restartToUpdate: () => Promise<void>;
+   revealUpdateDownload: () => Promise<void>;
+   onUpdateStatus: (listener: (status: UpdateStatus) => void) => () => void;
+   openExternal: (url: string) => Promise<void>;
    loadData: () => Promise<LoadDataResult>;
    chooseFolder: () => Promise<string | null>;
    scanFolder: (request: ScanRequest) => Promise<LoadDataResult>;

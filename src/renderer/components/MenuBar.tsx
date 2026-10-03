@@ -26,7 +26,7 @@ const menuItems: Record<string, MenuEntry[]> = {
    File: ["openFolder", "startScreen"],
    Edit: ["undo", "redo", "clearAll"],
    Review: [
-      "markSet",
+      "discardSet",
       "autoselectSet",
       "autoselectBand",
       "clearSet",
@@ -41,7 +41,7 @@ const menuItems: Record<string, MenuEntry[]> = {
       "toggleSelected",
       "finalReview",
    ],
-   Help: ["help", "settings"],
+   Help: ["help", "about", "divider", "releasesPage", "settings"],
 };
 
 /** Keeps a dropdown mounted through its exit animation after it closes. */
@@ -197,7 +197,7 @@ export const MenuBar = ({ menu, onMenuChange, ...props }: MenuBarProps) => {
                   type="button"
                   {...props.getTooltipProps(
                      "Final review",
-                     props.finalReviewOpen ? "Already open, press Esc to close it." : "See everything marked for removal before anything moves.",
+                     props.finalReviewOpen ? "Already open, press Esc to close it." : "See everything you've discarded before anything moves.",
                      finalReviewHint
                   )}
                >

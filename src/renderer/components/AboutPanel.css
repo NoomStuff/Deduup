@@ -1,0 +1,120 @@
+/* About modal: the app's calling card. Narrower than the other panels, with
+   the logo, the tagline, and the way out. */
+
+.aboutPanel {
+   z-index: 60;
+}
+
+.aboutPanel__backdrop {
+   background: var(--backdrop);
+}
+
+.aboutModal {
+   width: min(430px, calc(100vw - 48px));
+   padding: 22px 24px 0;
+}
+
+.aboutPanel[data-closing="true"] .aboutPanel__surface {
+   animation: overlay-drop 200ms ease-in both;
+}
+
+.aboutPanel__head {
+   display: flex;
+   align-items: center;
+   gap: 14px;
+}
+
+.aboutPanel__mark img {
+   display: block;
+   width: 46px;
+   height: 46px;
+   border-radius: 11px;
+}
+
+.aboutPanel__head h2 {
+   margin: 0;
+   color: var(--text-strong);
+   font-size: 16px;
+   font-weight: 800;
+   letter-spacing: -0.2px;
+}
+
+.aboutPanel__head p {
+   margin: 3px 0 0;
+   color: var(--muted);
+   font-size: 11.5px;
+   font-variant-numeric: tabular-nums;
+}
+
+.aboutPanel__tagline {
+   margin: 16px 0 6px;
+   color: var(--accent-bright);
+   font-size: 13px;
+   font-weight: 700;
+}
+
+.aboutModal > p:not(.aboutPanel__tagline) {
+   margin: 0 0 14px;
+   color: var(--muted);
+   font-size: 12.5px;
+   line-height: 1.6;
+}
+
+.aboutPanel__links {
+   display: flex;
+   gap: 8px;
+   margin-bottom: 18px;
+}
+
+.aboutPanel__links button {
+   border: 1px solid var(--line);
+   border-radius: var(--radius-sm);
+   background: var(--panel-2);
+   color: var(--text);
+   font-size: 12px;
+   font-weight: 700;
+   padding: 6px 12px;
+   transition:
+      background-color 140ms ease-out,
+      border-color 140ms ease-out,
+      color 140ms ease-out;
+}
+
+.aboutPanel__links button:hover {
+   background: var(--panel-3);
+   border-color: var(--line-strong);
+   color: var(--text-strong);
+}
+
+.aboutPanel__footer {
+   display: flex;
+   align-items: center;
+   justify-content: center;
+   gap: 5px;
+   margin: 0 -24px;
+   border-top: 1px solid var(--line);
+   color: var(--muted);
+   font-size: 12px;
+   padding: 13px;
+}
+
+.aboutPanel__footer svg {
+   width: 12px;
+   height: 12px;
+   color: var(--delete);
+   fill: var(--delete);
+}
+
+.aboutPanel__footer button {
+   border: none;
+   background: none;
+   color: var(--text);
+   font: inherit;
+   padding: 0;
+   cursor: pointer;
+}
+
+.aboutPanel__footer button:hover {
+   color: var(--text-strong);
+   text-decoration: underline;
+}

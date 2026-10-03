@@ -3,7 +3,7 @@ import path from "node:path";
 import { pathToFileURL } from "node:url";
 import sharp from "sharp";
 
-const previewProtocol = "image-deduplicator-preview";
+const previewProtocol = "deduup-preview";
 type PreviewKind = "thumbnail" | "full";
 interface PreviewAccess {
    filePath: string;

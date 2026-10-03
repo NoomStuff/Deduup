@@ -1,10 +1,29 @@
-import type { AppApi, Decisions, LoadDataResult, MoveResult, ScanProgress, ScanRequest } from "../shared/types.js";
+import type { AppApi, AppInfo, AvailableUpdate, Decisions, LoadDataResult, MoveResult, ScanProgress, ScanRequest, UpdateStatus } from "../shared/types.js";
 
 const { contextBridge, ipcRenderer, webUtils } = require("electron") as typeof import("electron");
 
 const api: AppApi = {
    windowAction: async (action): Promise<void> => {
       await ipcRenderer.invoke("window:action", action);
+   },
+   getAppInfo: async (): Promise<AppInfo> => ipcRenderer.invoke("app:info") as Promise<AppInfo>,
+   checkForUpdate: async (): Promise<AvailableUpdate | null> => ipcRenderer.invoke("update:check") as Promise<AvailableUpdate | null>,
+   downloadUpdate: async (version: string): Promise<void> => {
+      await ipcRenderer.invoke("update:download", version);
+   },
+   restartToUpdate: async (): Promise<void> => {
+      await ipcRenderer.invoke("update:restart");
+   },
+   revealUpdateDownload: async (): Promise<void> => {
+      await ipcRenderer.invoke("update:reveal");
+   },
+   onUpdateStatus: (listener: (status: UpdateStatus) => void): (() => void) => {
+      const handler = (_event: Electron.IpcRendererEvent, status: UpdateStatus): void => listener(status);
+      ipcRenderer.on("update:status", handler);
+      return () => ipcRenderer.removeListener("update:status", handler);
+   },
+   openExternal: async (url: string): Promise<void> => {
+      await ipcRenderer.invoke("app:open-external", url);
    },
    loadData: async (): Promise<LoadDataResult> => ipcRenderer.invoke("data:load") as Promise<LoadDataResult>,
    chooseFolder: async (): Promise<string | null> => ipcRenderer.invoke("scan:choose-folder") as Promise<string | null>,

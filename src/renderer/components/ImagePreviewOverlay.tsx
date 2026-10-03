@@ -9,7 +9,7 @@ import "./ImagePreviewOverlay.css";
 
 interface ImagePreviewOverlayProps {
    image: ImageItem;
-   /** Previewable images of the set, so arrows and buttons can flip between copies. */
+   /** Previewable images of the set, so arrows and buttons can flip between images. */
    images: ImageItem[];
    onClose: () => void;
    onNavigate: (image: ImageItem) => void;

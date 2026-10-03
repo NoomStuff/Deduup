@@ -12,7 +12,7 @@ export type TravelDirection = "idle" | "left" | "right";
 export type ImageSetState = "open" | "someDeleted" | "allDeleted";
 export type ImageDeleteState = "active" | "deleted";
 export type ImageCaptionMode = "none" | "names" | "details";
-export type ConfirmKind = "markSet" | "markBand" | "applyMoves" | "clearAll" | "trashDuplicate" | "switchFolder";
+export type ConfirmKind = "discardSet" | "discardBand" | "applyMoves" | "clearAll" | "trashDuplicate" | "switchFolder";
 
 export interface SimilarityBand {
    label: string;
@@ -40,7 +40,7 @@ export interface MovePreview {
 }
 
 export interface FileWorkflowState {
-   markedCount: number;
+   discardedCount: number;
    readyToMoveCount: number;
    movedCount: number;
    recycledCount: number;

@@ -35,11 +35,11 @@ export const useFileWorkflowActions = ({ clearHistory, notify, onRefresh, report
          clearHistory();
          notify({
             tone: result.errors.length > 0 ? "warning" : "success",
-            title: result.errors.length > 0 ? "Move finished with errors" : "Marked images moved",
+            title: result.errors.length > 0 ? "Move finished with errors" : "Discarded images moved",
             message: `Moved ${result.moved.length}, skipped ${result.skipped.length}, errors ${result.errors.length}.`,
          });
       } catch (error: unknown) {
-         reportError("Couldn’t move marked images", error, "Failed to move marked images");
+         reportError("Couldn’t move discarded images", error, "Failed to move discarded images");
       } finally {
          busyRef.current = false;
          setIsApplying(false);
@@ -55,7 +55,7 @@ export const useFileWorkflowActions = ({ clearHistory, notify, onRefresh, report
          await api.trashDuplicateFolder();
          onRefresh(await api.loadData());
          setRestoreResult(null);
-         notify({ tone: "success", title: "Duplicates recycled", message: "The managed duplicate folder was moved to the Recycle Bin." });
+         notify({ tone: "success", title: "Duplicates recycled", message: "The duplicate folder is in the Recycle Bin." });
       } catch (error: unknown) {
          reportError("Couldn’t recycle duplicates", error, "Failed to recycle moved duplicates");
       } finally {

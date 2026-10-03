@@ -96,7 +96,7 @@ const run = async () => {
       // Keyboard marking: key 1 marks the first image of the set.
       await window.keyboard.press("1");
       await window.waitForTimeout(200);
-      const markedChips = await window.locator(".imageCard__chip--marked").count();
+      const markedChips = await window.locator(".imageCard__chip--discarded").count();
       check("key 1 marks the first image", markedChips === 1, `marked chips: ${markedChips}`);
       await window.screenshot({ path: path.join(artifactsDir, "02-marked.png") });
 
@@ -112,24 +112,24 @@ const run = async () => {
       // Undo removes the mark made a moment ago.
       await window.keyboard.press("Control+z");
       await window.waitForTimeout(200);
-      check("undo clears the mark", (await window.locator(".imageCard__chip--marked").count()) === 0);
+      check("undo clears the mark", (await window.locator(".imageCard__chip--discarded").count()) === 0);
 
       const copies = await window.locator(".imageCard").count();
       await window
          .locator(".imageCard")
          .first()
          .click({ button: "right", modifiers: ["Shift"] });
-      await window.waitForFunction((count) => document.querySelectorAll(".imageCard__chip--marked").length === count - 1, copies);
+      await window.waitForFunction((count) => document.querySelectorAll(".imageCard__chip--discarded").length === count - 1, copies);
       check("Shift+right-click keeps only the chosen copy", (await window.locator(".contextMenu").count()) === 0);
       await window.keyboard.press("Control+z");
-      await window.waitForFunction(() => document.querySelectorAll(".imageCard__chip--marked").length === 0);
+      await window.waitForFunction(() => document.querySelectorAll(".imageCard__chip--discarded").length === 0);
       const beforeAdvance = await window.textContent(".toolbar__counter");
       await window.keyboard.press("Control+1");
       await window.waitForFunction((previous) => document.querySelector(".toolbar__counter")?.textContent !== previous, beforeAdvance);
       check("Ctrl+1 marks and advances", true);
       await window.keyboard.press("ArrowLeft");
       await window.keyboard.press("Control+z");
-      await window.waitForFunction(() => document.querySelectorAll(".imageCard__chip--marked").length === 0);
+      await window.waitForFunction(() => document.querySelectorAll(".imageCard__chip--discarded").length === 0);
 
       await window
          .locator(".imageCard")

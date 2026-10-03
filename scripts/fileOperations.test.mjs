@@ -14,7 +14,7 @@ import {
 import { duplicateOwnershipMarkerContents, duplicateOwnershipMarkerName } from "../src/shared/constants.ts";
 
 const withWorkspace = async (run) => {
-   const root = await mkdtemp(path.join(os.tmpdir(), "image-deduplicator-"));
+   const root = await mkdtemp(path.join(os.tmpdir(), "deduup-"));
    try {
       await run(root);
    } finally {
@@ -178,4 +178,20 @@ test("allows only the exact saved move plan to be recycled", () =>
 
       await assert.doesNotReject(assertRecyclePlan(path.join(root, "duplicate"), [planned], [planned.to]));
       await assert.rejects(assertRecyclePlan(path.join(root, "duplicate"), [planned], [planned.to, unmanaged]), /Refusing to recycle 1 file/u);
+   }));
+
+test("a move succeeds after the app's own restore recreated the file with a new creation time", () =>
+   withWorkspace(async (root) => {
+      const planned = move(root);
+      await mkdir(path.dirname(planned.from), { recursive: true });
+      await writeFile(planned.from, "original");
+      const source = await stat(planned.from);
+      // The on-disk creation time no longer matches what the scan recorded
+      // (the restore's copy fallback re-created the file). Creation time is
+      // not part of the move contract; if it ever becomes one again, this
+      // move must keep succeeding. Size and mtime match.
+      planned.expectedSource = { size: source.size, modifiedAt: source.mtimeMs, changedAt: source.ctimeMs + 5 };
+      const result = await applyFileMoves([planned]);
+      assert.deepEqual(result, { moved: [planned], skipped: [], errors: [] });
+      assert.equal(await readFile(planned.to, "utf8"), "original");
    }));

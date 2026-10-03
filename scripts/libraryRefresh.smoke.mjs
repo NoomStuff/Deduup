@@ -57,7 +57,7 @@ try {
    await window.locator(".finalReview").getByLabel("Close final review").click();
    await window.waitForSelector(".finalReview", { state: "detached" });
    await waitForFile(added, true);
-   await window.waitForFunction(() => document.querySelectorAll(".imageCard__chip--marked").length === 1);
+   await window.waitForFunction(() => document.querySelectorAll(".imageCard__chip--discarded").length === 1);
    const updated = await load();
    assert.notEqual(updated.scanId, initial.scanId);
    assert.ok(Object.values(updated.decisions).some((choice) => choice.deletedImages.includes(source)));

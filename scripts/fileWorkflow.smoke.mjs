@@ -84,7 +84,7 @@ try {
    await app.close();
    const legacySet = rescanned.groups.find((set) => set.images.some((image) => image.originalPath === source));
    const visitedSet = rescanned.groups.find((set) => set.id !== legacySet.id);
-   const databasePath = path.join(profile, "image-deduplicator.sqlite");
+   const databasePath = path.join(profile, "deduup.sqlite");
    const legacy = new DatabaseSync(databasePath);
    legacy.exec(
       "BEGIN IMMEDIATE; DROP TABLE decisions; CREATE TABLE decisions (set_id TEXT PRIMARY KEY REFERENCES duplicate_groups(id) ON DELETE CASCADE, deleted_images_json TEXT NOT NULL, seen INTEGER NOT NULL); ALTER TABLE images DROP COLUMN changed_at; ALTER TABLE image_inventory DROP COLUMN changed_at;"
