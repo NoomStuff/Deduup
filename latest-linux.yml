@@ -1,9 +1,9 @@
-version: 0.1.4
+version: 0.1.5
 files:
-  - url: https://github.com/NoomStuff/Deduup/releases/download/v0.1.4/Deduup-0.1.4-linux-x86_64.AppImage
-    sha512: 4ixlnyMFhr5cG3CZGX8+pC54WCSwsD9HLvQEPMldKmMlLJHTA7LKLcXsTEf1pGC7mCjZlQ3dq9l1HEzkgo1q3w==
-    size: 147864527
-    blockMapSize: 154595
-path: https://github.com/NoomStuff/Deduup/releases/download/v0.1.4/Deduup-0.1.4-linux-x86_64.AppImage
-sha512: 4ixlnyMFhr5cG3CZGX8+pC54WCSwsD9HLvQEPMldKmMlLJHTA7LKLcXsTEf1pGC7mCjZlQ3dq9l1HEzkgo1q3w==
-releaseDate: '2026-10-03T05:45:31.984Z'
+  - url: https://github.com/NoomStuff/Deduup/releases/download/v0.1.5/Deduup-0.1.5-linux-x86_64.AppImage
+    sha512: xVyKFIiuWIlySDfmiVPnNEy2+shSRpYwZGoGq8BmqD8++3gY+9bEQruurBPCwytLwI2T3eq3vUrMrRjnps/0Zw==
+    size: 147864557
+    blockMapSize: 154625
+path: https://github.com/NoomStuff/Deduup/releases/download/v0.1.5/Deduup-0.1.5-linux-x86_64.AppImage
+sha512: xVyKFIiuWIlySDfmiVPnNEy2+shSRpYwZGoGq8BmqD8++3gY+9bEQruurBPCwytLwI2T3eq3vUrMrRjnps/0Zw==
+releaseDate: '2026-10-03T05:49:50.233Z'
