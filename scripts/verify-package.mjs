@@ -23,7 +23,11 @@ const executablePath = () => {
              ? "release/mac-arm64"
              : "release/mac";
    const binary =
-      process.platform === "darwin" ? path.join(base, `${productName}.app`, "Contents", "MacOS", productName) : path.join(base, `${productName}.exe`);
+      process.platform === "darwin"
+         ? path.join(base, `${productName}.app`, "Contents", "MacOS", productName)
+         : process.platform === "win32"
+           ? path.join(base, `${productName}.exe`)
+           : path.join(base, productName);
    if (!existsSync(binary)) throw new Error(`Missing packaged executable: ${binary}`);
    return binary;
 };
