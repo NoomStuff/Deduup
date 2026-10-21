@@ -1,3 +1,4 @@
+import { DatabaseSync } from "node:sqlite";
 import assert from "node:assert/strict";
 import { copyFile, readFile, writeFile, rm, mkdir } from "node:fs/promises";
 import { createRequire } from "node:module";
@@ -21,7 +22,11 @@ const launch = async (scan = false) => {
       env: { ...process.env, IMAGE_DEDUPLICATOR_PROD: "1" },
    });
    window = await app.firstWindow();
-   if (!scan) await window.getByRole("button", { name: /continue review/i }).click();
+   if (!scan) {
+      const resume = window.getByRole("button", { name: /continue review/i });
+      await resume.or(window.locator(".filmstrip__item").first()).first().waitFor({ timeout: 90_000 });
+      if (await resume.isVisible()) await resume.click();
+   }
    await window.waitForSelector(".filmstrip__item", { timeout: 90_000 });
 };
 const load = () => window.evaluate(() => window.imageDeduplicator.loadData());
@@ -77,9 +82,22 @@ try {
    await app.close();
    const offline = path.join(root, "added-while-closed.jpg");
    await copyFile(other, offline);
+   // Simulate a v1 profile with unchanged file timestamps. No legacy hash may
+   // be reused, and the first load must return freshly computed detections.
+   const db = new DatabaseSync(path.join(profile, "deduup.sqlite"));
+   db.prepare("UPDATE settings SET value = 'dhash64-v1' WHERE key = 'hash_version'").run();
+   db.exec("UPDATE image_inventory SET hash = '0000000000000000'; UPDATE images SET hash = '0000000000000000'");
+   db.close();
    await launch();
    await waitForFile(offline, true);
-   assert.equal(await window.locator(".toolbar__progress").count(), 0);
+   const migrated = await load();
+   assert.notEqual(migrated.scanId, updated.scanId);
+   assert.ok(migrated.groups.every((set) => set.images.every((image) => /^[0-9a-f]{16}:[0-9a-f]{432}$/u.test(image.hash))));
+   const migratedDb = new DatabaseSync(path.join(profile, "deduup.sqlite"));
+   assert.equal(migratedDb.prepare("SELECT value FROM settings WHERE key = 'hash_version'").get().value, "dhash64-rgb-v2");
+   assert.equal(migratedDb.prepare("SELECT COUNT(*) AS count FROM image_inventory WHERE length(hash) != 449").get().count, 0);
+   migratedDb.close();
+   await window.waitForSelector(".toolbar__progress", { state: "detached" });
    await window.getByRole("button", { name: "File", exact: true }).click();
    assert.equal(await window.getByRole("menuitem", { name: /rescan/i }).count(), 0);
    console.log(

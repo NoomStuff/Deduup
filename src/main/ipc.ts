@@ -18,12 +18,14 @@ import {
    saveScan,
 } from "./database.js";
 import { moveMarkedImages, assertDuplicateFolderCanBeRecycled, recordRecycledMoves, restoreDuplicateFolder } from "./fileActions.js";
-import { ScanCancelledError, collectImagePaths, groupImages, scanImages } from "./scanner.js";
+import { HASH_VERSION, ScanCancelledError, collectImagePaths, groupImages, scanImages } from "./scanner.js";
 import { assertReviewWritable, hasActiveOperation, runExclusiveOperation } from "./operationCoordinator.js";
 import { LibraryMonitor } from "./libraryMonitor.js";
 
 /** All scan entry points share the same cancellation owner. */
 let activeScanController: AbortController | null = null;
+let activeScanResult: { rootPath: string; result: Promise<LoadDataResult> } | null = null;
+const getPendingScanResult = (): Promise<LoadDataResult> | null => activeScanResult?.result ?? null;
 let monitoringSender: WebContents | null = null;
 class RefreshDeferredError extends Error {}
 const libraryMonitor = new LibraryMonitor(
@@ -52,7 +54,7 @@ const libraryMonitor = new LibraryMonitor(
 export const startLibraryMonitoring = (sender: WebContents): void => {
    monitoringSender = sender;
    const root = getSetting("scan_root");
-   if (root !== null) libraryMonitor.start(root);
+   if (root !== null && getSetting("hash_version") === HASH_VERSION) libraryMonitor.start(root);
 };
 export const stopLibraryMonitoring = (): void => libraryMonitor.stop();
 
@@ -97,6 +99,7 @@ const executeScan = async (rootPath: string, sender: WebContents, signal: AbortS
    const images = await scanImages(paths, report, reportWarning, signal, cache);
    if (
       background &&
+      getSetting("hash_version") === HASH_VERSION &&
       images.length === cache.size &&
       images.every((image) => {
          const previous = cache.get(image.originalPath);
@@ -115,8 +118,12 @@ const executeScan = async (rootPath: string, sender: WebContents, signal: AbortS
    return true;
 };
 
-export const runScan = (rootPath: string, sender: WebContents): Promise<LoadDataResult> =>
-   runExclusiveOperation("scan", async () => {
+export const runScan = (rootPath: string, sender: WebContents): Promise<LoadDataResult> => {
+   if (activeScanResult !== null) {
+      if (activeScanResult.rootPath === rootPath) return activeScanResult.result;
+      return Promise.reject(new Error("Wait for the current scan operation to finish."));
+   }
+   const result = runExclusiveOperation("scan", async () => {
       const controller = new AbortController();
       activeScanController = controller;
       try {
@@ -127,7 +134,12 @@ export const runScan = (rootPath: string, sender: WebContents): Promise<LoadData
       } finally {
          activeScanController = null;
       }
+   }).finally(() => {
+      if (activeScanResult?.result === result) activeScanResult = null;
    });
+   activeScanResult = { rootPath, result };
+   return result;
+};
 
 export const registerIpcHandlers = (): void => {
    ipcMain.handle("review:busy", (_event, busy: unknown): void => {
@@ -175,7 +187,29 @@ export const registerIpcHandlers = (): void => {
          throw new Error("Only project pages can be opened.");
       return shell.openExternal(target.href);
    });
-   ipcMain.handle("data:load", getLoadResult);
+   ipcMain.handle("data:load", async (event) => {
+      const pendingScan = getPendingScanResult();
+      if (pendingScan !== null) return pendingScan;
+      const root = getSetting("scan_root");
+      // Rehash before presenting old detections. A moved library must remain
+      // available for recovery first; executeScan already enforces that rule.
+      if (root !== null && getSetting("hash_version") !== HASH_VERSION) {
+         const hasMovedImages = await getDuplicateFolderStatus();
+         const pendingScan = getPendingScanResult();
+         if (pendingScan !== null) return pendingScan;
+         if (!hasMovedImages && !hasActiveOperation()) {
+            try {
+               const result = await runScan(root, event.sender);
+               if (!event.sender.isDestroyed()) event.sender.send("scan:complete", result);
+               return result;
+            } catch (error: unknown) {
+               if (!event.sender.isDestroyed()) event.sender.send("app:error", error instanceof Error ? error.message : "Library rehash failed");
+               throw error;
+            }
+         }
+      }
+      return getLoadResult();
+   });
    ipcMain.handle("scan:choose-folder", async (): Promise<string | null> => {
       const result = await dialog.showOpenDialog({ properties: ["openDirectory"], title: "Choose image folder" });
       return result.canceled ? null : (result.filePaths[0] ?? null);
