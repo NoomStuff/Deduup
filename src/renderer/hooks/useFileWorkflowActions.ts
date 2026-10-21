@@ -39,7 +39,7 @@ export const useFileWorkflowActions = ({ clearHistory, notify, onRefresh, report
             message: `Moved ${result.moved.length}, skipped ${result.skipped.length}, errors ${result.errors.length}.`,
          });
       } catch (error: unknown) {
-         reportError("Couldn’t move discarded images", error, "Failed to move discarded images");
+         reportError("Couldn't move discarded images", error, "Failed to move discarded images");
       } finally {
          busyRef.current = false;
          setIsApplying(false);
@@ -57,7 +57,7 @@ export const useFileWorkflowActions = ({ clearHistory, notify, onRefresh, report
          setRestoreResult(null);
          notify({ tone: "success", title: "Duplicates recycled", message: "The duplicate folder is in the Recycle Bin." });
       } catch (error: unknown) {
-         reportError("Couldn’t recycle duplicates", error, "Failed to recycle moved duplicates");
+         reportError("Couldn't recycle duplicates", error, "Failed to recycle moved duplicates");
       } finally {
          busyRef.current = false;
          setIsTrashing(false);
@@ -80,7 +80,7 @@ export const useFileWorkflowActions = ({ clearHistory, notify, onRefresh, report
             message: `Restored ${result.moved.length}, skipped ${result.skipped.length}, errors ${result.errors.length}.`,
          });
       } catch (error: unknown) {
-         reportError("Couldn’t restore images", error, "Failed to restore moved images");
+         reportError("Couldn't restore images", error, "Failed to restore moved images");
       } finally {
          busyRef.current = false;
          setIsRestoring(false);

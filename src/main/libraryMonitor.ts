@@ -1,7 +1,7 @@
 import { watch } from "node:fs";
 import type { FSWatcher } from "node:fs";
 import path from "node:path";
-import { duplicateContainerFolderName, managedDuplicateFolderName } from "../shared/constants.js";
+import { getManagedFolderPaths } from "./managedFolder.js";
 
 /** Coalesce filesystem changes and retry while review or file operations own the library. */
 export class LibraryMonitor {
@@ -33,9 +33,9 @@ export class LibraryMonitor {
             void this.flush(root, generation, schedule);
          }, 1000);
       };
+      const managed = path.relative(root, getManagedFolderPaths(root).managedPath);
       try {
          this.watcher = watch(root, { recursive: true }, (_event, filename) => {
-            const managed = path.join(duplicateContainerFolderName, managedDuplicateFolderName);
             if (filename !== null && (filename === managed || filename.startsWith(`${managed}${path.sep}`))) return;
             schedule();
          });

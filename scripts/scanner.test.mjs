@@ -103,6 +103,29 @@ test("always discovers supported images in nested folders", async () => {
    }
 });
 
+test("excludes only the scan root's managed output and keeps scanning user duplicate folders", async () => {
+   const root = await mkdtemp(path.join(os.tmpdir(), "deduup-managed-scan-"));
+   try {
+      const managedImage = path.join(root, "duplicate", ".deduup-managed", "set_001", "moved.jpg");
+      const sourceImages = [
+         path.join(root, "duplicate", "user-image.jpg"),
+         path.join(root, "duplicate", ".deduup-managed-neighbor", "image.jpg"),
+         path.join(root, "nested", "duplicate", ".deduup-managed", "image.jpg"),
+      ];
+      for (const file of [managedImage, ...sourceImages]) {
+         await mkdir(path.dirname(file), { recursive: true });
+         await writeFile(file, "image");
+      }
+
+      assert.deepEqual(
+         await collectImagePaths(root),
+         sourceImages.sort((left, right) => left.localeCompare(right))
+      );
+   } finally {
+      await rm(root, { recursive: true, force: true });
+   }
+});
+
 test("splits chains that average beyond the similarity cap", async () => {
    const images = [0n, (1n << 13n) - 1n, (1n << 26n) - 1n, (1n << 39n) - 1n].map(createImage);
    const groups = await groupImages(images, () => undefined);

@@ -20,7 +20,7 @@ export const useReviewPersistence = ({ loading, scanId, decisions, currentSet, r
       const timeout = window.setTimeout(() => {
          void api.saveDecisions(decisions, scanId).catch((error: unknown) => {
             if (currentScanId.current !== scanId) return;
-            reportError("Choices weren’t saved", error, "Failed to save choices");
+            reportError("Choices weren't saved", error, "Failed to save choices");
          });
       }, 100);
 
@@ -33,7 +33,7 @@ export const useReviewPersistence = ({ loading, scanId, decisions, currentSet, r
       const timeout = window.setTimeout(() => {
          void api.saveCurrentSet(currentSet.id, scanId).catch((error: unknown) => {
             if (currentScanId.current !== scanId) return;
-            reportError("Position wasn’t saved", error, "Failed to save the current set");
+            reportError("Position wasn't saved", error, "Failed to save the current set");
          });
       }, 150);
       return () => window.clearTimeout(timeout);
