@@ -1,8 +1,8 @@
 import { readdir, stat } from "node:fs/promises";
 import path from "node:path";
 import sharp from "sharp";
-import { duplicateContainerFolderName, managedDuplicateFolderName } from "../shared/constants.js";
 import type { ScanProgress } from "../shared/types.js";
+import { getManagedFolderPaths } from "./managedFolder.js";
 
 export interface ScannedImage {
    file: string;
@@ -70,7 +70,7 @@ const partitionMasks = createPartitionMasks();
 export const collectImagePaths = async (rootPath: string, reportWarning?: ScanWarningReporter, signal?: AbortSignal): Promise<string[]> => {
    const collected: string[] = [];
    const normalizedRoot = path.resolve(rootPath);
-   const duplicateOutputPath = path.join(normalizedRoot, duplicateContainerFolderName, managedDuplicateFolderName);
+   const duplicateOutputPath = getManagedFolderPaths(normalizedRoot).managedPath;
 
    const visit = async (folderPath: string, isRoot = false): Promise<void> => {
       if (signal?.aborted) throw new ScanCancelledError();

@@ -3,10 +3,10 @@ import { randomUUID } from "node:crypto";
 import { stat } from "node:fs/promises";
 import path from "node:path";
 import { DatabaseSync } from "node:sqlite";
-import { duplicateContainerFolderName, managedDuplicateFolderName } from "../shared/constants.js";
 import type { Decisions, FileActionStatus, ImageItem, ImageSet, LoadDataResult, PlannedMove } from "../shared/types.js";
 import { createPreviewUrl, resetPreviewAccess } from "./previewProtocol.js";
 import { collectManagedFolderFiles, isMissingPathError } from "./fileOperations.js";
+import { getManagedFolderPaths } from "./managedFolder.js";
 import type { GroupedImages } from "./scanner.js";
 import type { ScannedImage } from "./scanner.js";
 import { reconcileDecisions } from "../shared/reconcileDecisions.js";
@@ -312,7 +312,7 @@ export const getLastFileAction = (): FileActionStatus => {
 
 export const getDuplicateFolderPath = (): string | null => {
    const scanRoot = getSetting("scan_root");
-   return scanRoot === null ? null : path.join(scanRoot, duplicateContainerFolderName, managedDuplicateFolderName);
+   return scanRoot === null ? null : getManagedFolderPaths(scanRoot).managedPath;
 };
 
 export const saveCurrentSetId = (setId: string): void => {
@@ -333,7 +333,7 @@ const findMovedPath = async (row: ImageRow, scanRoot: string | null): Promise<st
    if (scanRoot === null) return null;
    const relativePath = path.relative(scanRoot, row.originalPath);
    const safeRelativePath = relativePath === ".." || relativePath.startsWith(`..${path.sep}`) || path.isAbsolute(relativePath) ? row.file : relativePath;
-   const movedPath = path.join(scanRoot, duplicateContainerFolderName, managedDuplicateFolderName, row.setId, safeRelativePath);
+   const movedPath = path.join(getManagedFolderPaths(scanRoot).managedPath, row.setId, safeRelativePath);
    return (await statFile(movedPath)) === null ? null : movedPath;
 };
 

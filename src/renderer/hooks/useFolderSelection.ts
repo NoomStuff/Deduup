@@ -34,7 +34,7 @@ export const useFolderSelection = ({
       try {
          return await window.imageDeduplicator.chooseFolder();
       } catch (error: unknown) {
-         reportError("Couldn’t choose a folder", error, "Failed to choose a folder");
+         reportError("Couldn't choose a folder", error, "Failed to choose a folder");
          return null;
       }
    };

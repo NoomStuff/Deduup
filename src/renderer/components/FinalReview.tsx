@@ -170,7 +170,7 @@ export const FinalReview = ({
                            ? "Undo the move, or recycle the folder when you are happy."
                            : workflow.recycledCount > 0
                              ? "This can no longer be undone from the app."
-                             : "Go back to the review and discard the images you don’t want."}
+                             : "Go back to the review and discard the images you don't want."}
                      </span>
                   </div>
                </div>

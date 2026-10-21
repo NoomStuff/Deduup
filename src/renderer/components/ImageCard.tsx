@@ -52,7 +52,7 @@ export const ImageCard = memo(function ImageCard({
          ? "Moved here by the app, still undoable"
          : image.sourceStatus === "recycledByApp"
            ? "The duplicate folder was recycled"
-           : "Couldn’t find the original file";
+           : "Couldn't find the original file";
    const captioned = captions !== "none";
 
    return (
@@ -91,7 +91,7 @@ export const ImageCard = memo(function ImageCard({
                   <div className="imageCard__fallback">
                      <ImageOff aria-hidden="true" />
                      <strong>Preview unavailable</strong>
-                     <span>The file couldn’t be read</span>
+                     <span>The file couldn't be read</span>
                   </div>
                )}
             </div>
