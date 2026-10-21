@@ -90,7 +90,6 @@ await window.waitForTimeout(1500);
 
 const probe = await window.evaluate(
    async ({ toggles, undos, navigations }) => {
-      const elapsed = (measure) => Math.round((measure - performance.now()) * 100) / 100;
       const startTimer = () => performance.now();
 
       const until = (condition, deadlineMs = 2_000) =>
@@ -113,7 +112,19 @@ const probe = await window.evaluate(
       const chipCount = () => document.querySelectorAll(".imageCard__chip--discarded").length;
       const setNumber = () => document.querySelector(".setHeader__number")?.textContent ?? "";
 
-      const results = { toggle: [], undo: [], navigate: [] };
+      const results = { toggle: [], undo: [], navigate: [], navigateScript: [], navigatePaint: [] };
+
+      // Splits navigation latency into React commit time (until the header text
+      // actually mutates) and the style/layout/paint/remainder that follows.
+      let headerMutatedAt = null;
+      const headerObserver = new MutationObserver(() => {
+         if (headerMutatedAt === null) headerMutatedAt = startTimer();
+      });
+      headerObserver.observe(document.querySelector(".setHeader__number"), {
+         childList: true,
+         characterData: true,
+         subtree: true,
+      });
 
       // Discard/restore the first image by number key; re-sync with the chip
       // state before each press so the timed condition only reacts when the
@@ -121,10 +132,9 @@ const probe = await window.evaluate(
       for (let index = 0; index < toggles; index += 1) {
          const wasPresent = chipCount() === 1;
          const target = wasPresent ? 0 : 1;
-         const t0 = startTimer();
          press("1");
          const delta = await until(() => chipCount() === target && chipCount() !== wasPresent);
-         if (delta >= 0) results.toggle.push(elapsed(t0 + delta));
+         if (delta >= 0) results.toggle.push(delta);
       }
 
       // Roll back flips until the chip count stops reacting to undo.
@@ -138,11 +148,19 @@ const probe = await window.evaluate(
 
       for (let index = 0; index < navigations; index += 1) {
          const before = setNumber();
+         headerMutatedAt = null;
+         const t0 = startTimer();
          press("ArrowRight");
          const delta = await until(() => setNumber() !== before && setNumber() !== "");
-         if (delta >= 0) results.navigate.push(delta);
+         if (delta >= 0) {
+            results.navigate.push(delta);
+            const scriptMs = headerMutatedAt === null ? delta : Math.round((headerMutatedAt - t0) * 100) / 100;
+            results.navigateScript.push(scriptMs);
+            results.navigatePaint.push(Math.max(0, Math.round((delta - scriptMs) * 100) / 100));
+         }
       }
 
+      headerObserver.disconnect();
       return results;
    },
    { toggles: 60, undos: 14, navigations: 40 }
@@ -157,6 +175,8 @@ const report = {
    toggle: summarize(probe.toggle),
    undo: summarize(probe.undo),
    navigate: summarize(probe.navigate),
+   navigateScript: summarize(probe.navigateScript),
+   navigatePaint: summarize(probe.navigatePaint),
 };
 console.log(JSON.stringify(report, null, 2));
 await writeFile(resultFile, JSON.stringify(report, null, 2));

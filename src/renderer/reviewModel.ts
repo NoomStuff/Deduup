@@ -30,9 +30,12 @@ export const setImageSetDecisions = (decisions: Decisions, updates: Iterable<rea
 export const setImageSetDecision = (decisions: Decisions, setId: string, decision: ImageSetDecision): Decisions =>
    setImageSetDecisions(decisions, [[setId, decision]]);
 
+const emptyImagePaths: ReadonlySet<string> = new Set<string>();
+
 export const getDeletedImagePaths = (decision: ImageSetDecision): Set<string> => new Set(decision.deletedImages);
 
-const getDeletedImagesForSet = (imageSet: ImageSet, decision: ImageSetDecision): Set<string> => {
+const getDeletedImagesForSet = (imageSet: ImageSet, decision: ImageSetDecision | undefined): ReadonlySet<string> => {
+   if (decision === undefined || decision.deletedImages.length === 0) return emptyImagePaths;
    const imagePaths = new Set(imageSet.images.map((image) => image.originalPath));
    return new Set(decision.deletedImages.filter((path) => imagePaths.has(path)));
 };
@@ -52,6 +55,9 @@ const getMovePreviewByStatus = (imageSets: ImageSet[], decisions: Decisions, sou
       }
 
       const deletedPaths = sourceStatus === "available" && decision !== undefined ? getDeletedImagesForSet(imageSet, decision) : null;
+      if (deletedPaths !== null && deletedPaths.size === 0) {
+         continue;
+      }
       for (const image of imageSet.images) {
          if (image.sourceStatus === sourceStatus && (deletedPaths === null || deletedPaths.has(image.originalPath))) {
             rows.push({ setId: imageSet.id, file: image.file, originalPath: image.originalPath, previewUrl: image.previewUrl, size: image.size });
@@ -95,23 +101,32 @@ export const getFileWorkflowState = (imageSets: ImageSet[], decisions: Decisions
    return state;
 };
 
-export const getImageSetState = (imageSet: ImageSet, decision: ImageSetDecision | undefined): ImageSetState => {
-   if (decision === undefined) {
-      return "open";
-   }
+export interface LibrarySetRow {
+   /** "#N" without a per-item call to getSetNumber. */
+   number: string;
+   /** The "kept/total" text shown on filmstrip tiles and the set header. */
+   label: string;
+   state: ImageSetState;
+   /** Cached "difference N.N" fragment for filmstrip tooltips. */
+   differenceText: string;
+}
 
+/** Row text and state in one pass over the set, so filmstrip items render from
+   cached strings instead of recomputing label helpers per render. */
+export const getSetRow = (imageSet: ImageSet, decision: ImageSetDecision | undefined): LibrarySetRow => {
    const deletedCount = getDeletedImagesForSet(imageSet, decision).size;
-   if (deletedCount === imageSet.images.length) {
-      return "allDeleted";
-   }
-
-   return deletedCount > 0 ? "someDeleted" : "open";
+   const keptCount = Math.max(0, imageSet.images.length - deletedCount);
+   return {
+      number: getSetNumber(imageSet.id),
+      label: `${keptCount}/${imageSet.images.length}`,
+      state: deletedCount === imageSet.images.length ? "allDeleted" : deletedCount > 0 ? "someDeleted" : "open",
+      differenceText: imageSet.similarity.toFixed(1),
+   };
 };
 
-export const getImageSetLabel = (imageSet: ImageSet, decision: ImageSetDecision): string => {
-   const keptCount = Math.max(0, imageSet.images.length - getDeletedImagesForSet(imageSet, decision).size);
-   return `${keptCount}/${imageSet.images.length}`;
-};
+export const getImageSetState = (imageSet: ImageSet, decision: ImageSetDecision | undefined): ImageSetState => getSetRow(imageSet, decision).state;
+
+export const getImageSetLabel = (imageSet: ImageSet, decision: ImageSetDecision): string => getSetRow(imageSet, decision).label;
 
 export const getImageDeleteState = (decision: ImageSetDecision, image: ImageItem): ImageDeleteState =>
    getDeletedImagePaths(decision).has(image.originalPath) ? "deleted" : "active";

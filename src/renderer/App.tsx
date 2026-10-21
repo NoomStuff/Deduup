@@ -22,6 +22,7 @@ import { useAppUpdates } from "./hooks/useAppUpdates.js";
 import { useDecisionHistory } from "./hooks/useDecisionHistory.js";
 import { useFileWorkflowActions } from "./hooks/useFileWorkflowActions.js";
 import { useFilmstrip } from "./hooks/useFilmstrip.js";
+import { useLibraryRows } from "./hooks/useLibraryRows.js";
 import { useFolderSelection } from "./hooks/useFolderSelection.js";
 import { useApplyScanResult, useLibraryBootstrap, useLibrarySync } from "./hooks/useLibrarySync.js";
 import { useNotifications } from "./hooks/useNotifications.js";
@@ -114,6 +115,7 @@ export const App = () => {
    const duplicatePreview = useMemo(() => getDuplicatePreview(groups, decisions), [decisions, groups]);
    const fileWorkflow = useMemo(() => getFileWorkflowState(groups, decisions), [decisions, groups]);
    const similarityBands = useMemo(() => getSimilarityBands(groups), [groups]);
+   const decisionRows = useLibraryRows(groups, decisions);
    const selectedImage = currentSet?.images.find((image) => image.originalPath === selectedImagePath) ?? null;
 
    const { availableUpdate, updateActions, updateStatus } = useAppUpdates({ loading, reportError });
@@ -421,7 +423,7 @@ export const App = () => {
                         currentDecision={currentDecision}
                         currentSet={currentSet}
                         currentIndex={currentIndex}
-                        decisions={decisions}
+                        decisionRows={decisionRows}
                         filmstripRef={filmstripRef}
                         filmstripFade={filmstripFade}
                         getTooltipProps={getTooltipProps}
