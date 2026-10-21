@@ -1,19 +1,12 @@
 import type { CSSProperties, MouseEvent, RefObject } from "react";
-import { ChevronLeft, ChevronRight, Eraser, FolderOpen, MousePointer2, Search, Trash2 } from "lucide-react";
-import type { Decisions, ImageItem, ImageSet, ImageSetDecision } from "../../shared/types.js";
+import { Eraser, FolderOpen, MousePointer2, Search, Trash2 } from "lucide-react";
+import type { ImageItem, ImageSet, ImageSetDecision } from "../../shared/types.js";
 import type { ContextMenuState, ImageCaptionMode, SimilarityBand, TravelDirection } from "../appTypes.js";
 import { useBindingDisplay } from "../commands.js";
 import { useCtrlHeld } from "../hooks/usePreference.js";
 import type { TooltipProps } from "../hooks/useTooltip.js";
-import {
-   getDecision,
-   getDeletedImagePaths,
-   getSetNumber,
-   getImageDeleteState,
-   getImageSetLabel,
-   getImageSetState,
-   getSimilarityColor,
-} from "../reviewModel.js";
+import { getDeletedImagePaths, getImageDeleteState, getImageSetLabel, getSetNumber, getSimilarityColor, type LibrarySetRow } from "../reviewModel.js";
+import { ReviewFilmstrip } from "./ReviewFilmstrip.js";
 import { ImageCard } from "./ImageCard.js";
 import "./ReviewWorkspace.css";
 
@@ -23,7 +16,7 @@ interface ReviewWorkspaceProps {
    currentDecision: ImageSetDecision;
    currentSet: ImageSet;
    currentIndex: number;
-   decisions: Decisions;
+   decisionRows: Map<string, LibrarySetRow>;
    filmstripFade: { left: boolean; right: boolean };
    filmstripRef: RefObject<HTMLElement | null>;
    selectedImagePath: string | null;
@@ -177,84 +170,26 @@ export const ReviewWorkspace = (props: ReviewWorkspaceProps) => {
             </div>
          </section>
 
-         <section className="setTimeline">
-            <button
-               aria-label="Previous set"
-               className="setNav"
-               onClick={() => props.onNavigate(props.currentIndex - 1)}
-               type="button"
-               {...props.getTooltipProps("Previous set", "Move to the previous set.", previousHint)}
-            >
-               <ChevronLeft aria-hidden="true" />
-            </button>
-            {/* The fades are overlays instead of a mask on the scroller: a mask
-               would fade the scrollbar too, and the scrollbar must stay solid. */}
-            <div
-               className={`filmstripWrap${props.filmstripFade.left ? " filmstripWrap--fade-left" : ""}${props.filmstripFade.right ? " filmstripWrap--fade-right" : ""}`}
-            >
-               <section aria-label="Sets grouped by similarity" className="filmstrip" ref={props.filmstripRef}>
-                  {props.similarityBands.map((band) => (
-                     <div className="similarityBand" key={band.label} style={{ "--band-color": getSimilarityColor(band.distance) } as CSSProperties}>
-                        <button
-                           className="similarityBand__tag"
-                           onClick={() => {
-                              const firstGroup = band.groups[0];
-                              if (firstGroup !== undefined) props.onNavigate(firstGroup.index);
-                           }}
-                           onContextMenu={(event) => {
-                              const firstSet = band.groups[0]?.imageSet;
-                              if (firstSet === undefined) return;
-                              event.preventDefault();
-                              props.onOpenContextMenu({
-                                 menuKind: "similarityBand",
-                                 anchor: { kind: "rect", rect: event.currentTarget.getBoundingClientRect() },
-                                 setId: firstSet.id,
-                              });
-                           }}
-                           type="button"
-                           {...props.getTooltipProps(`Difference ${band.label}`, "Average pixel difference across this band. Lower means more alike.")}
-                        >
-                           <span aria-hidden="true" className="similarityBand__link" />
-                           {band.label}
-                        </button>
-                        <div className="similarityBand__items">
-                           {band.groups.map(({ imageSet, index }) => {
-                              const state = getImageSetState(imageSet, props.decisions[imageSet.id]);
-                              return (
-                                 <button
-                                    aria-current={imageSet.id === props.currentSet.id ? "true" : undefined}
-                                    className={`filmstrip__item${imageSet.id === props.currentSet.id ? " filmstrip__item--active" : ""} filmstrip__item--${state}`}
-                                    key={imageSet.id}
-                                    onClick={() => props.onNavigate(index)}
-                                    onContextMenu={(event) => props.onImageSetContextMenu(event, imageSet)}
-                                    type="button"
-                                    {...props.getTooltipProps(
-                                       `Set ${getSetNumber(imageSet.id)}`,
-                                       `${getImageSetLabel(imageSet, getDecision(props.decisions, imageSet.id))} kept · difference ${imageSet.similarity.toFixed(1)}`
-                                    )}
-                                 >
-                                    <span>{getSetNumber(imageSet.id)}</span>
-                                    <small>{getImageSetLabel(imageSet, getDecision(props.decisions, imageSet.id))}</small>
-                                 </button>
-                              );
-                           })}
-                        </div>
-                     </div>
-                  ))}
-               </section>
-               <span aria-hidden="true" className="filmstrip__fade filmstrip__fade--left" />
-               <span aria-hidden="true" className="filmstrip__fade filmstrip__fade--right" />
-            </div>
-            <button
-               aria-label="Next set"
-               className="setNav"
-               onClick={() => props.onNavigate(props.currentIndex + 1)}
-               type="button"
-               {...props.getTooltipProps("Next set", "Move to the next set.", nextHint)}
-            >
-               <ChevronRight aria-hidden="true" />
-            </button>
-         </section>
+         <ReviewFilmstrip
+            bands={props.similarityBands}
+            currentIndex={props.currentIndex}
+            currentSetId={props.currentSet.id}
+            fade={props.filmstripFade}
+            filmstripRef={props.filmstripRef}
+            getTooltipProps={props.getTooltipProps}
+            nextHint={nextHint}
+            previousHint={previousHint}
+            rows={props.decisionRows}
+            onBandContextMenu={(event, firstSet) =>
+               props.onOpenContextMenu({
+                  menuKind: "similarityBand",
+                  anchor: { kind: "rect", rect: event.currentTarget.getBoundingClientRect() },
+                  setId: firstSet.id,
+               })
+            }
+            onNavigate={props.onNavigate}
+            onSetContextMenu={props.onImageSetContextMenu}
+         />
       </section>
    );
 };
