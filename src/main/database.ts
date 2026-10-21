@@ -7,6 +7,7 @@ import type { Decisions, FileActionStatus, ImageItem, ImageSet, LoadDataResult, 
 import { createPreviewUrl, resetPreviewAccess } from "./previewProtocol.js";
 import { collectManagedFolderFiles, isMissingPathError } from "./fileOperations.js";
 import { getManagedFolderPaths } from "./managedFolder.js";
+import { HASH_VERSION } from "./scanner.js";
 import type { GroupedImages } from "./scanner.js";
 import type { ScannedImage } from "./scanner.js";
 import { reconcileDecisions } from "../shared/reconcileDecisions.js";
@@ -181,7 +182,7 @@ export const saveScan = (
       setSetting("move_journal_version", "1");
       setSetting("last_file_action", "idle");
       setSetting("current_set_id", currentSetId ?? (groups.length === 0 ? "" : "set_001"));
-      setSetting("hash_version", "dhash64-v1");
+      setSetting("hash_version", HASH_VERSION);
       setSetting("scan_warning_count", String(warnings.count));
       setSetting("scan_warning_paths", JSON.stringify(warnings.paths));
       db.exec("COMMIT");
@@ -194,7 +195,7 @@ export const saveScan = (
 };
 
 export const loadImageInventory = (): ScannedImage[] =>
-   getSetting("hash_version") !== "dhash64-v1"
+   getSetting("hash_version") !== HASH_VERSION
       ? []
       : (getDatabase()
            .prepare(

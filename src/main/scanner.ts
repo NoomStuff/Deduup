@@ -31,6 +31,7 @@ export class ScanCancelledError extends Error {
 }
 
 const supportedExtensions = new Set([".jpg", ".jpeg", ".png", ".webp", ".bmp", ".gif", ".avif", ".tif", ".tiff"]);
+export const HASH_VERSION = "dhash64-rgb-v2";
 const hashDistanceThreshold = 13;
 const groupingYieldInterval = 256;
 const exactSimilarityLimit = 96;
@@ -102,25 +103,48 @@ export const collectImagePaths = async (rootPath: string, reportWarning?: ScanWa
    return collected.sort((left, right) => left.localeCompare(right));
 };
 
+// Store the spatial hash separately from its RGB evidence. Only the spatial
+// bits participate in the four 16-bit candidate indexes.
+const hashPattern = /^[0-9a-f]{16}:[0-9a-f]{432}$/u;
+interface ImageHash {
+   spatial: bigint;
+   colors: Buffer;
+}
+const parseHash = (hash: string): ImageHash => {
+   if (!hashPattern.test(hash)) throw new Error("Unsupported image hash. Rescan the library.");
+   return { spatial: BigInt(`0x${hash.slice(0, 16)}`), colors: Buffer.from(hash.slice(17), "hex") };
+};
+
 const createDifferenceHash = (pixels: Buffer): string => {
+   // Ignore tiny quantization gradients in otherwise flat images.
+   const luminance = Array.from({ length: 72 }, (_, index) =>
+      Math.round((pixels[index * 3] ?? 0) * 0.299 + (pixels[index * 3 + 1] ?? 0) * 0.587 + (pixels[index * 3 + 2] ?? 0) * 0.114)
+   );
    let hash = 0n;
    for (let y = 0; y < 8; y += 1) {
       for (let x = 0; x < 8; x += 1) {
          const offset = y * 9 + x;
-         hash = (hash << 1n) | ((pixels[offset] ?? 0) > (pixels[offset + 1] ?? 0) ? 1n : 0n);
+         hash = (hash << 1n) | ((luminance[offset] ?? 0) - (luminance[offset + 1] ?? 0) > 2 ? 1n : 0n);
       }
    }
-   return hash.toString(16).padStart(16, "0");
+   return `${hash.toString(16).padStart(16, "0")}:${pixels.toString("hex")}`;
 };
 
 const scanImage = async (filePath: string, reportWarning?: ScanWarningReporter, cached?: ScannedImage): Promise<ScannedImage | null> => {
    try {
       const before = await stat(filePath);
       if (!before.isFile()) throw new Error("The image is not a regular file");
-      if (cached?.size === before.size && cached.modifiedAt === before.mtimeMs && cached.changedAt === before.ctimeMs) return cached;
+      if (
+         cached !== undefined &&
+         hashPattern.test(cached.hash) &&
+         cached.size === before.size &&
+         cached.modifiedAt === before.mtimeMs &&
+         cached.changedAt === before.ctimeMs
+      )
+         return cached;
       const source = sharp(filePath, { animated: false, failOn: "none" }).rotate();
       const metadata = await source.metadata();
-      const pixels = await source.clone().resize(9, 8, { fit: "fill" }).greyscale().raw().toBuffer();
+      const pixels = await source.clone().resize(9, 8, { fit: "fill" }).toColourspace("srgb").removeAlpha().raw().toBuffer();
       const fileStat = await stat(filePath);
       if (
          before.dev !== fileStat.dev ||
@@ -184,7 +208,26 @@ export const scanImages = async (
 };
 
 export const getHashDistance = (left: string, right: string): number => {
-   return getHashValueDistance(BigInt(`0x${left}`), BigInt(`0x${right}`));
+   return getImageHashDistance(parseHash(left), parseHash(right));
+};
+
+/**
+ * Difference stays on the 0..64 scale. Color difference is the mean largest
+ * RGB channel change per thumbnail pixel, scaled from 0..255 to 0..64.
+ * Taking the maximum means color can reject a spatial match, never rescue one.
+ * Zero requires identical spatial bits AND identical RGB thumbnails.
+ */
+const getImageHashDistance = (left: ImageHash, right: ImageHash): number => {
+   const spatialDistance = getHashValueDistance(left.spatial, right.spatial);
+   let colorDifference = 0;
+   for (let offset = 0; offset < left.colors.length; offset += 3) {
+      colorDifference += Math.max(
+         Math.abs((left.colors[offset] ?? 0) - (right.colors[offset] ?? 0)),
+         Math.abs((left.colors[offset + 1] ?? 0) - (right.colors[offset + 1] ?? 0)),
+         Math.abs((left.colors[offset + 2] ?? 0) - (right.colors[offset + 2] ?? 0))
+      );
+   }
+   return Math.max(spatialDistance, (colorDifference * 64) / (72 * 255));
 };
 
 const getHashValueDistance = (left: bigint, right: bigint): number => {
@@ -242,7 +285,7 @@ const getHashPartition = (hash: bigint, partition: number): number => Number((ha
  */
 const splitOverCapGroup = (group: ScannedImage[]): { kept: ScannedImage[]; exiled: ScannedImage[] } => {
    const size = group.length;
-   const distances = new Int32Array(size * size);
+   const distances = new Float64Array(size * size);
    for (let left = 0; left < size; left += 1) {
       const leftImage = group[left];
       if (leftImage === undefined) continue;
@@ -295,25 +338,35 @@ const splitOverCapGroup = (group: ScannedImage[]): { kept: ScannedImage[]; exile
 };
 const findAndIndexMatches = (
    imageIndex: number,
-   hash: bigint,
-   hashValues: bigint[],
+   hash: ImageHash,
+   hashValues: ImageHash[],
    indexes: SimilarityIndex,
    candidateMarkers: Int32Array,
+   isConnected: (candidateIndex: number) => boolean,
    onMatch: (matchingIndex: number) => void
 ): void => {
    const marker = imageIndex + 1;
    for (let partition = 0; partition < hashPartitionCount; partition += 1) {
       const index = indexes[partition];
       if (index === undefined) continue;
-      const partitionValue = getHashPartition(hash, partition);
+      const partitionValue = getHashPartition(hash.spatial, partition);
       for (const mask of partitionMasks) {
          const candidates = index.get(partitionValue ^ mask);
          if (candidates === undefined) continue;
          for (const candidateIndex of candidates) {
             if (candidateMarkers[candidateIndex] === marker) continue;
             candidateMarkers[candidateIndex] = marker;
+            // Another accepted edge already connects these images. Rechecking
+            // their distance cannot change this component, but every distinct
+            // signature must still be indexed to discover later bridge edges.
+            if (isConnected(candidateIndex)) continue;
             const candidateHash = hashValues[candidateIndex];
-            if (candidateHash !== undefined && getHashValueDistance(hash, candidateHash) <= hashDistanceThreshold) onMatch(candidateIndex);
+            if (
+               candidateHash !== undefined &&
+               getHashValueDistance(hash.spatial, candidateHash.spatial) <= hashDistanceThreshold &&
+               getImageHashDistance(hash, candidateHash) <= hashDistanceThreshold
+            )
+               onMatch(candidateIndex);
          }
       }
 
@@ -327,7 +380,7 @@ const yieldToMainLoop = (): Promise<void> => new Promise((resolve) => setImmedia
 
 const getConnectedGroups = async (images: ScannedImage[], reportProgress: ScanProgressReporter, signal?: AbortSignal): Promise<ScannedImage[][]> => {
    const parent = images.map((_, index) => index);
-   const hashValues = images.map((image) => BigInt(`0x${image.hash}`));
+   const hashValues = images.map((image) => parseHash(image.hash));
    const find = (index: number): number => {
       let root = index;
       while (parent[root] !== root) root = parent[root] ?? root;
@@ -346,16 +399,24 @@ const getConnectedGroups = async (images: ScannedImage[], reportProgress: ScanPr
 
    const indexes: SimilarityIndex = Array.from({ length: hashPartitionCount }, () => new Map<number, number[]>());
    const candidateMarkers = new Int32Array(images.length);
-   const exactHashRepresentatives = new Map<bigint, number>();
+   const exactHashRepresentatives = new Map<string, number>();
    reportProgress({ phase: "grouping", completed: 0, total: images.length });
    for (let imageIndex = 0; imageIndex < images.length; imageIndex += 1) {
       if (signal?.aborted) throw new ScanCancelledError();
       const hash = hashValues[imageIndex];
       if (hash !== undefined) {
-         const exactRepresentative = exactHashRepresentatives.get(hash);
+         const exactRepresentative = exactHashRepresentatives.get(images[imageIndex]?.hash ?? "");
          if (exactRepresentative === undefined) {
-            findAndIndexMatches(imageIndex, hash, hashValues, indexes, candidateMarkers, (matchingIndex) => union(imageIndex, matchingIndex));
-            exactHashRepresentatives.set(hash, imageIndex);
+            findAndIndexMatches(
+               imageIndex,
+               hash,
+               hashValues,
+               indexes,
+               candidateMarkers,
+               (candidateIndex) => find(imageIndex) === find(candidateIndex),
+               (matchingIndex) => union(imageIndex, matchingIndex)
+            );
+            exactHashRepresentatives.set(images[imageIndex]?.hash ?? "", imageIndex);
          } else {
             union(imageIndex, exactRepresentative);
          }

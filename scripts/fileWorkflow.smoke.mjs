@@ -48,6 +48,10 @@ try {
    // Recovery must survive both choice changes and a process restart.
    await window.evaluate((scanId) => window.imageDeduplicator.saveDecisions({}, scanId), data.scanId);
    await app.close();
+   const oldHashes = new DatabaseSync(path.join(profile, "deduup.sqlite"));
+   oldHashes.prepare("UPDATE settings SET value = 'dhash64-v1' WHERE key = 'hash_version'").run();
+   oldHashes.exec("UPDATE image_inventory SET hash = '0000000000000000'; UPDATE images SET hash = '0000000000000000'");
+   oldHashes.close();
    await launch();
    assert.equal((await load()).groups.flatMap((group) => group.images).find((image) => image.originalPath === source).sourceStatus, "movedByApp");
    await writeFile(source, "new original at the same path");
@@ -66,7 +70,12 @@ try {
    await writeFile(destination, original);
    assert.equal((await restore()).moved.length, 1);
    assert.deepEqual(await readFile(source), original);
-   assert.equal((await load()).duplicateFolderHasContent, false);
+   const afterRecovery = await load();
+   assert.equal(afterRecovery.duplicateFolderHasContent, false);
+   assert.ok(
+      afterRecovery.groups.every((set) => set.images.every((image) => image.hash.length === 449)),
+      "rehash after recovering a legacy moved library"
+   );
    const rescanned = await window.evaluate((rootPath) => window.imageDeduplicator.scanFolder({ rootPath }), root);
    assert.notEqual(rescanned.scanId, data.scanId);
    await assert.rejects(
