@@ -75,7 +75,7 @@
    width: calc((100% - 6px) / 3);
    border-radius: 6px;
    background: var(--accent);
-   transition: transform 220ms var(--ease-out);
+   transition: transform var(--duration-move) var(--ease-out);
 }
 
 .segmentedPicker button {
@@ -87,7 +87,7 @@
    font-size: 12px;
    font-weight: 700;
    padding: 6px 12px;
-   transition: color 140ms ease-out;
+   transition: color var(--duration-hover) ease-out;
 }
 
 .segmentedPicker button:hover {
@@ -177,8 +177,8 @@
    place-items: center;
    color: var(--muted);
    transition:
-      background-color 120ms ease-out,
-      color 120ms ease-out;
+      background-color var(--duration-press) ease-out,
+      color var(--duration-press) ease-out;
 }
 
 .shortcutBinding {
@@ -218,8 +218,8 @@
    border-radius: 6px;
    color: var(--faint);
    transition:
-      border-color 120ms ease-out,
-      color 120ms ease-out;
+      border-color var(--duration-press) ease-out,
+      color var(--duration-press) ease-out;
 }
 
 .shortcutAdd:hover {

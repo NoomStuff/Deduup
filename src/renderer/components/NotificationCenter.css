@@ -1,17 +1,26 @@
 /* --- Notifications ---------------------------------------------------------------- */
 
-/* Top-center below the titlebar and toolbar. Portaled to the body so toasts
-   stay clickable while an overlay holds the app root inert. */
+/* Bottom-left above the filmstrip. Portaled to the body so toasts stay
+   clickable while an overlay holds the app root inert. Top-center collided
+   with the skipped-items banner and the hint bar; the only band that never
+   carries state or actions is the caption row above the timeline. */
 
 .notificationCenter {
    position: fixed;
-   top: 90px;
-   left: 50%;
-   transform: translateX(-50%);
+   bottom: 104px;
+   left: 14px;
    z-index: 85;
    display: grid;
    gap: 9px;
-   width: min(380px, calc(100vw - 36px));
+   width: min(340px, calc(100vw - 36px));
+}
+
+/* Alerts during a blocked screen. The final review panel keeps the stage free
+   from the top down, so its titlebar band is the one spot nothing can cover. */
+.notificationCenter--raised {
+   bottom: auto;
+   top: 8px;
+   left: 12px;
 }
 
 .notificationToast {
@@ -25,14 +34,25 @@
    background: rgba(var(--surface-rgb), 0.97);
    box-shadow: var(--shadow);
    padding: 12px 12px 12px 18px;
-   animation: toast-in 200ms var(--ease-out);
+   animation: toast-in var(--duration-move) var(--ease-out);
 }
 
 @keyframes toast-in {
    from {
       opacity: 0;
+      transform: translateY(10px);
+   }
+}
+
+@keyframes toast-in-raised {
+   from {
+      opacity: 0;
       transform: translateY(-10px);
    }
+}
+
+.notificationCenter--raised .notificationToast {
+   animation-name: toast-in-raised;
 }
 
 .notificationToast::before {

@@ -40,7 +40,7 @@
    z-index: 1;
    min-width: 0;
    outline: none;
-   animation: overlay-rise 300ms var(--ease-out) both;
+   animation: overlay-rise var(--duration-panel) var(--ease-out) both;
 }
 
 .overlay-panel[data-closing="true"] .overlay-panel__surface {

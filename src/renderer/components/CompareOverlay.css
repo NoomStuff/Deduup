@@ -56,8 +56,8 @@
    background: rgba(var(--surface-rgb), 0.85);
    padding: 22px 14px;
    transition:
-      border-color 140ms ease-out,
-      background 140ms ease-out,
+      border-color var(--duration-hover) ease-out,
+      background var(--duration-hover) ease-out,
       transform 200ms var(--bounce);
 }
 

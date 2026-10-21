@@ -7,7 +7,7 @@
    background: rgba(var(--accent-rgb), 0.09);
    color: var(--text);
    padding: 10px 14px;
-   animation: soft-rise 200ms var(--ease-out);
+   animation: soft-rise var(--duration-panel) var(--ease-out);
 }
 
 .reviewHints p {

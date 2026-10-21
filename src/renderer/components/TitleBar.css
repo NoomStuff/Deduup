@@ -47,8 +47,8 @@
    width: 46px;
    color: var(--muted);
    transition:
-      background-color 140ms ease-out,
-      color 140ms ease-out;
+      background-color var(--duration-hover) ease-out,
+      color var(--duration-hover) ease-out;
 }
 
 .titlebar__controls button:hover {
