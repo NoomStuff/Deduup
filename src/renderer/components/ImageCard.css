@@ -12,9 +12,9 @@
    background: var(--panel-2);
    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
    transition:
-      border-color 140ms ease-out,
+      border-color var(--duration-hover) ease-out,
       transform 200ms var(--bounce),
-      box-shadow 160ms ease-out;
+      box-shadow var(--duration-move) ease-out;
 }
 
 .imageCard:hover {
@@ -159,7 +159,7 @@
    font-variant-numeric: tabular-nums;
    padding: 3px 8px;
    pointer-events: none;
-   animation: overlay-fade-in 120ms ease-out;
+   animation: overlay-fade-in var(--duration-press) ease-out;
    backdrop-filter: blur(4px);
 }
 

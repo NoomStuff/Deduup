@@ -12,7 +12,7 @@
    box-shadow: var(--shadow);
    padding: 10px 12px;
    pointer-events: none;
-   animation: tooltip-in 130ms var(--ease-out);
+   animation: tooltip-in var(--duration-move) var(--ease-out);
 }
 
 @keyframes tooltip-in {

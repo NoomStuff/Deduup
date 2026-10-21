@@ -25,8 +25,8 @@
    color: var(--muted);
    font-size: 13px;
    transition:
-      background-color 140ms ease-out,
-      color 140ms ease-out;
+      background-color var(--duration-hover) ease-out,
+      color var(--duration-hover) ease-out;
 }
 
 .appMenu__button:is(:hover, .appMenu__button--active) {
@@ -47,11 +47,11 @@
    background: var(--popover-bg);
    box-shadow: var(--shadow);
    transform-origin: top left;
-   animation: menu-in 150ms var(--ease-out);
+   animation: menu-in var(--duration-move) var(--ease-out);
 }
 
 .menuDropdown--closing {
-   animation: menu-out 100ms ease-in both;
+   animation: menu-out var(--duration-press) ease-in both;
    pointer-events: none;
 }
 
@@ -81,7 +81,7 @@
    color: var(--text);
    font-size: 12.5px;
    text-align: left;
-   transition: background-color 120ms ease-out;
+   transition: background-color var(--duration-press) ease-out;
 }
 
 .menuDropdown button:hover:not(:disabled) {
@@ -143,10 +143,10 @@
    font-weight: 700;
    padding: 7px 14px;
    transition:
-      background-color 140ms ease-out,
-      color 140ms ease-out,
-      transform 160ms var(--bounce),
-      box-shadow 140ms ease-out;
+      background-color var(--duration-hover) ease-out,
+      color var(--duration-hover) ease-out,
+      transform var(--duration-move) var(--bounce),
+      box-shadow var(--duration-hover) ease-out;
    box-shadow: 0 2px 10px rgba(var(--accent-rgb), 0.25);
 }
 

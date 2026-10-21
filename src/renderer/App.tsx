@@ -17,7 +17,7 @@ import { ReviewWorkspace } from "./components/ReviewWorkspace.js";
 import { SettingsPanel } from "./components/SettingsPanel.js";
 import { TitleBar } from "./components/TitleBar.js";
 import { TooltipBubble } from "./components/TooltipBubble.js";
-import { LoadingScreen, ScanWarningsBanner, ScanningScreen, StartupScreen } from "./components/AppStatusScreens.js";
+import { LoadingScreen, NoMatchesScreen, ScanWarningsBanner, ScanningScreen, StartupScreen } from "./components/AppStatusScreens.js";
 import { useAppUpdates } from "./hooks/useAppUpdates.js";
 import { useDecisionHistory } from "./hooks/useDecisionHistory.js";
 import { useFileWorkflowActions } from "./hooks/useFileWorkflowActions.js";
@@ -72,7 +72,7 @@ export const App = () => {
    const [shortcutOverrides, setShortcutOverrides] = useState<ShortcutOverrides>(loadShortcutOverrides);
    const [isStartupOpen, setIsStartupOpen] = useState(showStartupOnLaunch);
    const { tooltip, hideTooltip, getTooltipProps } = useTooltip();
-   const { notifications, notify, dismissNotification } = useNotifications();
+   const { notifications, notify, dismissNotification } = useNotifications(isFinalReviewOpen);
 
    useEffect(() => {
       saveShortcutOverrides(shortcutOverrides);
@@ -398,7 +398,35 @@ export const App = () => {
                   <LoadingScreen />
                ) : isScanning ? (
                   <ScanningScreen folderName={getFolderName(scanningPath)} folderPath={scanningPath} progress={scanProgress} onCancel={cancelScan} />
-               ) : isStartupOpen || currentSet === null ? (
+               ) : isStartupOpen ? (
+                  <StartupScreen
+                     hasSavedReview={groups.length > 0}
+                     savedSetCount={groups.length}
+                     isDragOver={isDragOver}
+                     onContinue={() => setIsStartupOpen(false)}
+                     onDragLeave={handleDragLeave}
+                     onDragOver={handleDragOver}
+                     onDrop={handleDrop}
+                     onOpenFolder={() => void openNewFolder()}
+                     onShowOnLaunchChange={setShowStartupOnLaunch}
+                     showOnLaunch={showStartupOnLaunch}
+                  />
+               ) : scanRoot !== null && groups.length === 0 ? (
+                  <NoMatchesScreen
+                     folderName={folderName}
+                     isDragOver={isDragOver}
+                     skippedBanner={
+                        scanWarnings !== null && !scanWarningsDismissed ? (
+                           <ScanWarningsBanner warnings={scanWarnings} onDismiss={() => setScanWarningsDismissed(true)} />
+                        ) : null
+                     }
+                     onDragLeave={handleDragLeave}
+                     onDragOver={handleDragOver}
+                     onDrop={handleDrop}
+                     onOpenFolder={() => void openNewFolder()}
+                     onStartScreen={() => setIsStartupOpen(true)}
+                  />
+               ) : currentSet === null ? (
                   <StartupScreen
                      hasSavedReview={groups.length > 0}
                      savedSetCount={groups.length}
@@ -516,7 +544,7 @@ export const App = () => {
                   onOpenFolder={() => void openFolder(previewImage.folderPath)}
                />
             )}
-            <NotificationCenter notifications={notifications} onDismiss={dismissNotification} />
+            <NotificationCenter hold={isFinalReviewOpen} notifications={notifications} onDismiss={dismissNotification} />
          </div>
       </ShortcutsContext.Provider>
    );

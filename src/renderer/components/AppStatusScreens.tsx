@@ -1,5 +1,5 @@
-import type { DragEventHandler } from "react";
-import { FolderOpen, LoaderCircle, Redo2, TriangleAlert, X } from "lucide-react";
+import type { DragEventHandler, ReactNode } from "react";
+import { FolderOpen, LoaderCircle, Redo2, SearchX, TriangleAlert, X } from "lucide-react";
 import type { ScanProgress } from "../../shared/types.js";
 import type { ScanWarnings } from "../appTypes.js";
 import { useBindingDisplay } from "../commands.js";
@@ -110,6 +110,56 @@ export const ScanWarningsBanner = ({ warnings, onDismiss }: { warnings: ScanWarn
          <X aria-hidden="true" />
       </button>
    </section>
+);
+
+/**
+ * A scan can legitimately finish without a single duplicate set. Afterward the
+ * review has nothing to show, so this landing explains the outcome instead of
+ * dropping into a startup screen with a disabled continue button. Dropping
+ * another folder here scans it immediately, like the startup screen does.
+ */
+export const NoMatchesScreen = (props: {
+   folderName: string;
+   isDragOver: boolean;
+   skippedBanner: ReactNode;
+   onOpenFolder: () => void;
+   onStartScreen: () => void;
+   onDragOver: DragEventHandler<HTMLElement>;
+   onDragLeave: DragEventHandler<HTMLElement>;
+   onDrop: DragEventHandler<HTMLElement>;
+}) => (
+   <main
+      className={`statusScreen startup${props.isDragOver ? " startup--drag" : ""}`}
+      onDragOver={props.onDragOver}
+      onDragLeave={props.onDragLeave}
+      onDrop={props.onDrop}
+   >
+      {props.isDragOver && (
+         <div className="startup__dropHint" aria-hidden="true">
+            <FolderOpen aria-hidden="true" />
+            <span>Drop the folder to scan it</span>
+         </div>
+      )}
+      {props.skippedBanner}
+      <section aria-labelledby="no-matches-title" className="noMatches">
+         <SearchX aria-hidden="true" className="noMatches__icon" />
+         <h1 id="no-matches-title">No duplicate sets here</h1>
+         <p>
+            Every image in <strong>{props.folderName}</strong> was compared, and nothing matched closely enough to group. The scan is saved, so rechecking the
+            same folder picks it back up instantly instead of re-reading files.
+         </p>
+         <div className="noMatches__actions">
+            <button className="noMatches__action noMatches__action--primary" onClick={props.onOpenFolder} type="button">
+               <FolderOpen aria-hidden="true" />
+               Scan another folder
+            </button>
+            <button className="noMatches__action" onClick={props.onStartScreen} type="button">
+               <Redo2 aria-hidden="true" />
+               Back to start screen
+            </button>
+         </div>
+      </section>
+   </main>
 );
 
 interface StartupScreenProps {

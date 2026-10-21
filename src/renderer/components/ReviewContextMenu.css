@@ -11,7 +11,7 @@
    box-shadow: var(--shadow);
    padding: 6px;
    transform-origin: top left;
-   animation: menu-in 150ms var(--ease-out);
+   animation: menu-in var(--duration-move) var(--ease-out);
 }
 
 @keyframes menu-in {
@@ -34,7 +34,7 @@
    text-align: left;
    font-size: 13px;
    font-weight: 600;
-   transition: background 100ms ease;
+   transition: background var(--duration-press) ease;
 }
 
 .contextMenu__command > span {

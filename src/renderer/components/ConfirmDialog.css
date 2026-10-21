@@ -64,8 +64,8 @@
    font-weight: 600;
    padding: 9px 18px;
    transition:
-      border-color 130ms ease,
-      background 130ms ease;
+      border-color var(--duration-press) ease,
+      background var(--duration-press) ease;
 }
 
 .confirmDialog__actions button:first-child:hover {

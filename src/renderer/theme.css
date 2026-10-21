@@ -37,6 +37,13 @@
    --radius-lg: 18px;
 
    --shadow: 0 18px 60px rgba(0, 0, 0, 0.45);
+   /* Four shared durations instead of per-file values: micro feedback, hover
+      states, small movements, and panel entrances. Signature changes that carry
+      their own rhythm (shelf slide 320ms, chip springs, menu pops) stay local. */
+   --duration-press: 130ms;
+   --duration-hover: 140ms;
+   --duration-move: 160ms;
+   --duration-panel: 240ms;
    --bounce: cubic-bezier(0.2, 1.6, 0.2, 1);
    --ease-out: cubic-bezier(0.22, 1, 0.36, 1);
 
@@ -188,9 +195,9 @@ img {
    border-radius: var(--radius-sm);
    color: var(--muted);
    transition:
-      background-color 140ms ease-out,
-      color 140ms ease-out,
-      transform 160ms var(--bounce);
+      background-color var(--duration-hover) ease-out,
+      color var(--duration-hover) ease-out,
+      transform var(--duration-move) var(--bounce);
 }
 
 .iconButton::after {
@@ -236,10 +243,10 @@ img {
    font-size: 13px;
    font-weight: 700;
    transition:
-      transform 160ms var(--bounce),
-      background-color 140ms ease-out,
-      color 140ms ease-out,
-      box-shadow 140ms ease-out;
+      transform var(--duration-move) var(--bounce),
+      background-color var(--duration-hover) ease-out,
+      color var(--duration-hover) ease-out,
+      box-shadow var(--duration-hover) ease-out;
 }
 
 .primaryButton svg,
@@ -293,7 +300,7 @@ img {
    font-size: 13px;
    font-weight: 500;
    color: var(--muted);
-   transition: color 140ms ease;
+   transition: color var(--duration-hover) ease;
 }
 
 .toggleControl:hover {
@@ -309,8 +316,8 @@ img {
    border-radius: var(--radius-lg);
    background: rgba(255, 255, 255, 0.03);
    transition:
-      background 140ms ease,
-      border-color 140ms ease;
+      background var(--duration-hover) ease,
+      border-color var(--duration-hover) ease;
 }
 
 .toggleControl__track > span {
@@ -322,8 +329,8 @@ img {
    border-radius: 50%;
    background: var(--faint);
    transition:
-      transform 180ms var(--ease-out),
-      background 140ms ease;
+      transform var(--duration-move) var(--ease-out),
+      background var(--duration-hover) ease;
 }
 
 .toggleControl--on {
@@ -509,7 +516,7 @@ img {
    border-radius: var(--radius-lg);
    background: var(--panel);
    box-shadow: var(--shadow);
-   animation: overlay-rise 240ms var(--ease-out);
+   animation: overlay-rise var(--duration-panel) var(--ease-out);
 }
 
 .panelModal__header {
@@ -544,8 +551,8 @@ img {
    font-weight: 600;
    padding: 9px 2px;
    transition:
-      border-color 140ms ease-out,
-      color 140ms ease-out;
+      border-color var(--duration-hover) ease-out,
+      color var(--duration-hover) ease-out;
 }
 
 .panelModal__tabs button:hover {

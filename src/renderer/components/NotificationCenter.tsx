@@ -9,9 +9,20 @@ const NotificationIcon = ({ tone }: { tone: AppNotification["tone"] }) => {
    return <TriangleAlert aria-hidden="true" />;
 };
 
-export const NotificationCenter = ({ notifications, onDismiss }: { notifications: AppNotification[]; onDismiss: (id: number) => void }) =>
-   createPortal(
-      <aside aria-label="Notifications" className="notificationCenter">
+export const NotificationCenter = ({
+   notifications,
+   onDismiss,
+   hold = false,
+}: {
+   notifications: AppNotification[];
+   onDismiss: (id: number) => void;
+   hold?: boolean;
+}) => {
+   // While a blocking surface holds the screen, the whole column rises to the
+   // titlebar band, where no panel or safety footer can sit under it.
+   const raised = hold || notifications.some((notification) => notification.elevated === true);
+   return createPortal(
+      <aside aria-label="Notifications" className={`notificationCenter${raised ? " notificationCenter--raised" : ""}`}>
          {notifications.map((notification) => (
             <section
                className={`notificationToast notificationToast--${notification.tone}`}
@@ -38,3 +49,4 @@ export const NotificationCenter = ({ notifications, onDismiss }: { notifications
       </aside>,
       document.body
    );
+};

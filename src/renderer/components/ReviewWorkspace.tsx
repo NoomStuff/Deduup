@@ -1,5 +1,5 @@
 import type { CSSProperties, MouseEvent, RefObject } from "react";
-import { Eraser, FolderOpen, MousePointer2, Search, Trash2 } from "lucide-react";
+import { Eraser, Eye, FolderOpen, MousePointer2, Search, Trash2 } from "lucide-react";
 import type { ImageItem, ImageSet, ImageSetDecision } from "../../shared/types.js";
 import type { ContextMenuState, ImageCaptionMode, SimilarityBand, TravelDirection } from "../appTypes.js";
 import { useBindingDisplay } from "../commands.js";
@@ -118,6 +118,7 @@ export const ReviewWorkspace = (props: ReviewWorkspaceProps) => {
                         type="button"
                         {...props.getTooltipProps("Preview", "Open this image full size.", previewHint)}
                      >
+                        <Eye aria-hidden="true" />
                         <span>Preview</span>
                      </button>
                      <span aria-hidden="true" className="setHeader__rule" />

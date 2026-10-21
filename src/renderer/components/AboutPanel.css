@@ -75,9 +75,9 @@
    font-weight: 700;
    padding: 6px 12px;
    transition:
-      background-color 140ms ease-out,
-      border-color 140ms ease-out,
-      color 140ms ease-out;
+      background-color var(--duration-hover) ease-out,
+      border-color var(--duration-hover) ease-out,
+      color var(--duration-hover) ease-out;
 }
 
 .aboutPanel__links button:hover {
