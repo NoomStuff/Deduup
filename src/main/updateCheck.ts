@@ -42,6 +42,7 @@ export const fetchAvailableUpdate = async (
 ): Promise<AvailableUpdate | null> => {
    const response = await request(`https://api.github.com/repos/${repository}/releases/latest`, {
       headers: { Accept: "application/vnd.github+json", "User-Agent": `Deduup/${currentVersion}` },
+      signal: AbortSignal.timeout(30_000),
    });
    if (!response.ok) throw new Error(`Update check failed with ${response.status}.`);
    const release = (await response.json()) as ReleasePayload;
@@ -53,6 +54,9 @@ export const fetchAvailableUpdate = async (
       (release.name !== null && typeof release.name !== "string")
    )
       throw new Error("The update check returned an unexpected payload.");
+   const url = new URL(release.html_url);
+   if (url.protocol !== "https:" || url.hostname !== "github.com" || !url.pathname.startsWith(`/${repository}/releases/`))
+      throw new Error("The update check returned an unexpected release URL.");
    const version = release.tag_name.replace(/^v/, "");
    if (release.draft || release.prerelease || !isNewerVersion(version, currentVersion)) return null;
    const name = release.name?.trim();

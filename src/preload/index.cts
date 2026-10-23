@@ -1,4 +1,4 @@
-import type { AppApi, AppInfo, AvailableUpdate, Decisions, LoadDataResult, MoveResult, ScanProgress, ScanRequest, UpdateStatus } from "../shared/types.js";
+import type { AppApi, AppInfo, AvailableUpdate, Decisions, LoadDataResult, MoveResult, ScanProgress, ScanRequest, UpdateState } from "../shared/types.js";
 
 const { contextBridge, ipcRenderer, webUtils } = require("electron") as typeof import("electron");
 
@@ -7,7 +7,7 @@ const api: AppApi = {
       await ipcRenderer.invoke("window:action", action);
    },
    getAppInfo: async (): Promise<AppInfo> => ipcRenderer.invoke("app:info") as Promise<AppInfo>,
-   checkForUpdate: async (): Promise<AvailableUpdate | null> => ipcRenderer.invoke("update:check") as Promise<AvailableUpdate | null>,
+   checkForUpdate: async (manual = true): Promise<AvailableUpdate | null> => ipcRenderer.invoke("update:check", manual) as Promise<AvailableUpdate | null>,
    downloadUpdate: async (version: string): Promise<void> => {
       await ipcRenderer.invoke("update:download", version);
    },
@@ -17,10 +17,11 @@ const api: AppApi = {
    revealUpdateDownload: async (): Promise<void> => {
       await ipcRenderer.invoke("update:reveal");
    },
-   onUpdateStatus: (listener: (status: UpdateStatus) => void): (() => void) => {
-      const handler = (_event: Electron.IpcRendererEvent, status: UpdateStatus): void => listener(status);
-      ipcRenderer.on("update:status", handler);
-      return () => ipcRenderer.removeListener("update:status", handler);
+   getUpdateState: async (): Promise<UpdateState> => ipcRenderer.invoke("update:state") as Promise<UpdateState>,
+   onUpdateState: (listener: (status: UpdateState) => void): (() => void) => {
+      const handler = (_event: Electron.IpcRendererEvent, status: UpdateState): void => listener(status);
+      ipcRenderer.on("update:state", handler);
+      return () => ipcRenderer.removeListener("update:state", handler);
    },
    openExternal: async (url: string): Promise<void> => {
       await ipcRenderer.invoke("app:open-external", url);

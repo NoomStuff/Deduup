@@ -7,8 +7,11 @@ import { bindingsFor, bindingFromEvent, commandDefinitions, isReservedBinding } 
 import { Toggle } from "./Toggle.js";
 import { OverlayPanel } from "./OverlayPanel.js";
 import "./SettingsPanel.css";
+import type { AppUpdates } from "../hooks/useAppUpdates.js";
+import { UpdateSettings } from "./UpdateSettings.js";
 
 interface SettingsPanelProps {
+   updates: AppUpdates;
    captions: ImageCaptionMode;
    confirmMajorActions: boolean;
    showStartupOnLaunch: boolean;
@@ -22,7 +25,7 @@ interface SettingsPanelProps {
    onClose: () => void;
 }
 
-type SettingsTab = "general" | "shortcuts";
+type SettingsTab = "general" | "shortcuts" | "updates";
 
 const captionOptions: { value: ImageCaptionMode; label: string }[] = [
    { value: "none", label: "None" },
@@ -125,9 +128,22 @@ export const SettingsPanel = (props: SettingsPanelProps) => {
             <button aria-selected={tab === "shortcuts"} onClick={() => setTab("shortcuts")} role="tab" type="button">
                Keyboard shortcuts
             </button>
+            <button
+               aria-selected={tab === "updates"}
+               onClick={() => {
+                  setTab("updates");
+                  setRecording(null);
+               }}
+               role="tab"
+               type="button"
+            >
+               App &amp; updates
+            </button>
          </div>
 
-         {tab === "general" ? (
+         {tab === "updates" ? (
+            <UpdateSettings updates={props.updates} />
+         ) : tab === "general" ? (
             <div className="panelModal__body">
                <div className="settingRow">
                   <div>

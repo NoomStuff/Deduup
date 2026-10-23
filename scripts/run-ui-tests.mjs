@@ -3,7 +3,7 @@ import process from "node:process";
 
 // Each suite owns a different fixture folder and Electron profile. Run them
 // together, but print each suite's output as a block so failures stay readable.
-const suites = ["smoke.mjs", "fileWorkflow.smoke.mjs", "libraryRefresh.smoke.mjs"];
+const suites = ["smoke.mjs", "fileWorkflow.smoke.mjs", "libraryRefresh.smoke.mjs", "updates.smoke.mjs"];
 const results = await Promise.all(
    suites.map(
       (suite) =>

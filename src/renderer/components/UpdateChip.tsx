@@ -2,6 +2,7 @@ import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { Check, Download, TriangleAlert } from "lucide-react";
 import type { AvailableUpdate, UpdateStatus } from "../../shared/types.js";
 import "./UpdateChip.css";
+import { updatePresentation } from "../updatePresentation.js";
 
 interface Props {
    update: AvailableUpdate;
@@ -20,37 +21,9 @@ export const UpdateChip = ({ update, status, onDownload, onRestart, onRelease, o
    const [expandedWidth, setExpandedWidth] = useState(170);
    const labelRef = useRef<HTMLSpanElement>(null);
    const measureRef = useRef<HTMLSpanElement>(null);
-   const phase = status?.version === update.version ? status.phase : null;
-   const downloading = phase === "downloading" || (update.mode === "automatic" && phase === null);
-   const percent = status?.version === update.version ? status.percent : null;
-   const label = downloading
-      ? percent === null
-         ? "Downloading update"
-         : `Downloading ${Math.round(percent)}%`
-      : phase === "ready"
-        ? "Apply and restart"
-        : phase === "downloaded"
-          ? "Show in Downloads"
-          : phase === "error"
-            ? update.mode === "download"
-               ? "Retry download"
-               : "View release"
-            : update.mode === "releases"
-              ? "View release"
-              : "Download update";
-   const action = downloading
-      ? undefined
-      : phase === "ready"
-        ? onRestart
-        : phase === "downloaded"
-          ? onReveal
-          : phase === "error"
-            ? update.mode === "download"
-               ? onDownload
-               : onRelease
-            : update.mode === "releases"
-              ? onRelease
-              : onDownload;
+   const { phase, downloading, percent, label, action: actionName } = updatePresentation(update, status);
+   const actions = { download: onDownload, restart: onRestart, release: onRelease, reveal: onReveal };
+   const action = actionName === null ? undefined : actions[actionName];
 
    // Announce a new version or phase by holding the chip open, then collapse it.
    useEffect(() => {

@@ -93,14 +93,24 @@ export interface UpdateStatus {
    path?: string;
 }
 
+export interface UpdateState {
+   checkError: string | null;
+   update: AvailableUpdate | null;
+   status: UpdateStatus | null;
+   checking: boolean;
+   lastChecked: number | null;
+   message: string;
+}
+
 export interface AppApi {
    windowAction: (action: WindowAction) => Promise<void>;
    getAppInfo: () => Promise<AppInfo>;
-   checkForUpdate: () => Promise<AvailableUpdate | null>;
+   checkForUpdate: (manual?: boolean) => Promise<AvailableUpdate | null>;
    downloadUpdate: (version: string) => Promise<void>;
    restartToUpdate: () => Promise<void>;
    revealUpdateDownload: () => Promise<void>;
-   onUpdateStatus: (listener: (status: UpdateStatus) => void) => () => void;
+   getUpdateState: () => Promise<UpdateState>;
+   onUpdateState: (listener: (state: UpdateState) => void) => () => void;
    openExternal: (url: string) => Promise<void>;
    loadData: () => Promise<LoadDataResult>;
    chooseFolder: () => Promise<string | null>;

@@ -1,17 +1,17 @@
-import { app, BrowserWindow, dialog, ipcMain, net, shell } from "electron";
+import { createWindow } from "./window.js";
+import { app, BrowserWindow, dialog, ipcMain, shell } from "electron";
 import { stat } from "node:fs/promises";
 import path from "node:path";
 import type { WebContents } from "electron";
 import { isObject, parseDecisions } from "../shared/schema.js";
 import type { LoadDataResult, ScanProgress, ScanRequest } from "../shared/types.js";
 import { setApplyUpdate, updateManager } from "./updates.js";
-import { fetchAvailableUpdate } from "./updateCheck.js";
-import { isPackagedApp } from "./identity.js";
 import {
    assertScanId,
    getDuplicateFolderStatus,
    getLoadResult,
    getSetting,
+   getDatabase,
    loadImageInventory,
    saveCurrentSetId,
    saveDecisions,
@@ -166,28 +166,33 @@ export const registerIpcHandlers = (): void => {
       } else if (action === "close") window.close();
    });
    ipcMain.handle("app:info", () => ({ name: "Deduup", version: app.getVersion() }));
-   ipcMain.handle("update:check", async () => {
-      // Dev builds report nothing: there is no release to update to while developing.
-      if (!isPackagedApp()) return null;
-      try {
-         const update = await fetchAvailableUpdate(app.getVersion(), (url, init) => net.fetch(url, init));
-         return update === null ? null : updateManager.offer(update);
-      } catch {
-         return null;
-      }
+   ipcMain.handle("update:state", () => updateManager.state);
+   ipcMain.handle("update:check", (_event, manual: unknown) => {
+      if (manual !== undefined && typeof manual !== "boolean") throw new TypeError("Invalid update check");
+      return updateManager.check(manual ?? true);
    });
    ipcMain.handle("update:download", (_event, version: unknown): Promise<void> => {
       if (typeof version !== "string") throw new TypeError("Invalid update version");
       return updateManager.downloadPortable(version);
    });
    ipcMain.handle("update:restart", (): void => {
+      if (!updateManager.isReady) throw new Error("The update is not ready yet.");
+      if (hasActiveOperation()) throw new Error("Wait for the current file operation to finish before restarting.");
       // Installs through the window-all-closed path, after the database closes.
-      setApplyUpdate(() => updateManager.install());
+      setApplyUpdate(() =>
+         updateManager.install(() => {
+            getDatabase();
+            const window = createWindow();
+            updateManager.attach(window);
+            startLibraryMonitoring(window.webContents);
+         })
+      );
       BrowserWindow.getAllWindows().forEach((window) => window.close());
    });
    ipcMain.handle("update:reveal", (): void => {
       const downloaded = updateManager.downloadedPath;
-      if (downloaded !== null) shell.showItemInFolder(downloaded);
+      if (downloaded === null) throw new Error("No verified update download is available.");
+      shell.showItemInFolder(downloaded);
    });
    ipcMain.handle("app:open-external", (_event, url: unknown): Promise<void> => {
       if (typeof url !== "string") throw new TypeError("Invalid URL");

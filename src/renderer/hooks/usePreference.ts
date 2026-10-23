@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 
 export const preferenceKeys = {
+   checkForUpdates: "check-for-updates-at-startup",
    confirmMajorActions: "confirm-major-actions",
    imageCaptions: "image-captions",
    reviewHintsDismissed: "review-hints-dismissed",
