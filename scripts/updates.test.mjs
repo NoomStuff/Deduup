@@ -87,3 +87,20 @@ test("fetchAvailableUpdate rejects failed requests and malformed payloads", asyn
       fetchAvailableUpdate("0.1.0", () => Promise.resolve(releaseResponse({ tag_name: "v0.2.0", html_url: "https://x", draft: false, prerelease: false })))
    );
 });
+
+test("release checks have a timeout and reject links outside this project's releases", async () => {
+   const release = { tag_name: "v0.2.0", name: null, draft: false, prerelease: false };
+   for (const html_url of [
+      "not a URL",
+      "http://github.com/NoomStuff/Deduup/releases/latest",
+      "https://example.com/releases",
+      "https://github.com/NoomStuff/Other/releases/latest",
+   ]) {
+      await assert.rejects(() =>
+         fetchAvailableUpdate("0.1.0", async (_url, init) => {
+            assert.ok(init.signal instanceof AbortSignal);
+            return releaseResponse({ ...release, html_url });
+         })
+      );
+   }
+});

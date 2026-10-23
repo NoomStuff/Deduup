@@ -106,8 +106,6 @@ export const App = () => {
    const decisionRows = useLibraryRows(groups, decisions);
    const selectedImage = currentSet?.images.find((image) => image.originalPath === selectedImagePath) ?? null;
 
-   const { availableUpdate, updateActions, updateStatus } = useAppUpdates({ loading, reportError });
-
    useEffect(() => window.imageDeduplicator.onLibraryError((message) => notify({ tone: "error", title: "Library update failed", message })), [notify]);
    const {
       apply: applyMoves,
@@ -154,6 +152,15 @@ export const App = () => {
    useLibraryBootstrap(library.bootstrap);
 
    useReviewPersistence({ loading: loading || !hydrated || isScanning || fileOperationActive, scanId, decisions, currentSet, reportError });
+
+   const beforeUpdateRestart = useCallback(async () => {
+      if (loading || !hydrated || isScanning || fileOperationActive) throw new Error("Wait for the current file operation to finish before restarting.");
+      if (scanId === null) return;
+      await window.imageDeduplicator.saveDecisions(decisions, scanId);
+      if (currentSet !== null) await window.imageDeduplicator.saveCurrentSet(currentSet.id, scanId);
+   }, [loading, hydrated, isScanning, fileOperationActive, scanId, decisions, currentSet]);
+   const updates = useAppUpdates({ loading, beforeRestart: beforeUpdateRestart, reportError });
+   const { availableUpdate, updateActions, updateStatus } = updates;
 
    const {
       previewImage,
@@ -455,6 +462,7 @@ export const App = () => {
 
             {isSettingsOpen && (
                <SettingsPanel
+                  updates={updates}
                   captions={captions}
                   confirmMajorActions={confirmMajorActions}
                   shortcuts={shortcutOverrides}

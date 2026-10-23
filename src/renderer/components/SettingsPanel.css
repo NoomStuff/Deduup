@@ -280,3 +280,32 @@
    font-size: 12.5px;
    padding: 12px 0;
 }
+
+.updateSettings {
+   display: flex;
+   flex-direction: column;
+   align-items: flex-start;
+   gap: 10px;
+   padding-top: 20px;
+}
+.updateSettings p {
+   margin: 0;
+   font-size: 13px;
+}
+.updateSettings p:empty {
+   display: none;
+}
+.updateSettings small {
+   color: var(--faint);
+   font-size: 11.5px;
+}
+.updateSettings progress {
+   width: 100%;
+   accent-color: var(--accent);
+}
+.updateSettings__actions {
+   display: flex;
+   flex-wrap: wrap;
+   gap: 10px;
+   margin-top: 8px;
+}

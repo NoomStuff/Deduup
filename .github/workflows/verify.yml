@@ -49,5 +49,6 @@ jobs:
                  .cache/ui-smoke/
                  .cache/file-workflow-smoke/
                  .cache/library-refresh-smoke/
+                 .cache/update-smoke/*.png
               if-no-files-found: ignore
               retention-days: 14
