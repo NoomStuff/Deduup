@@ -2,6 +2,7 @@ import { readdir, stat } from "node:fs/promises";
 import path from "node:path";
 import sharp from "sharp";
 import type { ScanProgress } from "../shared/types.js";
+import { matchDistanceLimit } from "../shared/similarity.js";
 import { getManagedFolderPaths } from "./managedFolder.js";
 
 export interface ScannedImage {
@@ -30,14 +31,19 @@ export class ScanCancelledError extends Error {
    }
 }
 
+export const throwIfScanCancelled = (signal?: AbortSignal): void => {
+   if (signal?.aborted) throw new ScanCancelledError();
+};
+
 const supportedExtensions = new Set([".jpg", ".jpeg", ".png", ".webp", ".bmp", ".gif", ".avif", ".tif", ".tiff"]);
-export const HASH_VERSION = "dhash64-rgb-v2";
-const hashDistanceThreshold = 13;
+// Includes the cached dimensions as well as the hash format.
+export const HASH_VERSION = "dhash64-rgb-v3";
+const hashDistanceThreshold = matchDistanceLimit;
 const groupingYieldInterval = 256;
 const exactSimilarityLimit = 96;
 const similaritySampleLimit = 4096;
 /**
- * Over-cap splitting builds a full distance matrix and runs an O(n^3) exile
+ * Over-cap splitting builds a full distance matrix and runs an O(n^2) exile
  * loop, both only acceptable for small groups. Huge folders routinely chain
  * tens of thousands of similar images into one connected group, so anything
  * above this limit is hash-sorted into bounded chunks and re-clustered instead
@@ -158,8 +164,8 @@ const scanImage = async (filePath: string, reportWarning?: ScanWarningReporter, 
          file: path.basename(filePath),
          originalPath: path.normalize(filePath),
          hash: createDifferenceHash(pixels),
-         width: metadata.width,
-         height: metadata.height,
+         width: metadata.autoOrient.width,
+         height: metadata.autoOrient.height,
          size: fileStat.size,
          modifiedAt: fileStat.mtimeMs,
          changedAt: fileStat.ctimeMs,
@@ -188,7 +194,7 @@ export const scanImages = async (
 
    const worker = async (): Promise<void> => {
       while (nextIndex < paths.length) {
-         if (signal?.aborted) throw new ScanCancelledError();
+         if (signal?.aborted) return;
          const index = nextIndex;
          nextIndex += 1;
          const filePath = paths[index];
@@ -196,6 +202,7 @@ export const scanImages = async (
             continue;
          }
          results[index] = await scanImage(filePath, reportWarning, cachedImages.get(filePath));
+         if (signal?.aborted) return;
          completed += 1;
          if (completed % progressStride === 0 || completed === paths.length) {
             reportProgress({ phase: "hashing", completed, total: paths.length, currentFile: path.basename(filePath) });
@@ -204,6 +211,7 @@ export const scanImages = async (
    };
 
    await Promise.all(Array.from({ length: workerCount }, worker));
+   if (signal?.aborted) throw new ScanCancelledError();
    return results.filter((image): image is ScannedImage => image !== null);
 };
 
@@ -241,17 +249,20 @@ const getHashValueDistance = (left: bigint, right: bigint): number => {
 };
 
 const getGroupSimilarity = (images: ScannedImage[]): number => {
+   const firstHash = images[0]?.hash;
+   if (images.every((image) => image.hash === firstHash)) return 0;
+   const hashes = images.map((image) => parseHash(image.hash));
    let totalDistance = 0;
    let comparisons = 0;
 
    if (images.length <= exactSimilarityLimit) {
       for (let leftIndex = 0; leftIndex < images.length; leftIndex += 1) {
-         const left = images[leftIndex];
+         const left = hashes[leftIndex];
          if (left === undefined) continue;
          for (let rightIndex = leftIndex + 1; rightIndex < images.length; rightIndex += 1) {
-            const right = images[rightIndex];
+            const right = hashes[rightIndex];
             if (right === undefined) continue;
-            totalDistance += getHashDistance(left.hash, right.hash);
+            totalDistance += getImageHashDistance(left, right);
             comparisons += 1;
          }
       }
@@ -263,10 +274,10 @@ const getGroupSimilarity = (images: ScannedImage[]): number => {
       const leftIndex = sample % images.length;
       let rightIndex = (sample * 7919 + Math.floor(sample / images.length) + 1) % images.length;
       if (rightIndex === leftIndex) rightIndex = (rightIndex + 1) % images.length;
-      const left = images[leftIndex];
-      const right = images[rightIndex];
+      const left = hashes[leftIndex];
+      const right = hashes[rightIndex];
       if (left !== undefined && right !== undefined) {
-         totalDistance += getHashDistance(left.hash, right.hash);
+         totalDistance += getImageHashDistance(left, right);
          comparisons += 1;
       }
    }
@@ -285,53 +296,47 @@ const getHashPartition = (hash: bigint, partition: number): number => Number((ha
  */
 const splitOverCapGroup = (group: ScannedImage[]): { kept: ScannedImage[]; exiled: ScannedImage[] } => {
    const size = group.length;
+   const hashes = group.map((image) => parseHash(image.hash));
    const distances = new Float64Array(size * size);
+   const sums = new Float64Array(size);
+   let totalDistance = 0;
    for (let left = 0; left < size; left += 1) {
-      const leftImage = group[left];
+      const leftImage = hashes[left];
       if (leftImage === undefined) continue;
       for (let right = left + 1; right < size; right += 1) {
-         const rightImage = group[right];
+         const rightImage = hashes[right];
          if (rightImage === undefined) continue;
-         const distance = getHashDistance(leftImage.hash, rightImage.hash);
+         const distance = getImageHashDistance(leftImage, rightImage);
          distances[left * size + right] = distance;
          distances[right * size + left] = distance;
+         sums[left] = (sums[left] ?? 0) + distance;
+         sums[right] = (sums[right] ?? 0) + distance;
+         totalDistance += distance;
       }
    }
 
    const active: number[] = group.map((_, index) => index);
-   const averageDistance = (): number => {
-      let total = 0;
-      for (let left = 0; left < active.length; left += 1) {
-         for (let right = left + 1; right < active.length; right += 1) {
-            const leftIndex = active[left];
-            const rightIndex = active[right];
-            if (leftIndex === undefined || rightIndex === undefined) continue;
-            total += distances[leftIndex * size + rightIndex] ?? 0;
-         }
-      }
-      const pairs = (active.length * (active.length - 1)) / 2;
-      return pairs === 0 ? 0 : total / pairs;
-   };
-
    const exiled: ScannedImage[] = [];
-   while (active.length > 2 && averageDistance() > similarityCap) {
+   while (active.length > 2 && totalDistance > (similarityCap * active.length * (active.length - 1)) / 2) {
       let worstPosition = 0;
       let worstSum = -1;
       for (let position = 0; position < active.length; position += 1) {
          const candidate = active[position];
          if (candidate === undefined) continue;
-         let sum = 0;
-         for (const other of active) {
-            sum += distances[candidate * size + other] ?? 0;
-         }
-         if (sum > worstSum) {
+         const sum = sums[candidate] ?? 0;
+         // Subtracting fractional color distances can leave rounding noise.
+         // Keep the original image order when two sums are effectively tied.
+         if (sum > worstSum + 1e-9) {
             worstSum = sum;
             worstPosition = position;
          }
       }
       const removedIndex = active.splice(worstPosition, 1)[0];
       const removedImage = removedIndex === undefined ? undefined : group[removedIndex];
-      if (removedImage !== undefined) exiled.push(removedImage);
+      if (removedIndex === undefined || removedImage === undefined) throw new Error("Missing split candidate");
+      exiled.push(removedImage);
+      totalDistance -= worstSum;
+      for (const index of active) sums[index] = (sums[index] ?? 0) - (distances[index * size + removedIndex] ?? 0);
    }
 
    return { kept: active.map((index) => group[index]).filter((image): image is ScannedImage => image !== undefined), exiled };
@@ -379,8 +384,10 @@ const findAndIndexMatches = (
 const yieldToMainLoop = (): Promise<void> => new Promise((resolve) => setImmediate(resolve));
 
 const getConnectedGroups = async (images: ScannedImage[], reportProgress: ScanProgressReporter, signal?: AbortSignal): Promise<ScannedImage[][]> => {
+   throwIfScanCancelled(signal);
    const parent = images.map((_, index) => index);
-   const hashValues = images.map((image) => parseHash(image.hash));
+   // Only distinct signatures enter the indexes or need decoded RGB buffers.
+   const hashValues = new Array<ImageHash>(images.length);
    const find = (index: number): number => {
       let root = index;
       while (parent[root] !== root) root = parent[root] ?? root;
@@ -401,31 +408,29 @@ const getConnectedGroups = async (images: ScannedImage[], reportProgress: ScanPr
    const candidateMarkers = new Int32Array(images.length);
    const exactHashRepresentatives = new Map<string, number>();
    reportProgress({ phase: "grouping", completed: 0, total: images.length });
-   for (let imageIndex = 0; imageIndex < images.length; imageIndex += 1) {
-      if (signal?.aborted) throw new ScanCancelledError();
-      const hash = hashValues[imageIndex];
-      if (hash !== undefined) {
-         const exactRepresentative = exactHashRepresentatives.get(images[imageIndex]?.hash ?? "");
-         if (exactRepresentative === undefined) {
-            findAndIndexMatches(
-               imageIndex,
-               hash,
-               hashValues,
-               indexes,
-               candidateMarkers,
-               (candidateIndex) => find(imageIndex) === find(candidateIndex),
-               (matchingIndex) => union(imageIndex, matchingIndex)
-            );
-            exactHashRepresentatives.set(images[imageIndex]?.hash ?? "", imageIndex);
-         } else {
-            union(imageIndex, exactRepresentative);
-         }
+   for (const [imageIndex, image] of images.entries()) {
+      throwIfScanCancelled(signal);
+      const exactRepresentative = exactHashRepresentatives.get(image.hash);
+      if (exactRepresentative === undefined) {
+         const hash = parseHash(image.hash);
+         hashValues[imageIndex] = hash;
+         findAndIndexMatches(
+            imageIndex,
+            hash,
+            hashValues,
+            indexes,
+            candidateMarkers,
+            (candidateIndex) => find(imageIndex) === find(candidateIndex),
+            (matchingIndex) => union(imageIndex, matchingIndex)
+         );
+         exactHashRepresentatives.set(image.hash, imageIndex);
+      } else {
+         union(imageIndex, exactRepresentative);
       }
 
       const completed = imageIndex + 1;
       if (completed % groupingYieldInterval === 0 && completed < images.length) {
-         const currentFile = images[imageIndex]?.file;
-         reportProgress({ phase: "grouping", completed, total: images.length, ...(currentFile === undefined ? {} : { currentFile }) });
+         reportProgress({ phase: "grouping", completed, total: images.length, currentFile: image.file });
          await yieldToMainLoop();
       }
    }
@@ -497,6 +502,7 @@ export const groupImages = async (images: ScannedImage[], reportProgress: ScanPr
    }
 
    results.sort((left, right) => left.similarity - right.similarity);
+   throwIfScanCancelled(signal);
    reportProgress({ phase: "grouping", completed: images.length, total: images.length });
    return results;
 };

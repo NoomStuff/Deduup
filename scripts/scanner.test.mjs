@@ -14,6 +14,57 @@ const createImage = (hash, index) => ({
    height: 1,
    size: 1,
    modifiedAt: 0,
+   changedAt: 0,
+});
+
+test("scanning records the same orientation and pixels that previews display", async () => {
+   const root = await mkdtemp(path.join(os.tmpdir(), "deduup-orientation-"));
+   try {
+      const rotated = path.join(root, "rotated.jpg");
+      const upright = path.join(root, "upright.png");
+      await sharp({ create: { width: 48, height: 24, channels: 3, background: "red" } })
+         .withMetadata({ orientation: 6 })
+         .jpeg()
+         .toFile(rotated);
+      await sharp(rotated).rotate().png().toFile(upright);
+      const [left, right] = await scanImages([rotated, upright], () => undefined);
+      assert.deepEqual([left.width, left.height], [24, 48]);
+      assert.deepEqual([left.width, left.height], [right.width, right.height]);
+      assert.equal(left.hash, right.hash);
+   } finally {
+      await rm(root, { recursive: true, force: true });
+   }
+});
+
+test("cancelled hashing drains its workers without reporting more progress", async () => {
+   const root = await mkdtemp(path.join(os.tmpdir(), "deduup-cancel-"));
+   try {
+      const file = path.join(root, "image.png");
+      await sharp({ create: { width: 32, height: 32, channels: 3, background: "red" } })
+         .png()
+         .toFile(file);
+      const controller = new AbortController();
+      const progress = [];
+      await assert.rejects(
+         scanImages(
+            Array(32).fill(file),
+            (event) => {
+               progress.push(event);
+               controller.abort();
+            },
+            undefined,
+            controller.signal
+         ),
+         ScanCancelledError
+      );
+      assert.equal(progress.length, 1);
+      await assert.rejects(
+         scanImages([], () => undefined, undefined, controller.signal),
+         ScanCancelledError
+      );
+   } finally {
+      await rm(root, { recursive: true, force: true });
+   }
 });
 
 test("incremental scanning reuses unchanged hashes and rejects a changed cached image", async () => {

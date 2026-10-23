@@ -104,16 +104,8 @@ export const useReviewController = ({
             return;
          }
 
-         let nearestIndex = targetBand.groups[0]?.index ?? null;
-         for (const candidate of targetBand.groups) {
-            if (nearestIndex === null || Math.abs(candidate.index - currentIndex) < Math.abs(nearestIndex - currentIndex)) {
-               nearestIndex = candidate.index;
-            }
-         }
-
-         if (nearestIndex !== null) {
-            goTo(nearestIndex);
-         }
+         const target = direction === 1 ? targetBand.groups[0] : targetBand.groups.at(-1);
+         if (target !== undefined) goTo(target.index);
       },
       [currentIndex, goTo, similarityBands]
    );
@@ -129,7 +121,7 @@ export const useReviewController = ({
       toggleImageRemoval,
       toggleOnlyImageKept,
       keepComparedImage,
-   } = createReviewActions({ currentIndex, groups, goTo, updateDecisions });
+   } = useMemo(() => createReviewActions({ currentIndex, groups, goTo, updateDecisions }), [currentIndex, groups, goTo, updateDecisions]);
 
    useEffect(() => {
       keepImageRef.current = (image, other, advance) => {
@@ -206,42 +198,63 @@ export const useReviewController = ({
       contextOnlyImageKept,
    } = useReviewContextMenu({ groups, currentSet, decisions, selectedImage, selectImage: setSelectedImagePath, hideTooltip });
 
-   const handleImageClick = (event: MouseEvent, image: ImageItem): void => {
-      setSelectedImagePath(image.originalPath);
-      if (currentSet === null) {
-         return;
-      }
+   const handleImageClick = useCallback(
+      (event: MouseEvent, image: ImageItem): void => {
+         setSelectedImagePath(image.originalPath);
+         if (currentSet === null) {
+            return;
+         }
 
-      if (comparePick !== null && comparePick.originalPath !== image.originalPath) {
-         beginCompare(image);
-         return;
-      }
+         if (comparePick !== null && comparePick.originalPath !== image.originalPath) {
+            beginCompare(image);
+            return;
+         }
 
-      if (event.altKey) {
+         if (event.altKey) {
+            event.preventDefault();
+            beginCompare(image);
+            return;
+         }
+
+         if (event.shiftKey) {
+            toggleImageRemoval(currentSet, image, event.ctrlKey);
+            return;
+         }
+      },
+      [beginCompare, comparePick, currentSet, setSelectedImagePath, toggleImageRemoval]
+   );
+
+   const previewImageOf = useCallback(
+      (image: ImageItem): void => {
+         if (image.sourceStatus === "missing" || image.sourceStatus === "recycledByApp") {
+            notify({ tone: "warning", title: "Preview unavailable", message: `${image.file} is no longer available on disk.` });
+            return;
+         }
+         setPreviewImage(image);
+      },
+      [notify]
+   );
+
+   const handleImageDoubleClick = useCallback(
+      (event: MouseEvent, image: ImageItem): void => {
          event.preventDefault();
-         beginCompare(image);
-         return;
-      }
+         event.stopPropagation();
+         previewImageOf(image);
+      },
+      [previewImageOf]
+   );
 
-      if (event.shiftKey) {
-         toggleImageRemoval(currentSet, image, event.ctrlKey);
-         return;
-      }
-   };
-
-   const handleImageDoubleClick = (event: MouseEvent, image: ImageItem): void => {
-      event.preventDefault();
-      event.stopPropagation();
-      previewImageOf(image);
-   };
-
-   const previewImageOf = (image: ImageItem): void => {
-      if (image.sourceStatus === "missing" || image.sourceStatus === "recycledByApp") {
-         notify({ tone: "warning", title: "Preview unavailable", message: `${image.file} is no longer available on disk.` });
-         return;
-      }
-      setPreviewImage(image);
-   };
+   const handleImageContextMenu = useCallback(
+      (event: MouseEvent, image: ImageItem): void => {
+         if (event.shiftKey && currentSet !== null) {
+            event.preventDefault();
+            event.stopPropagation();
+            setSelectedImagePath(image.originalPath);
+            toggleOnlyImageKept(currentSet, image, event.ctrlKey);
+         } else openImageContextMenu(event, image);
+      },
+      [currentSet, openImageContextMenu, setSelectedImagePath, toggleOnlyImageKept]
+   );
 
    // The preview can flip through the current set, but only images a preview
    // can actually show; a lone preview (set unknown) stays alone.
@@ -270,14 +283,7 @@ export const useReviewController = ({
       },
       onDiscardSet: () => requestDiscardSet(currentSet),
       onImageClick: handleImageClick,
-      onImageContextMenu: (event, image) => {
-         if (event.shiftKey) {
-            event.preventDefault();
-            event.stopPropagation();
-            setSelectedImagePath(image.originalPath);
-            toggleOnlyImageKept(currentSet, image, event.ctrlKey);
-         } else openImageContextMenu(event, image);
-      },
+      onImageContextMenu: handleImageContextMenu,
       onImageDoubleClick: handleImageDoubleClick,
       onImageSetContextMenu: openSetContextMenu,
       onNavigate: goTo,

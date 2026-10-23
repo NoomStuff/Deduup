@@ -3,9 +3,9 @@ import test from "node:test";
 import { reconcileDecisions } from "../src/shared/reconcileDecisions.ts";
 import { decisionHistoryReducer } from "../src/renderer/hooks/useDecisionHistory.ts";
 
-const a = { originalPath: "a.jpg", size: 10, modifiedAt: 1 };
-const b = { originalPath: "b.jpg", size: 20, modifiedAt: 2 };
-const c = { originalPath: "c.jpg", size: 30, modifiedAt: 3 };
+const a = { originalPath: "a.jpg", hash: "a", size: 10, modifiedAt: 1 };
+const b = { originalPath: "b.jpg", hash: "b", size: 20, modifiedAt: 2 };
+const c = { originalPath: "c.jpg", hash: "c", size: 30, modifiedAt: 3 };
 const previous = [{ id: "old", images: [a, b, c] }];
 
 test("library refresh carries unchanged choices across regrouping and drops changed or removed candidates", () => {
@@ -34,10 +34,19 @@ test("refresh rebases undo history so undo cannot restore a candidate for a chan
 
 test("a discard survives when the app's own move recreated the file with a new creation time", () => {
    // moveAcrossVolumes' copy fallback and hardlink bookkeeping change ctime
-   // (changedAt) without changing the image; only size and mtime are identity.
+   // (changedAt) without changing the image, size, or mtime.
    const created = { ...a, changedAt: 1000 };
    const movedBack = { ...a, changedAt: 2000 };
    const next = [{ id: "new", images: [movedBack, b, c] }];
    const choices = { old: { deletedImages: [a.originalPath] } };
    assert.deepEqual(reconcileDecisions([{ id: "old", images: [created, b, c] }], next, choices), { new: { deletedImages: [a.originalPath] } });
+});
+
+test("changed visual evidence invalidates a discard even when size and modification time match", () => {
+   const choices = { old: { deletedImages: [a.originalPath] } };
+   const next = [{ id: "new", images: [{ ...a, hash: "different", changedAt: 2000 }] }];
+   assert.deepEqual(reconcileDecisions(previous, next, choices), {});
+   const state = { decisions: choices, undoStack: [choices], redoStack: [choices] };
+   const refreshed = decisionHistoryReducer(state, { type: "reconcile", previous, next });
+   assert.deepEqual(refreshed, { decisions: {}, undoStack: [{}], redoStack: [{}] });
 });

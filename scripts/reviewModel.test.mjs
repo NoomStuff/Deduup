@@ -3,15 +3,15 @@ import test from "node:test";
 import {
    emptyImageSetDecision,
    getDecision,
-   getFileWorkflowState,
    getImageSetLabel,
    getImageSetState,
    getLargestImage,
-   getMovePreview,
+   getReviewSummary,
    getResumeIndex,
    getSetNumber,
    getSimilarityBands,
    getSimilarityColor,
+   getSetRow,
    setImageSetDecision,
 } from "../src/renderer/reviewModel.ts";
 
@@ -34,6 +34,16 @@ const image = (name, width, height, size) => ({
 const makeSet = (id, similarity, images) => ({ id, similarity, folderPath: "C:/lib", images });
 
 const threeSet = makeSet("set_001", 2, [image("a.jpg", 400, 400, 300), image("b.jpg", 800, 600, 500), image("c.jpg", 800, 600, 700)]);
+
+test("sets in the same displayed band share a label and color", () => {
+   const sets = [makeSet("set_001", 2.71, threeSet.images), makeSet("set_002", 2.74, threeSet.images)];
+   const bands = getSimilarityBands(sets);
+   assert.equal(bands.length, 1);
+   assert.equal(bands[0].label, getSetRow(sets[0], undefined).differenceText);
+   assert.equal(bands[0].label, getSetRow(sets[1], undefined).differenceText);
+   assert.equal(getSimilarityColor(bands[0].distance), getSimilarityColor(sets[0].similarity));
+   assert.equal(getSimilarityColor(sets[0].similarity), getSimilarityColor(sets[1].similarity));
+});
 
 test("auto-keep picks the largest copy by pixels, not by name", () => {
    const picked = getLargestImage(makeSet("set_002", 1, [image("great_name.jpg", 400, 400, 9000), image("anonymous.png", 1000, 1000, 10)]));
@@ -85,7 +95,7 @@ test("set labels report kept over total", () => {
 test("move preview lists candidates without a viewed prerequisite", () => {
    const marked = threeSet.images[1].originalPath;
    const decisions = { set_001: { deletedImages: [marked] }, set_002: { deletedImages: [marked] } };
-   const preview = getMovePreview([threeSet, makeSet("set_002", 3, threeSet.images)], decisions);
+   const { movePreview: preview } = getReviewSummary([threeSet, makeSet("set_002", 3, threeSet.images)], decisions);
    assert.equal(preview.length, 2);
    assert.equal(preview[0]?.file, "b.jpg");
    assert.equal(preview[0]?.setId, "set_001");
@@ -104,7 +114,16 @@ test("workflow state separates ready, moved, and recycled images", () => {
       set_001: { deletedImages: ["C:/lib/ready.jpg"] },
       set_002: { deletedImages: ["C:/lib/recycled.jpg", "C:/lib/ghost.jpg"] },
    };
-   assert.deepEqual(getFileWorkflowState(sets, decisions), {
+   const { workflow, movePreview, duplicatePreview } = getReviewSummary(sets, decisions);
+   assert.deepEqual(
+      movePreview.map((row) => row.file),
+      ["ready.jpg"]
+   );
+   assert.deepEqual(
+      duplicatePreview.map((row) => row.file),
+      ["moved.jpg"]
+   );
+   assert.deepEqual(workflow, {
       discardedCount: 4,
       readyToMoveCount: 1,
       movedCount: 1,

@@ -7,6 +7,9 @@
    overflow: hidden;
    min-height: 0;
    max-height: 100%;
+   /* Keep grid slots, but let Chromium skip offscreen card layout and paint. */
+   content-visibility: auto;
+   contain-intrinsic-size: auto 280px;
    border: 1px solid transparent;
    border-radius: var(--radius-md);
    background: var(--panel-2);

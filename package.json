@@ -1,7 +1,7 @@
 {
    "name": "deduup",
    "version": "0.1.5",
-   "description": "Clear your copies with ease",
+   "description": "Find and review redundant images locally",
    "author": "NoomStuff",
    "license": "MIT",
    "homepage": "https://github.com/NoomStuff/Deduup#readme",
@@ -12,11 +12,11 @@
    },
    "private": false,
    "type": "module",
-   "packageManager": "bun@1.3.10",
+   "packageManager": "bun@1.4.2",
    "scripts": {
       "clean": "node scripts/clean.mjs",
-      "dev": "tsc -b tsconfig.electron.json --force && concurrently -k \"vite --host 127.0.0.1\" \"wait-on tcp:5173 && electron .\"",
-      "build": "bun run clean && tsc -b --force && vite build",
+      "dev": "tsc -b tsconfig.electron.json && concurrently -k \"vite --host 127.0.0.1\" \"wait-on tcp:5173 && electron .\"",
+      "build": "tsc -b && vite build",
       "build:icons": "node scripts/build-icons.mjs",
       "dist": "node scripts/package-app.mjs dist",
       "dist:win": "node scripts/package-app.mjs dist win32",
@@ -32,9 +32,10 @@
       "format:check": "prettier --check .",
       "test": "bun run typecheck && node scripts/run-tests.mjs",
       "verify": "bun run format:check && bun run lint && bun run test && bun run test:ui",
-      "test:ui": "bun run build && node scripts/smoke.mjs && node scripts/fileWorkflow.smoke.mjs && node scripts/libraryRefresh.smoke.mjs",
+      "test:ui": "bun run build && node scripts/run-ui-tests.mjs",
       "fixtures": "node scripts/makeFixtures.mjs",
-      "typecheck": "tsc -b --force"
+      "bench:scanner": "bun scripts/scanner.bench.mjs",
+      "typecheck": "tsc -b"
    },
    "main": "build/electron/main/main.js",
    "dependencies": {

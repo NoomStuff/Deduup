@@ -112,6 +112,7 @@ export interface AppApi {
    onLibraryUpdate: (listener: (result: LoadDataResult) => void) => () => void;
    onLibraryError: (listener: (message: string) => void) => () => void;
    setReviewBusy: (busy: boolean) => Promise<void>;
+   onLibraryRefreshing: (listener: (refreshing: boolean) => void) => () => void;
    saveDecisions: (decisions: Decisions, scanId: string) => Promise<void>;
    saveCurrentSet: (setId: string, scanId: string) => Promise<void>;
    applyMoves: (decisions: Decisions, scanId: string) => Promise<MoveResult>;

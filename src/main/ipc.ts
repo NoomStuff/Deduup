@@ -18,7 +18,7 @@ import {
    saveScan,
 } from "./database.js";
 import { moveMarkedImages, assertDuplicateFolderCanBeRecycled, recordRecycledMoves, restoreDuplicateFolder } from "./fileActions.js";
-import { HASH_VERSION, ScanCancelledError, collectImagePaths, groupImages, scanImages } from "./scanner.js";
+import { HASH_VERSION, collectImagePaths, groupImages, scanImages, throwIfScanCancelled } from "./scanner.js";
 import { assertReviewWritable, hasActiveOperation, runExclusiveOperation } from "./operationCoordinator.js";
 import { LibraryMonitor } from "./libraryMonitor.js";
 
@@ -29,14 +29,20 @@ const getPendingScanResult = (): Promise<LoadDataResult> | null => activeScanRes
 let monitoringSender: WebContents | null = null;
 class RefreshDeferredError extends Error {}
 const libraryMonitor = new LibraryMonitor(
-   async (root) => {
+   async (root, signal) => {
       const sender = monitoringSender;
       if (sender === null || sender.isDestroyed() || hasActiveOperation() || (await getDuplicateFolderStatus())) return false;
       try {
          await runExclusiveOperation("refresh", async () => {
-            if (await executeScan(root, sender, new AbortController().signal, true)) {
-               const result = await getLoadResult();
-               if (!sender.isDestroyed()) sender.send("library:update", result);
+            sender.send("library:refreshing", true);
+            try {
+               if (await executeScan(root, sender, signal, true)) {
+                  if (signal.aborted) return;
+                  const result = await getLoadResult();
+                  if (!sender.isDestroyed()) sender.send("library:update", result);
+               }
+            } finally {
+               if (!sender.isDestroyed()) sender.send("library:refreshing", false);
             }
          });
          return true;
@@ -56,7 +62,10 @@ export const startLibraryMonitoring = (sender: WebContents): void => {
    const root = getSetting("scan_root");
    if (root !== null && getSetting("hash_version") === HASH_VERSION) libraryMonitor.start(root);
 };
-export const stopLibraryMonitoring = (): void => libraryMonitor.stop();
+export const stopLibraryMonitoring = (): void => {
+   activeScanController?.abort();
+   libraryMonitor.stop();
+};
 
 const isNonEmptyString = (value: unknown): value is string => typeof value === "string" && value.trim().length > 0;
 
@@ -93,6 +102,7 @@ const executeScan = async (rootPath: string, sender: WebContents, signal: AbortS
    };
    report({ phase: "discovering", completed: 0, total: 0 });
    const paths = await collectImagePaths(rootPath, reportWarning, signal);
+   throwIfScanCancelled(signal);
    report({ phase: "discovering", completed: paths.length, total: paths.length });
    const previousInventory = getSetting("scan_root") === rootPath ? loadImageInventory() : [];
    const cache = new Map(previousInventory.map((image) => [image.originalPath, image]));
@@ -111,7 +121,7 @@ const executeScan = async (rootPath: string, sender: WebContents, signal: AbortS
       return false;
    const groups = await groupImages(images, report, signal);
    report({ phase: "saving", completed: 0, total: groups.length });
-   if (signal.aborted) throw new ScanCancelledError();
+   throwIfScanCancelled(signal);
    if (background && libraryMonitor.busy) throw new RefreshDeferredError();
    saveScan(rootPath, groups, { count: scanWarningCount, paths: scanWarningPaths }, images);
    report({ phase: "saving", completed: groups.length, total: groups.length });
