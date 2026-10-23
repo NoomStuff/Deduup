@@ -4,7 +4,7 @@ import { _electron as electron } from "playwright-core";
 import sharp from "sharp";
 
 // Large-library benchmark: builds a deterministic synthetic library (thousands
-// of disjoint 3-image sets), opens the app against it, and measures launch plus
+// of 3-image source groups), opens the app against it, and measures launch plus
 // the review interactions that must stay instant. Interactions are driven and
 // timed inside the page (rAF polling) so protocol latency does not pollute the
 // numbers.
@@ -83,101 +83,116 @@ const app = await electron.launch({
    args: [".", `--user-data-dir=${profile}`, `--scan=${scanRoot}`],
    env: { ...process.env, IMAGE_DEDUPLICATOR_PROD: "1" },
 });
-const window = await app.firstWindow();
-await window.waitForSelector(".filmstrip__item", { timeout: 300_000 });
-const startToReviewMs = Date.now() - launchStart;
-await window.waitForTimeout(1500);
+try {
+   const window = await app.firstWindow();
+   await window.waitForSelector(".filmstrip__item", { timeout: 300_000 });
+   const startToReviewMs = Date.now() - launchStart;
+   const detectedSetCount = await window.locator(".filmstrip__item").count();
+   // A cached scan resumes its saved position and choices. Normalize the
+   // starting set so repeated runs measure the same interactions.
+   await window.locator(".filmstrip__item").first().click();
+   await window.waitForFunction(() => document.querySelector(".filmstrip__item")?.getAttribute("aria-current") === "true");
+   const clear = window.getByRole("button", { name: "Clear", exact: true });
+   if (await clear.isEnabled()) await clear.click();
+   await window.waitForFunction(() => document.querySelectorAll(".imageCard__chip--discarded").length === 0);
+   await window.waitForTimeout(1500);
 
-const probe = await window.evaluate(
-   async ({ toggles, undos, navigations }) => {
-      const startTimer = () => performance.now();
+   const probe = await window.evaluate(
+      async ({ toggles, undos, navigations }) => {
+         const startTimer = () => performance.now();
 
-      const until = (condition, deadlineMs = 2_000) =>
-         new Promise((resolve) => {
-            const t0 = startTimer();
-            const check = () => {
-               if (condition() || startTimer() - t0 > deadlineMs) {
-                  resolve(condition() ? startTimer() - t0 : -1);
-                  return;
-               }
-               requestAnimationFrame(check);
-            };
-            check();
+         const until = (condition, deadlineMs = 2_000) =>
+            new Promise((resolve) => {
+               const t0 = startTimer();
+               const check = () => {
+                  if (condition() || startTimer() - t0 > deadlineMs) {
+                     resolve(condition() ? startTimer() - t0 : -1);
+                     return;
+                  }
+                  requestAnimationFrame(check);
+               };
+               check();
+            });
+
+         const press = (key, extra = {}) => {
+            window.dispatchEvent(new KeyboardEvent("keydown", { key, bubbles: true, cancelable: true, ...extra }));
+         };
+
+         const chipCount = () => document.querySelectorAll(".imageCard__chip--discarded").length;
+         const setNumber = () => document.querySelector(".setHeader__number")?.textContent ?? "";
+
+         const results = { toggle: [], undo: [], navigate: [], navigateScript: [], navigatePaint: [] };
+
+         // Splits navigation latency into React commit time (until the header text
+         // actually mutates) and the style/layout/paint/remainder that follows.
+         let headerMutatedAt = null;
+         const headerObserver = new MutationObserver(() => {
+            if (headerMutatedAt === null) headerMutatedAt = startTimer();
+         });
+         headerObserver.observe(document.querySelector(".setHeader__number"), {
+            childList: true,
+            characterData: true,
+            subtree: true,
          });
 
-      const press = (key, extra = {}) => {
-         window.dispatchEvent(new KeyboardEvent("keydown", { key, bubbles: true, cancelable: true, ...extra }));
-      };
-
-      const chipCount = () => document.querySelectorAll(".imageCard__chip--discarded").length;
-      const setNumber = () => document.querySelector(".setHeader__number")?.textContent ?? "";
-
-      const results = { toggle: [], undo: [], navigate: [], navigateScript: [], navigatePaint: [] };
-
-      // Splits navigation latency into React commit time (until the header text
-      // actually mutates) and the style/layout/paint/remainder that follows.
-      let headerMutatedAt = null;
-      const headerObserver = new MutationObserver(() => {
-         if (headerMutatedAt === null) headerMutatedAt = startTimer();
-      });
-      headerObserver.observe(document.querySelector(".setHeader__number"), {
-         childList: true,
-         characterData: true,
-         subtree: true,
-      });
-
-      // Discard/restore the first image by number key; re-sync with the chip
-      // state before each press so the timed condition only reacts when the
-      // flip actually happens.
-      for (let index = 0; index < toggles; index += 1) {
-         const wasPresent = chipCount() === 1;
-         const target = wasPresent ? 0 : 1;
-         press("1");
-         const delta = await until(() => chipCount() === target && chipCount() !== wasPresent);
-         if (delta >= 0) results.toggle.push(delta);
-      }
-
-      // Roll back flips until the chip count stops reacting to undo.
-      for (let index = 0; index < undos; index += 1) {
-         const before = chipCount();
-         press("z", { ctrlKey: true });
-         const delta = await until(() => chipCount() !== before);
-         if (delta < 0) break;
-         results.undo.push(delta);
-      }
-
-      for (let index = 0; index < navigations; index += 1) {
-         const before = setNumber();
-         headerMutatedAt = null;
-         const t0 = startTimer();
-         press("ArrowRight");
-         const delta = await until(() => setNumber() !== before && setNumber() !== "");
-         if (delta >= 0) {
-            results.navigate.push(delta);
-            const scriptMs = headerMutatedAt === null ? delta : Math.round((headerMutatedAt - t0) * 100) / 100;
-            results.navigateScript.push(scriptMs);
-            results.navigatePaint.push(Math.max(0, Math.round((delta - scriptMs) * 100) / 100));
+         // Discard/restore the first image by number key; re-sync with the chip
+         // state before each press so the timed condition only reacts when the
+         // flip actually happens.
+         for (let index = 0; index < toggles; index += 1) {
+            const wasPresent = chipCount() === 1;
+            const target = wasPresent ? 0 : 1;
+            press("1");
+            const delta = await until(() => chipCount() === target);
+            if (delta < 0) throw new Error("Discard did not update the current set");
+            if (delta >= 0) results.toggle.push(delta);
          }
-      }
 
-      headerObserver.disconnect();
-      return results;
-   },
-   { toggles: 60, undos: 14, navigations: 40 }
-);
+         // Roll back flips until the chip count stops reacting to undo.
+         for (let index = 0; index < undos; index += 1) {
+            const before = chipCount();
+            press("z", { ctrlKey: true });
+            const delta = await until(() => chipCount() !== before);
+            if (delta < 0) throw new Error("Undo did not update the current set");
+            results.undo.push(delta);
+         }
 
-const report = {
-   fixtureRoot: scanRoot,
-   imagesWritten: fixtures.wrote,
-   setCount,
-   imagesPerSet: setSize,
-   startToReviewMs,
-   toggle: summarize(probe.toggle),
-   undo: summarize(probe.undo),
-   navigate: summarize(probe.navigate),
-   navigateScript: summarize(probe.navigateScript),
-   navigatePaint: summarize(probe.navigatePaint),
-};
-console.log(JSON.stringify(report, null, 2));
-await writeFile(resultFile, JSON.stringify(report, null, 2));
-await app.close();
+         const remainingSets = document.querySelectorAll(".filmstrip__item").length - 1;
+         for (let index = 0; index < Math.min(navigations, remainingSets); index += 1) {
+            const before = setNumber();
+            headerMutatedAt = null;
+            const t0 = startTimer();
+            press("ArrowRight");
+            const delta = await until(() => setNumber() !== before && setNumber() !== "");
+            if (delta < 0) throw new Error("Navigation did not reach the next set");
+            if (delta >= 0) {
+               results.navigate.push(delta);
+               const scriptMs = headerMutatedAt === null ? delta : Math.round((headerMutatedAt - t0) * 100) / 100;
+               results.navigateScript.push(scriptMs);
+               results.navigatePaint.push(Math.max(0, Math.round((delta - scriptMs) * 100) / 100));
+            }
+         }
+
+         headerObserver.disconnect();
+         return results;
+      },
+      { toggles: 60, undos: 14, navigations: 40 }
+   );
+
+   const report = {
+      fixtureRoot: scanRoot,
+      imagesWritten: fixtures.wrote,
+      sourceGroupCount: setCount,
+      imagesPerSourceGroup: setSize,
+      detectedSetCount,
+      startToReviewMs,
+      toggle: summarize(probe.toggle),
+      undo: summarize(probe.undo),
+      navigate: summarize(probe.navigate),
+      navigateScript: summarize(probe.navigateScript),
+      navigatePaint: summarize(probe.navigatePaint),
+   };
+   console.log(JSON.stringify(report, null, 2));
+   await writeFile(resultFile, JSON.stringify(report, null, 2));
+} finally {
+   await app.close();
+}

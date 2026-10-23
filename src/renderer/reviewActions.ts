@@ -26,13 +26,7 @@ const availableImagesDecision = (imageSet: ImageSet, source: Decisions, discard:
    return getImageSetDecision(imageSet, deletedPaths);
 };
 
-const clearedDecision = (imageSet: ImageSet, source: Decisions): ImageSetDecision => {
-   const deletedPaths = getDeletedImagePaths(getDecision(source, imageSet.id));
-   for (const image of imageSet.images) {
-      if (image.sourceStatus === "available") deletedPaths.delete(image.originalPath);
-   }
-   return getImageSetDecision(imageSet, deletedPaths);
-};
+const clearedDecision = (imageSet: ImageSet, source: Decisions): ImageSetDecision => availableImagesDecision(imageSet, source, false);
 
 const autoSelectedDecision = (imageSet: ImageSet, source: Decisions): ImageSetDecision => {
    const availableImages = imageSet.images.filter((image) => image.sourceStatus === "available");
@@ -55,9 +49,8 @@ const getBandSets = (groups: ImageSet[], baseSet: ImageSet): ImageSet[] => {
 export const countBandSets = (groups: ImageSet[], baseSet: ImageSet): number => getBandSets(groups, baseSet).length;
 
 /**
- * How many sets in the band hold choices that band-autoselect would overwrite,
- * so callers can confirm before re-picking them. Sets whose discards already match
- * the autoselect pick do not count.
+ * How many sets have explicit choices that discarding the entire band would
+ * overwrite. Sets that already discard every available image do not count.
  */
 
 export const countBandDiscardOverrides = (groups: ImageSet[], decisions: Decisions, baseSet: ImageSet): number =>

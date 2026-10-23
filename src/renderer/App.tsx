@@ -32,17 +32,7 @@ import { useReviewController } from "./hooks/useReviewController.js";
 import { useReviewPersistence } from "./hooks/useReviewPersistence.js";
 import { useScanController } from "./hooks/useScanController.js";
 import { useTooltip } from "./hooks/useTooltip.js";
-import {
-   createConfirmAction,
-   emptyImageSetDecision,
-   getDecision,
-   getDuplicatePreview,
-   getFolderName,
-   getFileWorkflowState,
-   getMovePreview,
-   getSetNumber,
-   getSimilarityBands,
-} from "./reviewModel.js";
+import { createConfirmAction, emptyImageSetDecision, getDecision, getFolderName, getReviewSummary, getSetNumber, getSimilarityBands } from "./reviewModel.js";
 
 export const App = () => {
    const {
@@ -111,9 +101,7 @@ export const App = () => {
    } = library;
    const currentSet = groups[currentIndex] ?? null;
    const currentDecision = currentSet === null ? emptyImageSetDecision() : getDecision(decisions, currentSet.id);
-   const movePreview = useMemo(() => getMovePreview(groups, decisions), [decisions, groups]);
-   const duplicatePreview = useMemo(() => getDuplicatePreview(groups, decisions), [decisions, groups]);
-   const fileWorkflow = useMemo(() => getFileWorkflowState(groups, decisions), [decisions, groups]);
+   const { movePreview, duplicatePreview, workflow: fileWorkflow } = useMemo(() => getReviewSummary(groups, decisions), [decisions, groups]);
    const similarityBands = useMemo(() => getSimilarityBands(groups), [groups]);
    const decisionRows = useLibraryRows(groups, decisions);
    const selectedImage = currentSet?.images.find((image) => image.originalPath === selectedImagePath) ?? null;

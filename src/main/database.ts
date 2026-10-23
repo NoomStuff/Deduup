@@ -136,8 +136,8 @@ export const saveScan = (
    const db = getDatabase();
    const sameRoot = getSetting("scan_root") === rootPath;
    const previousRows = db
-      .prepare("SELECT set_id AS setId, original_path AS originalPath, size, modified_at AS modifiedAt, changed_at AS changedAt FROM images")
-      .all() as unknown as Pick<ImageRow, "setId" | "originalPath" | "size" | "modifiedAt" | "changedAt">[];
+      .prepare("SELECT set_id AS setId, original_path AS originalPath, hash, size, modified_at AS modifiedAt, changed_at AS changedAt FROM images")
+      .all() as unknown as Pick<ImageRow, "setId" | "originalPath" | "hash" | "size" | "modifiedAt" | "changedAt">[];
    const previousGroups = new Map<string, typeof previousRows>();
    for (const row of previousRows) {
       const images = previousGroups.get(row.setId);
@@ -330,12 +330,13 @@ const statFile = async (filePath: string) =>
          throw error;
       });
 
-const findMovedPath = async (row: ImageRow, scanRoot: string | null): Promise<string | null> => {
+const findMovedFile = async (row: ImageRow, scanRoot: string | null) => {
    if (scanRoot === null) return null;
    const relativePath = path.relative(scanRoot, row.originalPath);
    const safeRelativePath = relativePath === ".." || relativePath.startsWith(`..${path.sep}`) || path.isAbsolute(relativePath) ? row.file : relativePath;
    const movedPath = path.join(getManagedFolderPaths(scanRoot).managedPath, row.setId, safeRelativePath);
-   return (await statFile(movedPath)) === null ? null : movedPath;
+   const metadata = await statFile(movedPath);
+   return metadata === null ? null : { path: movedPath, metadata };
 };
 
 const buildImageItem = async (
@@ -348,13 +349,15 @@ const buildImageItem = async (
 ): Promise<ImageItem> => {
    const sourceStat = await statFile(row.originalPath);
    const exists = sourceStat !== null;
-   const movedPath = await findMovedPath(row, scanRoot);
+   // Current profiles journal every move. Normal library loads only need to
+   // stat source files; old profiles still discover their recovery locations.
+   const movedFile = legacyJournal || moveStatus === "moved" || moveStatus === "pending" ? await findMovedFile(row, scanRoot) : null;
    const wasRecycledByApp =
-      movedPath === null &&
+      movedFile === null &&
       (moveStatus === "recycled" ||
          (legacyJournal && lastFileAction === "recycled" && decisions[row.setId]?.deletedImages.includes(row.originalPath) === true));
-   const previewPath = movedPath ?? row.originalPath;
-   const previewStat = movedPath === null ? sourceStat : await statFile(movedPath);
+   const previewPath = movedFile?.path ?? row.originalPath;
+   const previewStat = movedFile?.metadata ?? sourceStat;
    const previewRevision = previewStat === null ? "missing" : `${previewStat.size}-${previewStat.mtimeMs}-${previewStat.ctimeMs}`;
    return {
       file: row.file,
@@ -370,7 +373,7 @@ const buildImageItem = async (
       previewUrl: createPreviewUrl(previewPath, "thumbnail", previewRevision),
       fullPreviewUrl: createPreviewUrl(previewPath, "full", previewRevision),
       exists,
-      sourceStatus: movedPath !== null ? "movedByApp" : exists ? "available" : wasRecycledByApp ? "recycledByApp" : "missing",
+      sourceStatus: movedFile !== null ? "movedByApp" : exists ? "available" : wasRecycledByApp ? "recycledByApp" : "missing",
    };
 };
 

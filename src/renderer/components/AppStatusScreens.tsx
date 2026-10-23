@@ -8,8 +8,8 @@ import "./AppStatusScreens.css";
 
 const getScanPhaseLabel = (phase: ScanProgress["phase"] | undefined): string => {
    if (phase === "discovering") return "Finding image files";
-   if (phase === "hashing") return "Reading and comparing images";
-   if (phase === "grouping") return "Building similarity bands";
+   if (phase === "hashing") return "Reading images";
+   if (phase === "grouping") return "Finding matching sets";
    if (phase === "saving") return "Saving your scan";
    return "Preparing your scan";
 };
@@ -145,8 +145,7 @@ export const NoMatchesScreen = (props: {
          <SearchX aria-hidden="true" className="noMatches__icon" />
          <h1 id="no-matches-title">No duplicate sets here</h1>
          <p>
-            Every image in <strong>{props.folderName}</strong> was compared, and nothing matched closely enough to group. The scan is saved, so rechecking the
-            same folder picks it back up instantly instead of re-reading files.
+            No images in <strong>{props.folderName}</strong> matched closely enough to group. The saved scan updates when files change.
          </p>
          <div className="noMatches__actions">
             <button className="noMatches__action noMatches__action--primary" onClick={props.onOpenFolder} type="button">

@@ -42,9 +42,11 @@ if (!app.requestSingleInstanceLock()) {
          const rootPath = path.resolve(scanArg.slice("--scan=".length));
          window.webContents.on("did-finish-load", () => {
             void runScan(rootPath, window.webContents)
-               .then((result) => window.webContents.send("scan:complete", result))
+               .then((result) => {
+                  if (!window.isDestroyed()) window.webContents.send("scan:complete", result);
+               })
                .catch((error: unknown) => {
-                  window.webContents.send("app:error", error instanceof Error ? error.message : "Scan failed");
+                  if (!window.isDestroyed()) window.webContents.send("app:error", error instanceof Error ? error.message : "Scan failed");
                });
          });
       }

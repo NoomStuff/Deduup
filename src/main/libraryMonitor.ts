@@ -8,21 +8,24 @@ export class LibraryMonitor {
    private watcher: FSWatcher | null = null;
    private timer: ReturnType<typeof setTimeout> | null = null;
    private poll: ReturnType<typeof setInterval> | null = null;
+   private controller: AbortController | null = null;
    private generation = 0;
    private dirty = false;
    private running = false;
    private lastError: string | null = null;
    busy = false;
 
-   private readonly refresh: (root: string) => Promise<boolean>;
+   private readonly refresh: (root: string, signal: AbortSignal) => Promise<boolean>;
    private readonly reportError: (error: unknown) => void;
-   constructor(refresh: (root: string) => Promise<boolean>, reportError: (error: unknown) => void) {
+   constructor(refresh: (root: string, signal: AbortSignal) => Promise<boolean>, reportError: (error: unknown) => void) {
       this.refresh = refresh;
       this.reportError = reportError;
    }
 
    start(root: string): void {
       this.stop();
+      const controller = new AbortController();
+      this.controller = controller;
       const generation = this.generation;
       const schedule = (): void => {
          if (generation !== this.generation) return;
@@ -30,7 +33,7 @@ export class LibraryMonitor {
          if (this.timer !== null || this.running) return;
          this.timer = setTimeout(() => {
             this.timer = null;
-            void this.flush(root, generation, schedule);
+            void this.flush(root, generation, controller.signal, schedule);
          }, 1000);
       };
       const managed = path.relative(root, getManagedFolderPaths(root).managedPath);
@@ -51,7 +54,7 @@ export class LibraryMonitor {
       schedule();
    }
 
-   private async flush(root: string, generation: number, schedule: () => void): Promise<void> {
+   private async flush(root: string, generation: number, signal: AbortSignal, schedule: () => void): Promise<void> {
       if (generation !== this.generation) return;
       if (this.busy) {
          schedule();
@@ -60,20 +63,29 @@ export class LibraryMonitor {
       this.running = true;
       this.dirty = false;
       try {
-         if (!(await this.refresh(root))) this.dirty = true;
-         else this.lastError = null;
+         const refreshed = await this.refresh(root, signal);
+         if (generation === this.generation) {
+            if (!refreshed) this.dirty = true;
+            else this.lastError = null;
+         }
       } catch (error: unknown) {
-         const message = error instanceof Error ? error.message : String(error);
-         if (message !== this.lastError) this.reportError(error);
-         this.lastError = message;
+         if (!signal.aborted) {
+            const message = error instanceof Error ? error.message : String(error);
+            if (message !== this.lastError) this.reportError(error);
+            this.lastError = message;
+         }
       } finally {
-         this.running = false;
-         if (generation === this.generation && this.dirty) schedule();
+         if (generation === this.generation) {
+            this.running = false;
+            if (this.dirty) schedule();
+         }
       }
    }
 
    stop(): void {
       this.generation += 1;
+      this.controller?.abort();
+      this.controller = null;
       this.watcher?.close();
       this.watcher = null;
       if (this.timer !== null) clearTimeout(this.timer);
@@ -81,6 +93,8 @@ export class LibraryMonitor {
       this.timer = null;
       this.poll = null;
       this.dirty = false;
+      this.running = false;
+      this.busy = false;
       this.lastError = null;
    }
 }

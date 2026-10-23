@@ -1,4 +1,6 @@
 import { execFileSync } from "node:child_process";
+import { rmSync } from "node:fs";
+import { fileURLToPath } from "node:url";
 import process from "node:process";
 
 // Usage: node scripts/package-app.mjs <dist|package> [win32|darwin|linux] [portable|installer|all]
@@ -17,6 +19,9 @@ const run = (args) => {
    execFileSync("bun", args, { stdio: "inherit" });
 };
 run(["run", "build"]);
+// Packaging must never upload artifacts from a previous version or platform.
+// Ordinary builds keep compiler caches and test diagnostics intact.
+rmSync(fileURLToPath(new URL("../release", import.meta.url)), { recursive: true, force: true, maxRetries: 4, retryDelay: 250 });
 
 // Windows ships both shapes: the portable exe and an NSIS installer (the only
 // target the automatic updater can apply updates to). mac ships a dmg, linux an AppImage.

@@ -67,7 +67,7 @@ const BandTag = memo(function BandTag(props: {
             props.onBandContextMenu(event, props.firstSet);
          }}
          type="button"
-         {...props.getTooltipProps(`Difference ${props.label}`, "Average pixel difference across this band. Lower means more alike.")}
+         {...props.getTooltipProps(`Difference ${props.label}`, "Sets with this displayed image difference. Lower means more alike.")}
       >
          <span aria-hidden="true" className="similarityBand__link" />
          {props.label}

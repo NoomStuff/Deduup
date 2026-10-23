@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import type { ImageItem, ImageSet } from "../../shared/types.js";
 import type { CompareState } from "../appTypes.js";
 
@@ -22,7 +22,10 @@ export const useCompareController = ({ currentSet, onKeep }: CompareControllerOp
       return () => window.removeEventListener("keydown", onKeyDown);
    }, [comparePick]);
 
-   const getImageIndex = (image: ImageItem): number => currentSet?.images.findIndex((item) => item.originalPath === image.originalPath) ?? -1;
+   const getImageIndex = useCallback(
+      (image: ImageItem): number => currentSet?.images.findIndex((item) => item.originalPath === image.originalPath) ?? -1,
+      [currentSet]
+   );
 
    const openAdjacentCompare = (image: ImageItem): void => {
       if (currentSet === null || image.sourceStatus !== "available") {
@@ -44,26 +47,29 @@ export const useCompareController = ({ currentSet, onKeep }: CompareControllerOp
       setComparePick(null);
    };
 
-   const beginCompare = (image: ImageItem): void => {
-      if (currentSet === null || image.sourceStatus !== "available") {
-         return;
-      }
+   const beginCompare = useCallback(
+      (image: ImageItem): void => {
+         if (currentSet === null || image.sourceStatus !== "available") {
+            return;
+         }
 
-      if (comparePick === null) {
-         setComparePick(image);
-         return;
-      }
+         if (comparePick === null) {
+            setComparePick(image);
+            return;
+         }
 
-      if (comparePick.originalPath !== image.originalPath) {
-         setCompare({ left: comparePick, right: image, leftIndex: getImageIndex(comparePick), rightIndex: getImageIndex(image), reveal: 0.5 });
-         setComparePick(null);
-      }
-   };
+         if (comparePick.originalPath !== image.originalPath) {
+            setCompare({ left: comparePick, right: image, leftIndex: getImageIndex(comparePick), rightIndex: getImageIndex(image), reveal: 0.5 });
+            setComparePick(null);
+         }
+      },
+      [comparePick, currentSet, getImageIndex]
+   );
 
-   const closeCompare = (): void => {
+   const closeCompare = useCallback((): void => {
       setCompare(null);
       setComparePick(null);
-   };
+   }, []);
 
    const keepCompareImage = (image: ImageItem, advance: boolean): void => {
       if (compare === null) return;

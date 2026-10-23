@@ -1,5 +1,6 @@
 import type { Decisions, ImageItem, ImageSet, ImageSetDecision } from "../shared/types.js";
-import type { ConfirmAction, ConfirmKind, FileWorkflowState, ImageDeleteState, ImageSetState, MovePreview, SimilarityBand } from "./appTypes.js";
+import { getSimilarityLabel, matchDistanceLimit } from "../shared/similarity.js";
+import type { ConfirmAction, ConfirmKind, FileWorkflowState, ImageSetState, MovePreview, SimilarityBand } from "./appTypes.js";
 
 export const emptyImageSetDecision = (): ImageSetDecision => ({ deletedImages: [] });
 
@@ -46,59 +47,37 @@ export const getImageSetDecision = (imageSet: ImageSet, deletedPaths: Set<string
    return { deletedImages: deleted };
 };
 
-const getMovePreviewByStatus = (imageSets: ImageSet[], decisions: Decisions, sourceStatus: ImageItem["sourceStatus"]): MovePreview[] => {
-   const rows: MovePreview[] = [];
+export interface ReviewSummary {
+   movePreview: MovePreview[];
+   duplicatePreview: MovePreview[];
+   workflow: FileWorkflowState;
+}
+
+/** Counts and final-review rows come from the same pass and status rules. */
+export const getReviewSummary = (imageSets: ImageSet[], decisions: Decisions): ReviewSummary => {
+   const movePreview: MovePreview[] = [];
+   const duplicatePreview: MovePreview[] = [];
+   const workflow: FileWorkflowState = { discardedCount: 0, readyToMoveCount: 0, movedCount: 0, recycledCount: 0, missingCount: 0 };
    for (const imageSet of imageSets) {
-      const decision = decisions[imageSet.id];
-      if (sourceStatus === "available" && decision === undefined) {
-         continue;
-      }
-
-      const deletedPaths = sourceStatus === "available" && decision !== undefined ? getDeletedImagesForSet(imageSet, decision) : null;
-      if (deletedPaths !== null && deletedPaths.size === 0) {
-         continue;
-      }
+      const discardedPaths = getDeletedImagesForSet(imageSet, decisions[imageSet.id]);
       for (const image of imageSet.images) {
-         if (image.sourceStatus === sourceStatus && (deletedPaths === null || deletedPaths.has(image.originalPath))) {
-            rows.push({ setId: imageSet.id, file: image.file, originalPath: image.originalPath, previewUrl: image.previewUrl, size: image.size });
-         }
-      }
-   }
-   return rows;
-};
-
-export const getMovePreview = (imageSets: ImageSet[], decisions: Decisions): MovePreview[] => getMovePreviewByStatus(imageSets, decisions, "available");
-
-export const getDuplicatePreview = (imageSets: ImageSet[], decisions: Decisions): MovePreview[] => getMovePreviewByStatus(imageSets, decisions, "movedByApp");
-
-export const getFileWorkflowState = (imageSets: ImageSet[], decisions: Decisions): FileWorkflowState => {
-   const state: FileWorkflowState = { discardedCount: 0, readyToMoveCount: 0, movedCount: 0, recycledCount: 0, missingCount: 0 };
-   for (const imageSet of imageSets) {
-      const discardedPaths = getDeletedImagesForSet(imageSet, getDecision(decisions, imageSet.id));
-      for (const image of imageSet.images) {
-         if (image.sourceStatus === "movedByApp") {
-            state.discardedCount += 1;
-            state.movedCount += 1;
-            continue;
-         }
-         if (image.sourceStatus === "recycledByApp") {
-            state.discardedCount += 1;
-            state.recycledCount += 1;
-            continue;
-         }
-         if (!discardedPaths.has(image.originalPath)) {
-            continue;
-         }
-
-         state.discardedCount += 1;
-         if (image.sourceStatus === "available") {
-            state.readyToMoveCount += 1;
+         const moved = image.sourceStatus === "movedByApp";
+         const recycled = image.sourceStatus === "recycledByApp";
+         if (!moved && !recycled && !discardedPaths.has(image.originalPath)) continue;
+         workflow.discardedCount += 1;
+         if (recycled) {
+            workflow.recycledCount += 1;
+         } else if (image.sourceStatus === "missing") {
+            workflow.missingCount += 1;
          } else {
-            state.missingCount += 1;
+            const rows = moved ? duplicatePreview : movePreview;
+            rows.push({ setId: imageSet.id, file: image.file, originalPath: image.originalPath, previewUrl: image.previewUrl, size: image.size });
+            if (moved) workflow.movedCount += 1;
+            else workflow.readyToMoveCount += 1;
          }
       }
    }
-   return state;
+   return { movePreview, duplicatePreview, workflow };
 };
 
 export interface LibrarySetRow {
@@ -120,7 +99,7 @@ export const getSetRow = (imageSet: ImageSet, decision: ImageSetDecision | undef
       number: getSetNumber(imageSet.id),
       label: `${keptCount}/${imageSet.images.length}`,
       state: deletedCount === imageSet.images.length ? "allDeleted" : deletedCount > 0 ? "someDeleted" : "open",
-      differenceText: imageSet.similarity.toFixed(1),
+      differenceText: getSimilarityLabel(imageSet.similarity),
    };
 };
 
@@ -128,27 +107,24 @@ export const getImageSetState = (imageSet: ImageSet, decision: ImageSetDecision 
 
 export const getImageSetLabel = (imageSet: ImageSet, decision: ImageSetDecision): string => getSetRow(imageSet, decision).label;
 
-export const getImageDeleteState = (decision: ImageSetDecision, image: ImageItem): ImageDeleteState =>
-   getDeletedImagePaths(decision).has(image.originalPath) ? "deleted" : "active";
-
 export const getSetNumber = (setId: string): string => setId.replace(/^set_0*/u, "#");
 
-export const getSimilarityLabel = (similarity: number): string => similarity.toFixed(1);
+export { getSimilarityLabel };
 
 /**
- * Band color by average pixel difference: terracotta orange for near-identical
+ * Band color by average image difference: terracotta orange for near-identical
  * sets, cooling through amber, olive, and sage into green at the match limit.
  */
 const similarityColorStops = [
    { distance: 0, color: [224, 137, 74] },
-   { distance: 3.25, color: [217, 168, 88] },
-   { distance: 6.5, color: [186, 186, 106] },
-   { distance: 9.75, color: [148, 196, 128] },
-   { distance: 13, color: [114, 200, 138] },
+   { distance: matchDistanceLimit / 4, color: [217, 168, 88] },
+   { distance: matchDistanceLimit / 2, color: [186, 186, 106] },
+   { distance: (matchDistanceLimit * 3) / 4, color: [148, 196, 128] },
+   { distance: matchDistanceLimit, color: [114, 200, 138] },
 ] as const;
 
 export const getSimilarityColor = (similarity: number): string => {
-   const distance = clamp(similarity, similarityColorStops[0].distance, similarityColorStops.at(-1)?.distance ?? similarity);
+   const distance = clamp(Number(getSimilarityLabel(similarity)), 0, matchDistanceLimit);
    const upperIndex = similarityColorStops.findIndex((stop) => stop.distance >= distance);
    const upper = similarityColorStops[upperIndex < 0 ? similarityColorStops.length - 1 : upperIndex] ?? similarityColorStops[0];
    const lower = similarityColorStops[Math.max(0, upperIndex - 1)] ?? upper;
@@ -169,7 +145,7 @@ export const getSimilarityBands = (groups: ImageSet[]): SimilarityBand[] => {
          return;
       }
 
-      bands.push({ label, distance: imageSet.similarity, groups: [{ imageSet, index }] });
+      bands.push({ label, distance: Number(label), groups: [{ imageSet, index }] });
    });
 
    return bands;
@@ -187,13 +163,15 @@ export const getResumeIndex = (groups: ImageSet[], currentSetId: string | null):
  * choice is always explainable as "kept the largest image".
  */
 export const getLargestImage = (imageSet: ImageSet): ImageItem => {
-   const sortedImages = [...imageSet.images].sort((a, b) => b.width * b.height - a.width * a.height || b.size - a.size || a.file.localeCompare(b.file));
-   const firstImage = sortedImages[0];
-   if (firstImage === undefined) {
+   let largest = imageSet.images[0];
+   if (largest === undefined) {
       throw new Error(`Image set ${imageSet.id} has no images to pick from`);
    }
-
-   return firstImage;
+   for (const image of imageSet.images) {
+      const rank = image.width * image.height - largest.width * largest.height || image.size - largest.size || largest.file.localeCompare(image.file);
+      if (rank > 0) largest = image;
+   }
+   return largest;
 };
 
 export const formatBytes = (bytes: number): string => {

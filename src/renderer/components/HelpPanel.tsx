@@ -31,7 +31,7 @@ const topics: { id: HelpTab; label: string; body: ReactNode }[] = [
          <>
             <ol>
                <li>Open a folder. Drag it onto the window, or use File in the menu bar.</li>
-               <li>The scanner sorts near-identical images into sets along the strip at the bottom, grouped by pixel difference. Lower means more alike.</li>
+               <li>The scanner sorts similar images into sets along the strip at the bottom, grouped by image difference. Lower means more alike.</li>
                <li>
                   In each set, keep the image you prefer and discard the rest. Numbers 1–9 discard images, X discards a whole set, and Autoselect (right-click a
                   set or band) keeps the largest image of a set.

@@ -5,7 +5,7 @@ import type { ContextMenuState, ImageCaptionMode, SimilarityBand, TravelDirectio
 import { useBindingDisplay } from "../commands.js";
 import { useCtrlHeld } from "../hooks/usePreference.js";
 import type { TooltipProps } from "../hooks/useTooltip.js";
-import { getDeletedImagePaths, getImageDeleteState, getImageSetLabel, getSetNumber, getSimilarityColor, type LibrarySetRow } from "../reviewModel.js";
+import { getDeletedImagePaths, getImageSetLabel, getSetNumber, getSimilarityColor, getSimilarityLabel, type LibrarySetRow } from "../reviewModel.js";
 import { ReviewFilmstrip } from "./ReviewFilmstrip.js";
 import { ImageCard } from "./ImageCard.js";
 import "./ReviewWorkspace.css";
@@ -40,13 +40,14 @@ interface ReviewWorkspaceProps {
 }
 
 export const ReviewWorkspace = (props: ReviewWorkspaceProps) => {
+   const discardedPaths = getDeletedImagePaths(props.currentDecision);
    const selectedImage = props.currentSet.images.find((image) => image.originalPath === props.selectedImagePath) ?? null;
-   const selectedImageIsDiscarded = selectedImage !== null && getDeletedImagePaths(props.currentDecision).has(selectedImage.originalPath);
+   const selectedImageIsDiscarded = selectedImage !== null && discardedPaths.has(selectedImage.originalPath);
    const selectedIsAvailable = selectedImage !== null && selectedImage.sourceStatus === "available";
    const selectedIsPreviewable = selectedImage !== null && selectedImage.sourceStatus !== "missing" && selectedImage.sourceStatus !== "recycledByApp";
    const availableCount = props.currentSet.images.filter((image) => image.sourceStatus === "available").length;
    const compareNeedsPick = availableCount > 2;
-   const discardCount = getDeletedImagePaths(props.currentDecision).size;
+   const discardCount = discardedPaths.size;
    const ctrlHeld = useCtrlHeld();
    const discardSetHint = useBindingDisplay("discardSet");
    const compareHint = useBindingDisplay("compareSelected");
@@ -66,9 +67,9 @@ export const ReviewWorkspace = (props: ReviewWorkspaceProps) => {
                      <span
                         className="setHeader__difference"
                         style={{ "--band-color": getSimilarityColor(props.currentSet.similarity) } as CSSProperties}
-                        {...props.getTooltipProps("Average pixel difference", "Lower means more alike.")}
+                        {...props.getTooltipProps("Average image difference", "Lower means more alike.")}
                      >
-                        difference {props.currentSet.similarity.toFixed(1)}
+                        difference {getSimilarityLabel(props.currentSet.similarity)}
                      </span>
                      <button
                         className="setHeader__folder"
@@ -164,7 +165,7 @@ export const ReviewWorkspace = (props: ReviewWorkspaceProps) => {
                         onContextMenu={props.onImageContextMenu}
                         onDoubleClick={props.onImageDoubleClick}
                         showIndexHint={ctrlHeld}
-                        state={getImageDeleteState(props.currentDecision, image)}
+                        state={discardedPaths.has(image.originalPath) ? "deleted" : "active"}
                      />
                   ))}
                </section>

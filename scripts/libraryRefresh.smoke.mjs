@@ -55,6 +55,17 @@ try {
    await window.getByRole("button", { name: /final review/i }).click();
    await window.waitForSelector(".finalReview");
    await window.evaluate(() => window.imageDeduplicator.setReviewBusy(true));
+   // Make a local edit as the next real refresh starts. Autosave must wait for
+   // the new scan ID and preserve this edit through regrouping.
+   await window.evaluate(() => {
+      window.editedDuringRefresh = false;
+      const unsubscribe = window.imageDeduplicator.onLibraryRefreshing((active) => {
+         if (!active || window.editedDuringRefresh) return;
+         window.editedDuringRefresh = true;
+         window.dispatchEvent(new KeyboardEvent("keydown", { key: "2", bubbles: true, cancelable: true }));
+         unsubscribe();
+      });
+   });
    const added = path.join(root, "automatic-copy.jpg");
    await copyFile(source, added);
    await window.waitForTimeout(2200);
@@ -62,7 +73,9 @@ try {
    await window.locator(".finalReview").getByLabel("Close final review").click();
    await window.waitForSelector(".finalReview", { state: "detached" });
    await waitForFile(added, true);
-   await window.waitForFunction(() => document.querySelectorAll(".imageCard__chip--discarded").length === 1);
+   await window.waitForFunction(() => document.querySelectorAll(".imageCard__chip--discarded").length === 2);
+   assert.equal(await window.evaluate(() => window.editedDuringRefresh), true);
+   await waitForData((result) => Object.values(result.decisions).some((choice) => choice.deletedImages.includes(other)));
    const updated = await load();
    assert.notEqual(updated.scanId, initial.scanId);
    assert.ok(Object.values(updated.decisions).some((choice) => choice.deletedImages.includes(source)));
@@ -94,7 +107,7 @@ try {
    assert.notEqual(migrated.scanId, updated.scanId);
    assert.ok(migrated.groups.every((set) => set.images.every((image) => /^[0-9a-f]{16}:[0-9a-f]{432}$/u.test(image.hash))));
    const migratedDb = new DatabaseSync(path.join(profile, "deduup.sqlite"));
-   assert.equal(migratedDb.prepare("SELECT value FROM settings WHERE key = 'hash_version'").get().value, "dhash64-rgb-v2");
+   assert.equal(migratedDb.prepare("SELECT value FROM settings WHERE key = 'hash_version'").get().value, "dhash64-rgb-v3");
    assert.equal(migratedDb.prepare("SELECT COUNT(*) AS count FROM image_inventory WHERE length(hash) != 449").get().count, 0);
    migratedDb.close();
    await window.waitForSelector(".toolbar__progress", { state: "detached" });
@@ -103,6 +116,12 @@ try {
    console.log(
       "PASS automatic library refresh: dialog deferral, added/removed/changed files, preserved choices and current set, restart catch-up, no manual rescan or viewed progress"
    );
+} catch (error) {
+   if (window !== undefined && !window.isClosed()) {
+      await window.screenshot({ path: path.join(artifacts, "failure.png") });
+      console.error("Notifications at failure:", await window.locator(".notificationToast").allTextContents());
+   }
+   throw error;
 } finally {
    await app?.close();
 }

@@ -54,6 +54,11 @@ const api: AppApi = {
    setReviewBusy: async (busy: boolean): Promise<void> => {
       await ipcRenderer.invoke("review:busy", busy);
    },
+   onLibraryRefreshing: (listener: (refreshing: boolean) => void): (() => void) => {
+      const handler = (_event: Electron.IpcRendererEvent, refreshing: boolean): void => listener(refreshing);
+      ipcRenderer.on("library:refreshing", handler);
+      return () => ipcRenderer.removeListener("library:refreshing", handler);
+   },
    onLibraryError: (listener: (message: string) => void): (() => void) => {
       const handler = (_event: Electron.IpcRendererEvent, message: string): void => listener(message);
       ipcRenderer.on("library:error", handler);

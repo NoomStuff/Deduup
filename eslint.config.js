@@ -12,7 +12,7 @@ const typedTypeCheckedConfigs = [...tseslint.configs.strictTypeChecked, ...tsesl
 
 export default tseslint.config(
    {
-      ignores: [".cache", "build", "dist", "node_modules"],
+      ignores: [".cache", "build", "dist", "release", "node_modules"],
    },
    js.configs.recommended,
    ...typedTypeCheckedConfigs,

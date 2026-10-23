@@ -222,6 +222,40 @@ const run = async () => {
       const setCount = await window.locator(".filmstrip__item").count();
       check("over-cap chains split into multiple sets", setCount >= 3, `sets: ${setCount}`);
       await window.screenshot({ path: path.join(artifactsDir, "06-filmstrip.png") });
+
+      // Large sets must still render at the end of both shelf layouts when
+      // Chromium skips offscreen cards. Exercise a narrow, reduced-motion view.
+      const library = await window.evaluate(() => window.imageDeduplicator.loadData());
+      const largestIndex = library.groups.reduce((largest, group, index) => (group.images.length > library.groups[largest].images.length ? index : largest), 0);
+      await window.locator(".filmstrip__item").nth(largestIndex).click();
+      await window.waitForFunction((count) => document.querySelectorAll(".imageCard").length === count, library.groups[largestIndex].images.length);
+      await window.setViewportSize({ width: 960, height: 680 });
+      await window.emulateMedia({ reducedMotion: "reduce" });
+      const lastCard = window.locator(".imageCard").last();
+      await lastCard.scrollIntoViewIfNeeded();
+      await window.waitForFunction(() => {
+         const img = document.querySelector(".imageCard:last-child img");
+         return img?.complete && img.naturalWidth > 0;
+      });
+      const visibleLastCard = () =>
+         window.evaluate(() => {
+            const shelf = document.querySelector(".imageShelf").getBoundingClientRect();
+            const card = document.querySelector(".imageCard:last-child").getBoundingClientRect();
+            return card.top < shelf.bottom && card.bottom > shelf.top && card.left < shelf.right && card.right > shelf.left;
+         });
+      check("wrapped shelf displays its final image at a narrow width", await visibleLastCard());
+      await window.screenshot({ path: path.join(artifactsDir, "11-narrow-wrapped-shelf.png") });
+      await window.getByRole("button", { name: "Help", exact: true }).click();
+      await window.getByRole("menuitem", { name: /settings/i }).click();
+      await window.getByRole("button", { name: "Wrap the image shelf onto multiple rows" }).click();
+      await window
+         .getByRole("dialog", { name: /settings/i })
+         .getByRole("button", { name: /close settings/i })
+         .click();
+      await window.waitForSelector(".settingsPanel", { state: "detached" });
+      await lastCard.scrollIntoViewIfNeeded();
+      check("single-row shelf displays its final image", await visibleLastCard());
+      await window.screenshot({ path: path.join(artifactsDir, "12-narrow-single-row-shelf.png") });
       check("core flows show no unexpected error notifications", (await window.locator(".notificationToast--error").count()) === 0);
    } finally {
       await app.close();

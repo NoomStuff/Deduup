@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useCallback, useState } from "react";
 import type { MouseEvent } from "react";
 import type { Decisions, ImageItem, ImageSet } from "../../shared/types.js";
 import type { ContextMenuState } from "../appTypes.js";
@@ -20,26 +20,32 @@ interface ReviewContextMenuOptions {
 export const useReviewContextMenu = ({ groups, currentSet, decisions, selectedImage, selectImage, hideTooltip }: ReviewContextMenuOptions) => {
    const [contextMenu, setContextMenu] = useState<ContextMenuState | null>(null);
 
-   const openImageContextMenu = (event: MouseEvent, image: ImageItem): void => {
-      if (currentSet === null) return;
-      event.preventDefault();
-      event.stopPropagation();
-      hideTooltip();
-      selectImage(image.originalPath);
-      setContextMenu({
-         menuKind: "image",
-         imagePath: image.originalPath,
-         setId: currentSet.id,
-         anchor: { kind: "point", x: event.clientX, y: event.clientY },
-      });
-   };
+   const openImageContextMenu = useCallback(
+      (event: MouseEvent, image: ImageItem): void => {
+         if (currentSet === null) return;
+         event.preventDefault();
+         event.stopPropagation();
+         hideTooltip();
+         selectImage(image.originalPath);
+         setContextMenu({
+            menuKind: "image",
+            imagePath: image.originalPath,
+            setId: currentSet.id,
+            anchor: { kind: "point", x: event.clientX, y: event.clientY },
+         });
+      },
+      [currentSet, hideTooltip, selectImage]
+   );
 
-   const openSetContextMenu = (event: MouseEvent, imageSet: ImageSet): void => {
-      event.preventDefault();
-      event.stopPropagation();
-      hideTooltip();
-      setContextMenu({ menuKind: "imageSet", setId: imageSet.id, anchor: { kind: "point", x: event.clientX, y: event.clientY } });
-   };
+   const openSetContextMenu = useCallback(
+      (event: MouseEvent, imageSet: ImageSet): void => {
+         event.preventDefault();
+         event.stopPropagation();
+         hideTooltip();
+         setContextMenu({ menuKind: "imageSet", setId: imageSet.id, anchor: { kind: "point", x: event.clientX, y: event.clientY } });
+      },
+      [hideTooltip]
+   );
 
    const closeContextMenu = (): void => setContextMenu(null);
 
