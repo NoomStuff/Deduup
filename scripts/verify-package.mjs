@@ -60,7 +60,7 @@ const stop = async (child) => {
    for (let attempt = 0; attempt < 2; attempt++) {
       const exited = await Promise.race([
          new Promise((resolve) => child.once("exit", () => resolve(true))),
-         new Promise((resolve) => setTimeout(() => resolve(false), 5000)),
+         new Promise((resolve) => setTimeout(() => resolve(false), 5000).unref()),
       ]);
       if (exited) return;
       child.kill("SIGKILL");
@@ -109,7 +109,9 @@ const launchAndScan = async (binary, fixtures) => {
       await Promise.race([
          ran,
          spawnFailure,
-         new Promise((resolve, reject) => setTimeout(() => reject(new Error(`The packaged-app check timed out after 60s.\n${output}`)), 60_000)),
+         // The child keeps Node alive while it runs. A successful check must
+         // not wait for this losing deadline before the process can exit.
+         new Promise((resolve, reject) => setTimeout(() => reject(new Error(`The packaged-app check timed out after 60s.\n${output}`)), 60_000).unref()),
       ]);
    } finally {
       await stop(child).catch(() => undefined);
