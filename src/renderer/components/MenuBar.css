@@ -84,7 +84,8 @@
    transition: background-color var(--duration-press) ease-out;
 }
 
-.menuDropdown button:hover:not(:disabled) {
+.menuDropdown button:hover:not(:disabled),
+.menuDropdown button:focus-visible {
    background: var(--panel-3);
    transition-duration: 0ms;
 }
@@ -133,34 +134,7 @@
 }
 
 .toolbar__finalStep {
-   display: inline-flex;
-   align-items: center;
-   gap: 8px;
-   border-radius: var(--radius-sm);
-   background: var(--accent);
-   color: #2b1507;
-   font-size: 13px;
-   font-weight: 700;
-   padding: 7px 14px;
-   transition:
-      background-color var(--duration-hover) ease-out,
-      color var(--duration-hover) ease-out,
-      transform var(--duration-move) var(--bounce),
-      box-shadow var(--duration-hover) ease-out;
-   box-shadow: 0 2px 10px rgba(var(--accent-rgb), 0.25);
-}
-
-.toolbar__finalStep:hover:not(:disabled) {
-   background: var(--accent-bright);
-}
-
-.toolbar__finalStep:active:not(:disabled) {
-   transform: scale(0.97);
-}
-
-.toolbar__finalStep--hot {
-   background: var(--accent-bright);
-   box-shadow: 0 2px 14px rgba(var(--accent-rgb), 0.4);
+   white-space: nowrap;
 }
 
 .toolbar__finalStepBadge {
@@ -169,7 +143,7 @@
    min-width: 18px;
    height: 18px;
    border-radius: var(--radius-lg);
-   background: #2b1507;
+   background: var(--accent-ink);
    color: var(--accent-bright);
    font-size: 11px;
    font-weight: 700;

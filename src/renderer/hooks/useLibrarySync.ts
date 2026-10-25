@@ -1,7 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { Decisions, ImageSet, LoadDataResult } from "../../shared/types.js";
 import type { DecisionSetSnapshot } from "../../shared/reconcileDecisions.js";
-import type { ScanWarnings } from "../appTypes.js";
 import { getResumeIndex } from "../reviewModel.js";
 import type { NotificationInput } from "./useNotifications.js";
 
@@ -33,7 +32,6 @@ export const useLibrarySync = ({
    // remain in useDecisionHistory, including edits made during a refresh.
    const [library, setLibrary] = useState<LoadDataResult | null>(null);
    const [loading, setLoading] = useState(true);
-   const [scanWarningsDismissed, setScanWarningsDismissed] = useState(false);
    const groups = library?.groups ?? emptyGroups;
    const scanRoot = library?.scanRoot ?? null;
    const librarySessionRef = useRef({ groups, currentIndex, scanRoot });
@@ -68,7 +66,6 @@ export const useLibrarySync = ({
          setSelectedImagePath(null);
          setIsStartupOpen(false);
          clearFileResults();
-         setScanWarningsDismissed(false);
          notify({
             tone: result.groups.length === 0 ? "info" : "success",
             title: result.groups.length === 0 ? "Scan complete" : "Duplicate sets ready",
@@ -77,12 +74,17 @@ export const useLibrarySync = ({
                   ? "No matching image sets were found."
                   : `Found ${result.groups.length} set${result.groups.length === 1 ? "" : "s"} of similar images.`,
          });
+         if (result.scanWarningCount > 0) {
+            notify({
+               tone: "warning",
+               title: `${result.scanWarningCount} unreadable item${result.scanWarningCount === 1 ? "" : "s"} skipped`,
+               message: "These files or folders could not be read and are not part of this review.",
+            });
+         }
       },
       [applyLoadedResult, notify, setSelectedImagePath, setIsStartupOpen]
    );
 
-   const scanWarnings: ScanWarnings | null =
-      library !== null && library.scanWarningCount > 0 ? { count: library.scanWarningCount, paths: library.scanWarningPaths } : null;
    return {
       groups,
       loading,
@@ -92,9 +94,6 @@ export const useLibrarySync = ({
       lastFileAction: library?.lastFileAction ?? "idle",
       duplicateFolderPath: library?.duplicateFolderPath ?? null,
       scanRoot,
-      scanWarnings,
-      scanWarningsDismissed,
-      setScanWarningsDismissed,
       refreshFileState,
       applyScanResult,
       bootstrap: { applyLoadedResult, reportError, setLoading },
@@ -107,6 +106,10 @@ export const useApplyScanResult = (applyScanResult: ApplyScanResult, clearFileRe
 
 /** Attach after the scan event bridges so startup rehash progress is visible. */
 export const useLibraryBootstrap = ({ applyLoadedResult, reportError, setLoading }: ReturnType<typeof useLibrarySync>["bootstrap"]): void => {
+   // Notification behavior changes while a dialog is open. That must not
+   // restart hydration and overwrite edits that have not autosaved yet.
+   const reportErrorRef = useRef(reportError);
+   reportErrorRef.current = reportError;
    useEffect(() => {
       let active = true;
       void window.imageDeduplicator
@@ -115,7 +118,7 @@ export const useLibraryBootstrap = ({ applyLoadedResult, reportError, setLoading
             if (active) applyLoadedResult(result);
          })
          .catch((error: unknown) => {
-            if (active) reportError("Couldn't load the review", error, "Failed to load duplicate sets");
+            if (active) reportErrorRef.current("Couldn't load the review", error, "Failed to load duplicate sets");
          })
          .finally(() => {
             if (active) setLoading(false);
@@ -123,5 +126,5 @@ export const useLibraryBootstrap = ({ applyLoadedResult, reportError, setLoading
       return () => {
          active = false;
       };
-   }, [applyLoadedResult, reportError, setLoading]);
+   }, [applyLoadedResult, setLoading]);
 };

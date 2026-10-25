@@ -40,7 +40,7 @@ const AboutPanel = ({ onClose }: { onClose: () => void }) => {
                <p>{info === null ? "" : `Version ${info.version}`}</p>
             </div>
          </div>
-         <p className="aboutPanel__tagline">Clear identical files with ease.</p>
+         <p className="aboutPanel__tagline">Find and review similar images.</p>
          <p>
             It scans a folder for images that look the same, groups them into sets you judge once, and moves what you discard into a duplicate folder that stays
             undoable until you recycle it. Nothing leaves the machine.

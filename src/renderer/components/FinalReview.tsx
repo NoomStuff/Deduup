@@ -22,12 +22,11 @@ interface FinalReviewProps {
    onApply: () => void;
    onRestore: () => void;
    onTrash: () => void;
-   onKeepImage: (row: MovePreview) => void;
    onClose: () => void;
    getTooltipProps: (title: string, body: string, hotkey?: string) => TooltipProps;
 }
 
-const MoveCard = ({ row, quarantined, onKeepImage }: { row: MovePreview; quarantined: boolean; onKeepImage: (row: MovePreview) => void }) => (
+const MoveCard = ({ row, quarantined }: { row: MovePreview; quarantined: boolean }) => (
    <figure className={`moveCard${quarantined ? " moveCard--quarantined" : ""}`}>
       <img alt={row.file} loading="lazy" src={row.previewUrl} />
       <figcaption>
@@ -36,11 +35,6 @@ const MoveCard = ({ row, quarantined, onKeepImage }: { row: MovePreview; quarant
             {getSetNumber(row.setId)} · {formatBytes(row.size)}
          </span>
       </figcaption>
-      {!quarantined && (
-         <button className="moveCard__keep" onClick={() => onKeepImage(row)} title="Keep this image and remove it from the move" type="button">
-            Keep this
-         </button>
-      )}
    </figure>
 );
 
@@ -82,7 +76,6 @@ export const FinalReview = ({
    onApply,
    onRestore,
    onTrash,
-   onKeepImage,
    onClose,
    getTooltipProps,
 }: FinalReviewProps) => {
@@ -110,13 +103,15 @@ export const FinalReview = ({
             <div>
                <p className="overlayLabel">Final review</p>
                <h2 id="final-review-title">{heading}</h2>
-               <div className="finalReview__meta">
-                  <span>{formatBytes(totalVisibleBytes)} · recoverable until you recycle the folder</span>
-                  <button className="finalReview__path" onClick={onOpenFolder} title={`Open ${destination}`} type="button">
-                     <FolderOpen aria-hidden="true" />
-                     <span>{destination}</span>
-                  </button>
-               </div>
+               {!isEmpty && (
+                  <div className="finalReview__meta">
+                     <span>{formatBytes(totalVisibleBytes)} · recoverable until you recycle the folder</span>
+                     <button className="finalReview__path" onClick={onOpenFolder} title={`Open ${destination}`} type="button">
+                        <FolderOpen aria-hidden="true" />
+                        <span>{destination}</span>
+                     </button>
+                  </div>
+               )}
             </div>
             <button aria-label="Close final review" className="iconButton" onClick={onClose} type="button">
                <X aria-hidden="true" />
@@ -133,7 +128,7 @@ export const FinalReview = ({
                         </h3>
                         <div className="moveGrid">
                            {movePreview.map((row) => (
-                              <MoveCard key={row.originalPath} quarantined={false} row={row} onKeepImage={onKeepImage} />
+                              <MoveCard key={row.originalPath} quarantined={false} row={row} />
                            ))}
                         </div>
                      </section>
@@ -147,7 +142,7 @@ export const FinalReview = ({
                         <p className="moveSection__hint">Restore or recycle these images before new library changes appear.</p>
                         <div className="moveGrid">
                            {duplicatePreview.map((row) => (
-                              <MoveCard key={row.originalPath} quarantined row={row} onKeepImage={onKeepImage} />
+                              <MoveCard key={row.originalPath} quarantined row={row} />
                            ))}
                         </div>
                      </section>
@@ -172,6 +167,9 @@ export const FinalReview = ({
                              ? "This can no longer be undone from the app."
                              : "Go back to the review and discard the images you don't want."}
                      </span>
+                     <button className="ghostButton emptyFinal__back" onClick={onClose} type="button">
+                        Back to review
+                     </button>
                   </div>
                </div>
             )}
@@ -205,7 +203,9 @@ export const FinalReview = ({
                ) : (
                   <p className="finalReview__safety">
                      <ShieldCheck aria-hidden="true" />
-                     Nothing is deleted until you recycle the folder.
+                     {workflow.recycledCount > 0 && isEmpty
+                        ? "Recycled images can no longer be restored from the app."
+                        : "Nothing is deleted until you recycle the folder."}
                   </p>
                )}
             </div>

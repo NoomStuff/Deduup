@@ -11,7 +11,6 @@ export interface CompareState {
 export type TravelDirection = "idle" | "left" | "right";
 export type ImageSetState = "open" | "someDeleted" | "allDeleted";
 export type ImageDeleteState = "active" | "deleted";
-export type ImageCaptionMode = "none" | "names" | "details";
 export type ConfirmKind = "discardSet" | "discardBand" | "applyMoves" | "clearAll" | "trashDuplicate" | "switchFolder";
 
 export interface SimilarityBand {
@@ -45,11 +44,6 @@ export interface FileWorkflowState {
    movedCount: number;
    recycledCount: number;
    missingCount: number;
-}
-
-export interface ScanWarnings {
-   count: number;
-   paths: string[];
 }
 
 export interface TooltipAnchor {

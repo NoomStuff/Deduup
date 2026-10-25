@@ -235,15 +235,6 @@ export const useReviewController = ({
       [notify]
    );
 
-   const handleImageDoubleClick = useCallback(
-      (event: MouseEvent, image: ImageItem): void => {
-         event.preventDefault();
-         event.stopPropagation();
-         previewImageOf(image);
-      },
-      [previewImageOf]
-   );
-
    const handleImageContextMenu = useCallback(
       (event: MouseEvent, image: ImageItem): void => {
          if (event.shiftKey && currentSet !== null) {
@@ -264,12 +255,6 @@ export const useReviewController = ({
       return previewable.some((image) => image.originalPath === previewImage.originalPath) ? previewable : [previewImage];
    }, [currentSet, previewImage]);
 
-   const keepFromFinalReview = (row: { setId: string; originalPath: string }): void => {
-      const imageSet = groups.find((candidate) => candidate.id === row.setId);
-      const image = imageSet?.images.find((candidate) => candidate.originalPath === row.originalPath);
-      if (imageSet !== undefined && image !== undefined) toggleImageRemoval(imageSet, image, false);
-   };
-
    const getWorkspaceActions = (currentSet: ImageSet): WorkspaceActions => ({
       onBeginComparePick: () => {
          if (selectedImage !== null) beginCompare(selectedImage);
@@ -284,7 +269,7 @@ export const useReviewController = ({
       onDiscardSet: () => requestDiscardSet(currentSet),
       onImageClick: handleImageClick,
       onImageContextMenu: handleImageContextMenu,
-      onImageDoubleClick: handleImageDoubleClick,
+      onImagePreview: previewImageOf,
       onImageSetContextMenu: openSetContextMenu,
       onNavigate: goTo,
       onOpenContextMenu: setContextMenu,
@@ -352,6 +337,5 @@ export const useReviewController = ({
       contextImageIsDeleted,
       contextOnlyImageKept,
       previewImageOf,
-      keepFromFinalReview,
    };
 };

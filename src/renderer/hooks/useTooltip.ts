@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import type { TooltipAnchor, TooltipState } from "../appTypes.js";
 
 export interface TooltipProps {
+   onClickCapture: () => void;
    onBlur: () => void;
    onFocus: (event: { currentTarget: { getBoundingClientRect(): DOMRect } }) => void;
    onMouseEnter: (event: { currentTarget: { getBoundingClientRect(): DOMRect } }) => void;
@@ -31,6 +32,7 @@ export const useTooltip = (): {
             setTooltip({ title, body, ...(hotkey === undefined ? {} : { hotkey }), anchor });
          };
          return {
+            onClickCapture: hideTooltip,
             onBlur: hideTooltip,
             onFocus: (event) => show(event.currentTarget.getBoundingClientRect()),
             onMouseEnter: (event) => {

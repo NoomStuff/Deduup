@@ -12,6 +12,7 @@
    grid-template-columns: auto 1fr;
    gap: 8px 18px;
    width: min(430px, 92vw);
+   border: 1px solid var(--line);
    border-radius: var(--radius-lg);
    background: var(--panel);
    box-shadow: var(--shadow);
@@ -55,39 +56,4 @@
    gap: 9px;
    grid-column: 1 / -1;
    margin-top: 10px;
-}
-
-.confirmDialog__actions button {
-   border: 1px solid var(--line);
-   border-radius: var(--radius-md);
-   font-size: 13px;
-   font-weight: 600;
-   padding: 9px 18px;
-   transition:
-      border-color var(--duration-press) ease,
-      background var(--duration-press) ease;
-}
-
-.confirmDialog__actions button:first-child:hover {
-   background: rgba(255, 255, 255, 0.05);
-   border-color: var(--line-strong);
-}
-
-.confirmDialog__actions .danger {
-   display: inline-flex;
-   align-items: center;
-   gap: 7px;
-   border-color: rgba(var(--delete-rgb), 0.5);
-   background: rgba(var(--delete-rgb), 0.12);
-   color: var(--delete);
-}
-
-.confirmDialog__actions .danger svg {
-   width: 14px;
-   height: 14px;
-}
-
-.confirmDialog__actions .danger:hover {
-   border-color: rgba(var(--delete-rgb), 0.85);
-   background: rgba(var(--delete-rgb), 0.24);
 }

@@ -30,11 +30,11 @@ export const ConfirmDialog = ({ action, onConfirm, onClose }: ConfirmDialogProps
          <p>{action.body}</p>
       </div>
       <div className="confirmDialog__actions">
-         <button onClick={onClose} type="button">
+         <button className="ghostButton" onClick={onClose} type="button">
             Cancel
          </button>
          <button
-            className="danger"
+            className="dangerButton"
             onClick={() => {
                onConfirm();
                onClose();

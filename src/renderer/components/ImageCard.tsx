@@ -2,7 +2,7 @@ import { memo, useLayoutEffect, useRef, useState } from "react";
 import type { MouseEvent } from "react";
 import { FolderOpen, ImageOff, Trash2 } from "lucide-react";
 import type { ImageItem } from "../../shared/types.js";
-import type { ImageCaptionMode, ImageDeleteState } from "../appTypes.js";
+import type { ImageDeleteState } from "../appTypes.js";
 import { formatBytes, formatDate } from "../reviewModel.js";
 import "./ImageCard.css";
 
@@ -12,23 +12,21 @@ export const ImageCard = memo(function ImageCard({
    image,
    index,
    state,
-   captions,
    showIndexHint,
    isComparePick,
    isSelected,
    onClick,
-   onDoubleClick,
+   onPreview,
    onContextMenu,
 }: {
    image: ImageItem;
    index: number;
    state: ImageDeleteState;
-   captions: ImageCaptionMode;
    showIndexHint: boolean;
    isComparePick: boolean;
    isSelected: boolean;
    onClick: (event: MouseEvent, image: ImageItem) => void;
-   onDoubleClick: (event: MouseEvent, image: ImageItem) => void;
+   onPreview: (image: ImageItem) => void;
    onContextMenu: (event: MouseEvent, image: ImageItem) => void;
 }) {
    const [loadState, setLoadState] = useState<CardLoadState>("loading");
@@ -53,14 +51,34 @@ export const ImageCard = memo(function ImageCard({
          : image.sourceStatus === "recycledByApp"
            ? "The duplicate folder was recycled"
            : "Couldn't find the original file";
-   const captioned = captions !== "none";
 
    return (
-      <article
+      <button
+         aria-label={`${image.file}${state === "deleted" ? ", discarded" : ""}${isAvailable ? "" : `, ${unavailableTitle}`}`}
+         aria-pressed={isSelected}
          className={`imageCard imageCard--${state}${isSelected ? " imageCard--selected" : ""}${isComparePick ? " imageCard--comparePick" : ""}${isAvailable ? "" : " imageCard--immutable"}`}
          onClick={(event) => onClick(event, image)}
-         onDoubleClick={(event) => onDoubleClick(event, image)}
+         onDoubleClick={(event) => {
+            event.preventDefault();
+            event.stopPropagation();
+            onPreview(image);
+         }}
+         onKeyDown={(event) => {
+            // Enter keeps the existing image-preview shortcut. Space uses the
+            // native button activation to select without changing a choice.
+            if (event.key !== "Enter" || event.repeat) return;
+            event.preventDefault();
+            onPreview(image);
+         }}
          onContextMenu={(event) => onContextMenu(event, image)}
+         onMouseDown={(event) => {
+            if (event.button !== 0) return;
+            // Pointer selection keeps the app's Space-to-next workflow. Tab
+            // still focuses the button, where Space selects and Enter previews.
+            event.preventDefault();
+            if (document.activeElement instanceof HTMLElement) document.activeElement.blur();
+         }}
+         type="button"
       >
          {showIndexHint && isAvailable && index < 9 && (
             <span className="imageCard__indexHint" aria-hidden="true">
@@ -102,16 +120,12 @@ export const ImageCard = memo(function ImageCard({
                <span>{unavailableDescription}</span>
             </div>
          )}
-         {captioned && (
-            <span className="imageCard__caption">
-               <strong title={image.file}>{image.file}</strong>
-               {captions === "details" && (
-                  <span className="imageCard__details">
-                     {image.width}x{image.height} · {formatBytes(image.size)} · {formatDate(image.modifiedAt)}
-                  </span>
-               )}
+         <span className="imageCard__caption">
+            <strong title={image.file}>{image.file}</strong>
+            <span className="imageCard__details">
+               {image.width}x{image.height} · {formatBytes(image.size)} · {formatDate(image.modifiedAt)}
             </span>
-         )}
-      </article>
+         </span>
+      </button>
    );
 });
