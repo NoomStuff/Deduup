@@ -1,7 +1,6 @@
-import type { DragEventHandler, ReactNode } from "react";
-import { FolderOpen, LoaderCircle, Redo2, SearchX, TriangleAlert, X } from "lucide-react";
+import type { DragEventHandler } from "react";
+import { FolderOpen, LoaderCircle, Redo2, SearchX, X } from "lucide-react";
 import type { ScanProgress } from "../../shared/types.js";
-import type { ScanWarnings } from "../appTypes.js";
 import { useBindingDisplay } from "../commands.js";
 import { Toggle } from "./Toggle.js";
 import "./AppStatusScreens.css";
@@ -86,32 +85,6 @@ export const ScanningScreen = ({
    );
 };
 
-export const ScanWarningsBanner = ({ warnings, onDismiss }: { warnings: ScanWarnings; onDismiss: () => void }) => (
-   <section aria-label="Skipped items" className="scanWarnings" role="status">
-      <TriangleAlert aria-hidden="true" />
-      <div className="scanWarnings__body">
-         <strong>
-            {warnings.count} unreadable item{warnings.count === 1 ? "" : "s"} skipped
-         </strong>
-         <span>These files or folders could not be read, so they are not part of this review.</span>
-         {warnings.paths.length > 0 && (
-            <details>
-               <summary>Show paths</summary>
-               <ul>
-                  {warnings.paths.map((filePath) => (
-                     <li key={filePath}>{filePath}</li>
-                  ))}
-                  {warnings.count > warnings.paths.length && <li>and {warnings.count - warnings.paths.length} more…</li>}
-               </ul>
-            </details>
-         )}
-      </div>
-      <button aria-label="Dismiss skipped-items warning" className="iconButton" onClick={onDismiss} type="button">
-         <X aria-hidden="true" />
-      </button>
-   </section>
-);
-
 /**
  * A scan can legitimately finish without a single duplicate set. Afterward the
  * review has nothing to show, so this landing explains the outcome instead of
@@ -121,7 +94,6 @@ export const ScanWarningsBanner = ({ warnings, onDismiss }: { warnings: ScanWarn
 export const NoMatchesScreen = (props: {
    folderName: string;
    isDragOver: boolean;
-   skippedBanner: ReactNode;
    onOpenFolder: () => void;
    onStartScreen: () => void;
    onDragOver: DragEventHandler<HTMLElement>;
@@ -140,7 +112,6 @@ export const NoMatchesScreen = (props: {
             <span>Drop the folder to scan it</span>
          </div>
       )}
-      {props.skippedBanner}
       <section aria-labelledby="no-matches-title" className="noMatches">
          <SearchX aria-hidden="true" className="noMatches__icon" />
          <h1 id="no-matches-title">No duplicate sets here</h1>
@@ -201,7 +172,7 @@ const StartupScreenBody = ({
             </span>
             <div>
                <h1 id="startup-title">Deduup</h1>
-               <p>Clear identical files with ease. Nothing moves until you say so.</p>
+               <p>Find and review similar images. Nothing moves until you say so.</p>
             </div>
          </div>
          <div className="startup__actions">

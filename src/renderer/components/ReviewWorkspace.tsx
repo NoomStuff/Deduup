@@ -1,7 +1,7 @@
 import type { CSSProperties, MouseEvent, RefObject } from "react";
 import { Eraser, Eye, FolderOpen, MousePointer2, Search, Trash2 } from "lucide-react";
 import type { ImageItem, ImageSet, ImageSetDecision } from "../../shared/types.js";
-import type { ContextMenuState, ImageCaptionMode, SimilarityBand, TravelDirection } from "../appTypes.js";
+import type { ContextMenuState, SimilarityBand, TravelDirection } from "../appTypes.js";
 import { useBindingDisplay } from "../commands.js";
 import { useCtrlHeld } from "../hooks/usePreference.js";
 import type { TooltipProps } from "../hooks/useTooltip.js";
@@ -11,7 +11,6 @@ import { ImageCard } from "./ImageCard.js";
 import "./ReviewWorkspace.css";
 
 interface ReviewWorkspaceProps {
-   captions: ImageCaptionMode;
    comparePick: ImageItem | null;
    currentDecision: ImageSetDecision;
    currentSet: ImageSet;
@@ -31,7 +30,7 @@ interface ReviewWorkspaceProps {
    onDiscardSet: () => void;
    onImageClick: (event: MouseEvent, image: ImageItem) => void;
    onImageContextMenu: (event: MouseEvent, image: ImageItem) => void;
-   onImageDoubleClick: (event: MouseEvent, image: ImageItem) => void;
+   onImagePreview: (image: ImageItem) => void;
    onImageSetContextMenu: (event: MouseEvent, imageSet: ImageSet) => void;
    onNavigate: (index: number) => void;
    onOpenContextMenu: (state: ContextMenuState) => void;
@@ -84,6 +83,9 @@ export const ReviewWorkspace = (props: ReviewWorkspaceProps) => {
                   {/* Actions stay visible and disable instead of appearing and
                      vanishing with the selection, so the bar never reflows. */}
                   <div className="setHeader__actions">
+                     <span className="setHeader__selection" title={selectedImage?.file}>
+                        {selectedImage === null ? "Select an image" : selectedImage.file}
+                     </span>
                      <button
                         className={`setHeader__action${selectedImageIsDiscarded ? "" : " setHeader__action--danger"}`}
                         disabled={!selectedIsAvailable}
@@ -141,7 +143,7 @@ export const ReviewWorkspace = (props: ReviewWorkspaceProps) => {
                         {...props.getTooltipProps("Clear", "Remove every discard in this set.")}
                      >
                         <Eraser aria-hidden="true" />
-                        <span>Clear</span>
+                        <span>Clear set</span>
                      </button>
                   </div>
                </header>
@@ -155,7 +157,6 @@ export const ReviewWorkspace = (props: ReviewWorkspaceProps) => {
                <section className={`imageShelf${props.wrapShelf ? " imageShelf--wrap" : ""}`} aria-label="Images in current set">
                   {props.currentSet.images.map((image, index) => (
                      <ImageCard
-                        captions={props.captions}
                         image={image}
                         index={index}
                         isComparePick={props.comparePick?.originalPath === image.originalPath}
@@ -163,7 +164,7 @@ export const ReviewWorkspace = (props: ReviewWorkspaceProps) => {
                         key={image.originalPath}
                         onClick={props.onImageClick}
                         onContextMenu={props.onImageContextMenu}
-                        onDoubleClick={props.onImageDoubleClick}
+                        onPreview={props.onImagePreview}
                         showIndexHint={ctrlHeld}
                         state={discardedPaths.has(image.originalPath) ? "deleted" : "active"}
                      />

@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import type { ConfirmAction, ImageCaptionMode } from "./appTypes.js";
+import type { ConfirmAction } from "./appTypes.js";
 import { buildReviewCommands } from "./appCommands.js";
 import type { ShortcutOverrides } from "./commands.js";
 import { loadShortcutOverrides, saveShortcutOverrides, ShortcutsContext, useCommands } from "./commands.js";
@@ -12,12 +12,11 @@ import { ImagePreviewOverlay } from "./components/ImagePreviewOverlay.js";
 import { MenuBar } from "./components/MenuBar.js";
 import { NotificationCenter } from "./components/NotificationCenter.js";
 import { ReviewContextMenu } from "./components/ReviewContextMenu.js";
-import { ReviewHintBar } from "./components/ReviewHintBar.js";
 import { ReviewWorkspace } from "./components/ReviewWorkspace.js";
 import { SettingsPanel } from "./components/SettingsPanel.js";
 import { TitleBar } from "./components/TitleBar.js";
 import { TooltipBubble } from "./components/TooltipBubble.js";
-import { LoadingScreen, NoMatchesScreen, ScanWarningsBanner, ScanningScreen, StartupScreen } from "./components/AppStatusScreens.js";
+import { LoadingScreen, NoMatchesScreen, ScanningScreen, StartupScreen } from "./components/AppStatusScreens.js";
 import { useAppUpdates } from "./hooks/useAppUpdates.js";
 import { useDecisionHistory } from "./hooks/useDecisionHistory.js";
 import { useFileWorkflowActions } from "./hooks/useFileWorkflowActions.js";
@@ -26,7 +25,7 @@ import { useLibraryRows } from "./hooks/useLibraryRows.js";
 import { useFolderSelection } from "./hooks/useFolderSelection.js";
 import { useApplyScanResult, useLibraryBootstrap, useLibrarySync } from "./hooks/useLibrarySync.js";
 import { useNotifications } from "./hooks/useNotifications.js";
-import { usePreference, preferenceKeys, useEnumPreference } from "./hooks/usePreference.js";
+import { usePreference, preferenceKeys } from "./hooks/usePreference.js";
 import { usePreviewPreloader } from "./hooks/usePreviewPreloader.js";
 import { useReviewController } from "./hooks/useReviewController.js";
 import { useReviewPersistence } from "./hooks/useReviewPersistence.js";
@@ -57,8 +56,6 @@ export const App = () => {
    const [confirmMajorActions, setConfirmMajorActions] = usePreference(preferenceKeys.confirmMajorActions, true);
    const [wrapImageShelf, setWrapImageShelf] = usePreference(preferenceKeys.wrapImageShelf, true);
    const [showStartupOnLaunch, setShowStartupOnLaunch] = usePreference(preferenceKeys.showStartupOnLaunch, true);
-   const [reviewHintsDismissed, setReviewHintsDismissed] = usePreference(preferenceKeys.reviewHintsDismissed, false);
-   const [captions, setCaptions] = useEnumPreference<ImageCaptionMode>(preferenceKeys.imageCaptions, ["none", "names", "details"], "details");
    const [shortcutOverrides, setShortcutOverrides] = useState<ShortcutOverrides>(loadShortcutOverrides);
    const [isStartupOpen, setIsStartupOpen] = useState(showStartupOnLaunch);
    const { tooltip, hideTooltip, getTooltipProps } = useTooltip();
@@ -85,20 +82,7 @@ export const App = () => {
       notify,
       reportError,
    });
-   const {
-      groups,
-      loading,
-      hydrated,
-      scanId,
-      duplicateFolderHasContent,
-      lastFileAction,
-      duplicateFolderPath,
-      scanRoot,
-      scanWarnings,
-      scanWarningsDismissed,
-      setScanWarningsDismissed,
-      refreshFileState,
-   } = library;
+   const { groups, loading, hydrated, scanId, duplicateFolderHasContent, lastFileAction, duplicateFolderPath, scanRoot, refreshFileState } = library;
    const currentSet = groups[currentIndex] ?? null;
    const currentDecision = currentSet === null ? emptyImageSetDecision() : getDecision(decisions, currentSet.id);
    const { movePreview, duplicatePreview, workflow: fileWorkflow } = useMemo(() => getReviewSummary(groups, decisions), [decisions, groups]);
@@ -190,7 +174,6 @@ export const App = () => {
       contextImageIsDeleted,
       contextOnlyImageKept,
       previewImageOf,
-      keepFromFinalReview,
       getWorkspaceActions,
       getContextMenuActions,
    } = useReviewController({
@@ -211,12 +194,6 @@ export const App = () => {
       reportError,
       hideTooltip,
    });
-
-   // The hint bar retires itself after the first discard, so it never nags.
-   const hasAnyDiscards = useMemo(() => Object.values(decisions).some((decision) => decision.deletedImages.length > 0), [decisions]);
-   useEffect(() => {
-      if (!reviewHintsDismissed && hasAnyDiscards) setReviewHintsDismissed(true);
-   }, [hasAnyDiscards, reviewHintsDismissed, setReviewHintsDismissed]);
 
    const reviewCommandsActive = reviewActive && compare === null;
 
@@ -410,11 +387,6 @@ export const App = () => {
                   <NoMatchesScreen
                      folderName={folderName}
                      isDragOver={isDragOver}
-                     skippedBanner={
-                        scanWarnings !== null && !scanWarningsDismissed ? (
-                           <ScanWarningsBanner warnings={scanWarnings} onDismiss={() => setScanWarningsDismissed(true)} />
-                        ) : null
-                     }
                      onDragLeave={handleDragLeave}
                      onDragOver={handleDragOver}
                      onDrop={handleDrop}
@@ -436,12 +408,7 @@ export const App = () => {
                   />
                ) : (
                   <>
-                     {scanWarnings !== null && !scanWarningsDismissed && (
-                        <ScanWarningsBanner warnings={scanWarnings} onDismiss={() => setScanWarningsDismissed(true)} />
-                     )}
-                     {!reviewHintsDismissed && <ReviewHintBar onDismiss={() => setReviewHintsDismissed(true)} />}
                      <ReviewWorkspace
-                        captions={captions}
                         comparePick={comparePick}
                         currentDecision={currentDecision}
                         currentSet={currentSet}
@@ -463,12 +430,10 @@ export const App = () => {
             {isSettingsOpen && (
                <SettingsPanel
                   updates={updates}
-                  captions={captions}
                   confirmMajorActions={confirmMajorActions}
                   shortcuts={shortcutOverrides}
                   showStartupOnLaunch={showStartupOnLaunch}
                   wrapImageShelf={wrapImageShelf}
-                  onCaptionsChange={setCaptions}
                   onClose={() => setIsSettingsOpen(false)}
                   onConfirmChange={setConfirmMajorActions}
                   onShortcutsChange={setShortcutOverrides}
@@ -519,7 +484,6 @@ export const App = () => {
                      });
                   }}
                   onClose={() => setIsFinalReviewOpen(false)}
-                  onKeepImage={keepFromFinalReview}
                   onOpenFolder={() => {
                      if (duplicateFolderPath !== null) void openFolder(duplicateFolderPath);
                   }}

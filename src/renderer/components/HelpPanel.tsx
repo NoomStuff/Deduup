@@ -3,6 +3,7 @@ import type { ReactNode } from "react";
 import { X } from "lucide-react";
 import { OverlayPanel } from "./OverlayPanel.js";
 import "./HelpPanel.css";
+import { navigatePanelTabs } from "./panelTabNavigation.js";
 
 type HelpTab = "intro" | "start" | "reviewing";
 
@@ -102,10 +103,13 @@ const HelpPanel = ({ onClose }: { onClose: () => void }) => {
                <X aria-hidden="true" />
             </button>
          </header>
-         <div className="panelModal__tabs" role="tablist">
+         <div aria-label="Help topics" className="panelModal__tabs" onKeyDown={navigatePanelTabs} role="tablist">
             {topics.map((topic) => (
                <button
                   aria-selected={tab === topic.id}
+                  aria-controls="help-panel"
+                  id={`help-tab-${topic.id}`}
+                  tabIndex={tab === topic.id ? 0 : -1}
                   key={topic.id}
                   onClick={() => {
                      setTab(topic.id);
@@ -118,7 +122,7 @@ const HelpPanel = ({ onClose }: { onClose: () => void }) => {
                </button>
             ))}
          </div>
-         <div className="panelModal__body helpPanel__body" ref={bodyRef}>
+         <div aria-labelledby={`help-tab-${tab}`} className="panelModal__body helpPanel__body" id="help-panel" ref={bodyRef} role="tabpanel" tabIndex={0}>
             {topic?.body ?? null}
          </div>
       </OverlayPanel>

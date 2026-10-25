@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Redo2, Undo2 } from "lucide-react";
 import type { CommandId, Commands } from "../commands.js";
 import { commandDefinitions, useBindingDisplay } from "../commands.js";
@@ -99,8 +99,45 @@ const AppMenu = ({
    onClose: () => void;
 }) => {
    const { mounted, closing } = usePresence(open);
+   const rootRef = useRef<HTMLDivElement>(null);
+   const focusItem = (last = false): void => {
+      const items = rootRef.current?.querySelectorAll<HTMLButtonElement>('[role="menuitem"]:not(:disabled)');
+      (last ? items?.item(items.length - 1) : items?.item(0))?.focus();
+   };
    return (
-      <div className="appMenu" data-menu>
+      <div
+         className="appMenu"
+         data-menu
+         ref={rootRef}
+         onKeyDown={(event) => {
+            if (event.key === "Escape" && open) {
+               event.preventDefault();
+               onClose();
+               rootRef.current?.querySelector<HTMLButtonElement>(".appMenu__button")?.focus();
+               return;
+            }
+            if (event.key === "Tab") {
+               onClose();
+               return;
+            }
+            if (!["ArrowDown", "ArrowUp", "Home", "End"].includes(event.key)) return;
+            event.preventDefault();
+            if (!open) {
+               onToggle();
+               window.requestAnimationFrame(() => focusItem(event.key === "ArrowUp" || event.key === "End"));
+               return;
+            }
+            const items = [...(rootRef.current?.querySelectorAll<HTMLButtonElement>('[role="menuitem"]:not(:disabled)') ?? [])];
+            const index = items.findIndex((item) => item === document.activeElement);
+            if (index < 0) {
+               focusItem(event.key === "ArrowUp" || event.key === "End");
+               return;
+            }
+            const next =
+               event.key === "Home" ? 0 : event.key === "End" ? items.length - 1 : (index + (event.key === "ArrowUp" ? -1 : 1) + items.length) % items.length;
+            items[next]?.focus();
+         }}
+      >
          <button
             aria-expanded={open}
             aria-haspopup="menu"
@@ -111,7 +148,7 @@ const AppMenu = ({
             {name}
          </button>
          {mounted && (
-            <div className={`menuDropdown${closing ? " menuDropdown--closing" : ""}`} role="menu">
+            <div className={`menuDropdown${closing ? " menuDropdown--closing" : ""}`} inert={closing} role="menu">
                {entries.map((entry, index) =>
                   entry === "divider" ? (
                      <div className="menuDropdown__divider" key={`${name}-${index}`} role="separator" />
@@ -191,7 +228,7 @@ export const MenuBar = ({ menu, onMenuChange, ...props }: MenuBarProps) => {
                </p>
                <span aria-hidden="true" className="toolbar__divider" />
                <button
-                  className={`toolbar__finalStep${props.readyToMoveCount > 0 && !props.finalReviewOpen ? " toolbar__finalStep--hot" : ""}`}
+                  className="primaryButton toolbar__finalStep"
                   disabled={props.finalReviewOpen}
                   onClick={props.onToggleFinalReview}
                   type="button"

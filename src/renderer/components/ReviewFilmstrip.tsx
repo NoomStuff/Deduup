@@ -87,6 +87,7 @@ export const ReviewFilmstrip = memo(function ReviewFilmstrip(props: ReviewFilmst
          <button
             aria-label="Previous set"
             className="setNav"
+            disabled={props.currentIndex === 0}
             onClick={() => props.onNavigate(props.currentIndex - 1)}
             type="button"
             {...props.getTooltipProps("Previous set", "Move to the previous set.", props.previousHint)}
@@ -140,6 +141,7 @@ export const ReviewFilmstrip = memo(function ReviewFilmstrip(props: ReviewFilmst
          <button
             aria-label="Next set"
             className="setNav"
+            disabled={props.currentIndex >= props.rows.size - 1}
             onClick={() => props.onNavigate(props.currentIndex + 1)}
             type="button"
             {...props.getTooltipProps("Next set", "Move to the next set.", props.nextHint)}

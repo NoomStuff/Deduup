@@ -7,9 +7,9 @@
  *   - auto-scan (via the --scan test hook, no native dialog involved)
  *   - filmstrip rendering and set navigation
  *   - marking, X-confirm, autoselect, undo
- *   - final review: move list, per-image "Keep this", disabled recycle
+ *   - final review: move list, corrections through review, disabled recycle
  *   - drag-and-drop API surface (getPathForFile bridge)
- *   - persistent scan-warning banner (dismissable)
+ *   - transient scan warnings without persistent review banners
  *   - preview zoom via the wheel, settings modal with rebindable shortcuts
  *
  * Screenshots land in .cache/ui-smoke/ so a human (or agent) can inspect them.
@@ -68,21 +68,33 @@ const run = async () => {
       }
       await window.screenshot({ path: path.join(artifactsDir, "01-review.png") });
 
-      // The fixture library contains one unreadable file, so its skip warning
-      // must surface as a persistent banner rather than a fleeting toast.
-      const warningBanner = window.locator(".scanWarnings");
-      await warningBanner.waitFor({ timeout: 5_000 });
-      const bannerText = await warningBanner.textContent();
-      check("scan warning banner lists skipped items", /skipped/i.test(bannerText ?? ""), bannerText ?? "missing");
-      await warningBanner.locator("button.iconButton").click();
-      await warningBanner.waitFor({ state: "detached", timeout: 5_000 });
-      check("scan warning banner can be dismissed", true);
+      // Unreadable files get a temporary notification, without taking shelf space.
+      // A slow Electron debugger attachment can outlast the notification itself.
+      const scanData = await window.evaluate(() => window.imageDeduplicator.loadData());
+      check("scan records skipped items", scanData.scanWarningCount === 1);
+      const warningToast = window.locator(".notificationToast--warning").filter({ hasText: "unreadable item" });
+      await warningToast.waitFor({ state: "detached", timeout: 7_000 });
+      check("review has no persistent warning or tutorial banner", (await window.locator(".scanWarnings, .reviewHints").count()) === 0);
+      check("image cards always show full details", (await window.locator(".imageCard__details").count()) === (await window.locator(".imageCard").count()));
 
       const headerCounter = await window.textContent(".toolbar__counter");
       check("review header shows set counter", /#\d+\s*\/\s*\d+/.test(headerCounter ?? ""), headerCounter ?? "missing");
 
       const bandTags = await window.locator(".similarityBand__tag").count();
       check("similarity bands render on the filmstrip", bandTags > 0, `bands: ${bandTags}`);
+      check("previous-set navigation is disabled at the start", await window.getByRole("button", { name: "Previous set", exact: true }).isDisabled());
+
+      // Image buttons support normal keyboard selection without discarding.
+      await window.locator(".imageCard").first().focus();
+      await window.keyboard.press("Space");
+      check("Space selects a focused image", (await window.locator('.imageCard[aria-pressed="true"]').count()) === 1);
+      check("selection does not discard an image", (await window.locator(".imageCard__chip--discarded").count()) === 0);
+      await window.locator(".imageCard").first().click();
+      const beforeSpace = await window.textContent(".toolbar__counter");
+      await window.keyboard.press("Space");
+      await window.waitForFunction((previous) => document.querySelector(".toolbar__counter")?.textContent !== previous, beforeSpace);
+      check("Space advances after pointer selection", true);
+      await window.keyboard.press("ArrowLeft");
 
       // Navigation moves forward without creating review choices or progress.
       await window.keyboard.press("ArrowRight");
@@ -98,6 +110,11 @@ const run = async () => {
       await window.waitForTimeout(200);
       const markedChips = await window.locator(".imageCard__chip--discarded").count();
       check("key 1 marks the first image", markedChips === 1, `marked chips: ${markedChips}`);
+      const badgeReadable = await window.locator(".imageCard__chip--discarded").evaluate((badge) => {
+         const style = getComputedStyle(badge);
+         return style.backgroundColor !== "rgba(0, 0, 0, 0)" && badge.querySelector("svg").getBoundingClientRect().width <= 14;
+      });
+      check("discard badge has an opaque background and a sized icon", badgeReadable);
       await window.screenshot({ path: path.join(artifactsDir, "02-marked.png") });
 
       // X opens the confirm dialog; Escape cancels.
@@ -164,12 +181,39 @@ const run = async () => {
       await window.keyboard.press("Escape");
       await window.waitForSelector(".imagePreviewDialog__stage", { state: "detached", timeout: 5_000 });
 
+      // Menu navigation starts at the right enabled item and returns focus.
+      const helpTrigger = window.getByRole("button", { name: "Help", exact: true });
+      await helpTrigger.click();
+      await window.keyboard.press("ArrowUp");
+      check(
+         "ArrowUp enters an open menu at its last enabled item",
+         await window.getByRole("menuitem", { name: /settings/i }).evaluate((item) => item === document.activeElement)
+      );
+      await window.keyboard.press("Home");
+      check(
+         "Home focuses the first menu item",
+         await window
+            .getByRole("menuitem")
+            .first()
+            .evaluate((item) => item === document.activeElement)
+      );
+      await window.keyboard.press("Escape");
+      check("Escape returns focus to the menu trigger", await helpTrigger.evaluate((trigger) => trigger === document.activeElement));
+
       // Settings opens as a tabbed modal from the Help menu and exposes the
       // rebindable shortcuts screen.
       await window.getByRole("button", { name: "Help", exact: true }).click();
       await window.getByRole("menuitem", { name: /settings/i }).click();
       await window.waitForSelector(".settingsPanel", { timeout: 5_000 });
-      await window.getByRole("tab", { name: "Keyboard shortcuts" }).click();
+      check("image caption preference is removed", (await window.getByRole("group", { name: "Image captions" }).count()) === 0);
+      await window.getByRole("tab", { name: "General", exact: true }).focus();
+      await window.keyboard.press("ArrowRight");
+      check(
+         "arrow keys activate and focus settings tabs",
+         await window
+            .getByRole("tab", { name: "Keyboard shortcuts" })
+            .evaluate((tab) => tab.getAttribute("aria-selected") === "true" && document.activeElement === tab)
+      );
       await window.waitForSelector(".shortcutList", { timeout: 5_000 });
       const shortcutRows = await window.locator(".shortcutRow").count();
       check("settings exposes the rebindable shortcuts screen", shortcutRows > 0, `rows: ${shortcutRows}`);
@@ -189,8 +233,10 @@ const run = async () => {
 
       const recycleDisabled = await window.locator(".finalReview__actions .dangerButton").isDisabled();
       check("recycle stays disabled before any move", recycleDisabled);
+      check("empty final review offers a return action", await window.getByRole("button", { name: "Back to review", exact: true }).isVisible());
+      check("empty final review omits destination metadata", (await window.locator(".finalReview__meta").count()) === 0);
 
-      // Mark something so the final review has rows, then use "Keep this".
+      // Correct final-review choices by returning to the review workspace.
       await window.locator(".finalReview").getByLabel("Close final review").click();
       await window.waitForSelector(".imageShelf");
       await window.keyboard.press("1");
@@ -199,12 +245,26 @@ const run = async () => {
       await window.waitForSelector(".finalReview");
       const readyBefore = await window.locator(".moveCard:not(.moveCard--quarantined)").count();
       check("final review lists the marked image", readyBefore === 1, `ready cards: ${readyBefore}`);
+      check("final review has no keep-this control", (await window.getByRole("button", { name: "Keep this", exact: true }).count()) === 0);
+      check(
+         "final review shows the full image",
+         await window
+            .locator(".moveCard img")
+            .first()
+            .evaluate((img) => getComputedStyle(img).objectFit === "contain")
+      );
+      await window.screenshot({ path: path.join(artifactsDir, "13-final-review-populated.png") });
 
-      await window.locator(".moveCard__keep").first().hover();
-      await window.locator(".moveCard__keep").first().click();
+      await window.locator(".finalReview").getByLabel("Close final review").click();
+      await window.waitForSelector(".finalReview", { state: "detached" });
+      await window.locator(".imageCard").first().click();
+      await window.getByRole("button", { name: "Restore", exact: true }).click();
+      await window.waitForSelector(".imageCard__chip--discarded", { state: "detached" });
+      await window.getByRole("button", { name: /final review/i }).click();
+      await window.waitForSelector(".finalReview");
       await window.waitForTimeout(250);
       const readyAfter = await window.locator(".moveCard:not(.moveCard--quarantined)").count();
-      check("keep-this removes the row from the move", readyAfter === 0, `ready cards: ${readyAfter}`);
+      check("restoring an image in review removes it from the move", readyAfter === 0, `ready cards: ${readyAfter}`);
       await window.screenshot({ path: path.join(artifactsDir, "05-final-review-cleared.png") });
 
       // The drag-and-drop bridge must exist and answer (empty string for a bare File).
@@ -222,6 +282,8 @@ const run = async () => {
       const setCount = await window.locator(".filmstrip__item").count();
       check("over-cap chains split into multiple sets", setCount >= 3, `sets: ${setCount}`);
       await window.screenshot({ path: path.join(artifactsDir, "06-filmstrip.png") });
+      await window.locator(".filmstrip__item").last().click();
+      check("next-set navigation is disabled at the end", await window.getByRole("button", { name: "Next set", exact: true }).isDisabled());
 
       // Large sets must still render at the end of both shelf layouts when
       // Chromium skips offscreen cards. Exercise a narrow, reduced-motion view.

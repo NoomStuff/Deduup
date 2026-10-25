@@ -53,49 +53,22 @@
    gap: 6px;
 }
 
+.settingRow--toggle .toggleControl {
+   flex-direction: row-reverse;
+   justify-content: space-between;
+   width: 100%;
+   color: var(--text);
+   text-align: left;
+   font-weight: 600;
+}
+
+.settingRow--toggle .toggleControl__track {
+   flex: none;
+}
+
 .settingRow--danger {
    justify-content: flex-end;
    border-bottom: 0;
-}
-
-.segmentedPicker {
-   position: relative;
-   display: flex;
-   flex: none;
-   border-radius: var(--radius-sm);
-   background: var(--panel-2);
-   padding: 3px;
-}
-
-.segmentedPicker__thumb {
-   position: absolute;
-   top: 3px;
-   bottom: 3px;
-   left: 3px;
-   width: calc((100% - 6px) / 3);
-   border-radius: 6px;
-   background: var(--accent);
-   transition: transform var(--duration-move) var(--ease-out);
-}
-
-.segmentedPicker button {
-   position: relative;
-   z-index: 1;
-   flex: 1 1 0;
-   border-radius: 6px;
-   color: var(--muted);
-   font-size: 12px;
-   font-weight: 700;
-   padding: 6px 12px;
-   transition: color var(--duration-hover) ease-out;
-}
-
-.segmentedPicker button:hover {
-   color: var(--text);
-}
-
-.segmentedPicker button[aria-pressed="true"] {
-   color: #241207;
 }
 
 /* --- Shortcuts screen -------------------------------------------------------- */

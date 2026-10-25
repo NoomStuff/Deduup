@@ -7,30 +7,21 @@
    overflow: hidden;
    min-height: 0;
    max-height: 100%;
+   text-align: left;
    /* Keep grid slots, but let Chromium skip offscreen card layout and paint. */
    content-visibility: auto;
    contain-intrinsic-size: auto 280px;
-   border: 1px solid transparent;
+   border: 1px solid var(--line);
    border-radius: var(--radius-md);
    background: var(--panel-2);
    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
    transition:
       border-color var(--duration-hover) ease-out,
-      transform 200ms var(--bounce),
       box-shadow var(--duration-move) ease-out;
 }
 
 .imageCard:hover {
-   box-shadow: 0 10px 32px rgba(0, 0, 0, 0.4);
-   transform: translateY(-2px);
-}
-
-.imageCard--selected {
-   border-color: rgba(var(--accent-rgb), 0.7);
-}
-
-.imageCard--comparePick {
-   border-color: var(--accent);
+   border-color: var(--line-strong);
 }
 
 .imageCard--deleted {
@@ -38,7 +29,23 @@
 }
 
 .imageCard--deleted img {
-   filter: saturate(0.5) brightness(0.78);
+   opacity: 0.78;
+}
+
+/* Selection and discard are independent. Keep the selection visible even
+   when the selected image is discarded. */
+.imageCard--selected,
+.imageCard--comparePick {
+   border-color: var(--accent);
+   box-shadow: 0 0 0 1px var(--accent);
+}
+
+.imageCard--selected .imageCard__caption {
+   background: color-mix(in srgb, var(--accent) 9%, var(--panel));
+}
+
+.imageCard:focus-visible {
+   outline-offset: -4px;
 }
 
 .imageCard--immutable {
@@ -96,19 +103,19 @@
    }
 }
 
-.imageCard__chip--marked,
+.imageCard__chip--discarded,
 .imageCard__chip--compare {
    transform: translateX(-50%);
 }
 
-.imageCard__chip--marked {
+.imageCard__chip--discarded {
    left: 50%;
    transform: translateX(-50%);
    background: rgb(12 10 8 / 0.93);
    color: var(--delete);
 }
 
-.imageCard__chip--marked svg {
+.imageCard__chip--discarded svg {
    width: 11px;
    height: 11px;
 }
