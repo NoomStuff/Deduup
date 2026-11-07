@@ -85,7 +85,7 @@
    font-variant-numeric: tabular-nums;
 }
 
-.compare__action span {
+.compare__action > span {
    font-size: 14px;
    font-weight: 600;
 }
@@ -186,4 +186,33 @@
 
 .compare__label--right {
    right: 12px;
+}
+
+.compare__action > .compare__details {
+   display: grid;
+   justify-items: center;
+   gap: 2px;
+   max-width: 100%;
+   color: var(--faint);
+   font-size: 11.5px;
+   font-weight: 600;
+   font-variant-numeric: tabular-nums;
+   text-align: center;
+}
+
+.compare__value--best {
+   color: var(--keep);
+}
+
+.compare__value--lower {
+   color: color-mix(in srgb, var(--faint) 78%, transparent);
+}
+
+.compare__folder {
+   max-width: 100%;
+   overflow: hidden;
+   color: var(--muted);
+   font-weight: 500;
+   white-space: nowrap;
+   text-overflow: ellipsis;
 }
