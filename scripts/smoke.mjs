@@ -317,6 +317,58 @@ const run = async () => {
       await window.locator(".filmstrip__item").last().click();
       check("next-set navigation is disabled at the end", await window.getByRole("button", { name: "Next set", exact: true }).isDisabled());
 
+      // The strip recenters only when the set changes. A hand-scrolled position
+      // must stay put; a recenter glide that never settled used to drag it back.
+      // The fixture strip fits the window, so squeeze it until it overflows.
+      await window.evaluate(() => document.querySelector(".filmstripWrap").style.setProperty("max-width", "140px"));
+      const filmstrip = window.locator(".filmstrip");
+      await window.locator(".filmstrip__item").first().click();
+      await window.waitForTimeout(500);
+      await window.locator(".filmstrip__item").nth(2).click();
+      await window.waitForTimeout(800);
+      // Real tile layouts land the centered target on a fraction of a pixel,
+      // which is what stalled the glide. Offset the strip so the next target
+      // sits ~0.75px past a whole pixel, then glide to it.
+      await filmstrip.evaluate((strip) => {
+         const tile = strip.querySelectorAll(".filmstrip__item")[1].getBoundingClientRect();
+         const bounds = strip.getBoundingClientRect();
+         const target = tile.left - bounds.left + strip.scrollLeft + tile.width / 2 - strip.clientWidth / 2;
+         const fraction = target - Math.floor(target);
+         strip.style.setProperty("padding-left", `${(((0.75 - fraction) % 1) + 1) % 1}px`);
+      });
+      const stripMax = await filmstrip.evaluate((strip) => strip.scrollWidth - strip.clientWidth);
+      const handScrollAfter = async (delay) => {
+         const centered = await filmstrip.evaluate((strip) => strip.scrollLeft);
+         const handScrolled = centered > stripMax / 2 ? 0 : stripMax;
+         await window.waitForTimeout(delay);
+         await filmstrip.evaluate((strip, value) => (strip.scrollLeft = value), handScrolled);
+         await window.waitForTimeout(800);
+         const now = await filmstrip.evaluate((strip) => strip.scrollLeft);
+         return { ok: stripMax > 0 && Math.abs(now - handScrolled) <= 1, detail: `max ${stripMax}, set ${handScrolled}, now ${now}` };
+      };
+      // Mid-glide: the user's scroll wins over the recenter in flight.
+      await window.locator(".filmstrip__item").nth(1).click();
+      const midGlide = await handScrollAfter(60);
+      check("filmstrip yields to a scroll during the recenter glide", midGlide.ok, midGlide.detail);
+      // Settled: nothing pulls the strip back afterwards either.
+      await window.locator(".filmstrip__item").nth(2).click();
+      await window.waitForTimeout(800);
+      const settled = await handScrollAfter(0);
+      check("filmstrip keeps a hand-scrolled position", settled.ok, settled.detail);
+      await window.keyboard.press("ArrowRight");
+      await window.waitForTimeout(800);
+      const recentered = await filmstrip.evaluate((strip) => {
+         const active = strip.querySelector(".filmstrip__item--active").getBoundingClientRect();
+         const bounds = strip.getBoundingClientRect();
+         return active.left >= bounds.left - 1 && active.right <= bounds.right + 1;
+      });
+      check("filmstrip recenters when the set changes", recentered);
+      await window.evaluate(() => {
+         document.querySelector(".filmstripWrap").style.removeProperty("max-width");
+         document.querySelector(".filmstrip").style.removeProperty("padding-left");
+      });
+      await window.locator(".filmstrip__item").last().click();
+
       // Large sets must still render at the end of both shelf layouts when
       // Chromium skips offscreen cards. Exercise a narrow, reduced-motion view.
       const library = await window.evaluate(() => window.imageDeduplicator.loadData());
