@@ -154,6 +154,11 @@ const run = async () => {
          await window.evaluate(() => document.activeElement === document.body || !document.activeElement?.closest("button"))
       );
       check("cards show their number key", (await window.locator(".imageCard__key").first().textContent()) === "1");
+      await window.keyboard.press("Shift+Digit2");
+      await window.waitForFunction((count) => document.querySelectorAll(".imageCard__chip--discarded").length === count - 1, copies);
+      check("Shift+2 keeps only the second image", (await window.locator(".imageCard").nth(1).locator(".imageCard__chip--discarded").count()) === 0);
+      await window.keyboard.press("Control+z");
+      await window.waitForFunction(() => document.querySelectorAll(".imageCard__chip--discarded").length === 0);
       const beforeAdvance = await window.textContent(".toolbar__counter");
       await window.keyboard.press("Control+1");
       await window.waitForFunction((previous) => document.querySelector(".toolbar__counter")?.textContent !== previous, beforeAdvance);
