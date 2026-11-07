@@ -15,7 +15,7 @@ import { ReviewContextMenu } from "./components/ReviewContextMenu.js";
 import { ReviewWorkspace } from "./components/ReviewWorkspace.js";
 import { SettingsPanel } from "./components/SettingsPanel.js";
 import { TitleBar } from "./components/TitleBar.js";
-import { TooltipBubble } from "./components/TooltipBubble.js";
+import { TooltipLayer } from "./components/TooltipBubble.js";
 import { LoadingScreen, NoMatchesScreen, ScanningScreen, StartupScreen } from "./components/AppStatusScreens.js";
 import { useAppUpdates } from "./hooks/useAppUpdates.js";
 import { useDecisionHistory } from "./hooks/useDecisionHistory.js";
@@ -30,7 +30,7 @@ import { usePreviewPreloader } from "./hooks/usePreviewPreloader.js";
 import { useReviewController } from "./hooks/useReviewController.js";
 import { useReviewPersistence } from "./hooks/useReviewPersistence.js";
 import { useScanController } from "./hooks/useScanController.js";
-import { useTooltip } from "./hooks/useTooltip.js";
+import { hideTooltip } from "./tooltip.js";
 import { createConfirmAction, emptyImageSetDecision, getDecision, getFolderName, getReviewSummary, getSimilarityBands } from "./reviewModel.js";
 
 export const App = () => {
@@ -58,7 +58,6 @@ export const App = () => {
    const [showStartupOnLaunch, setShowStartupOnLaunch] = usePreference(preferenceKeys.showStartupOnLaunch, true);
    const [shortcutOverrides, setShortcutOverrides] = useState<ShortcutOverrides>(loadShortcutOverrides);
    const [isStartupOpen, setIsStartupOpen] = useState(showStartupOnLaunch);
-   const { tooltip, hideTooltip, getTooltipProps } = useTooltip();
    const { notifications, notify, dismissNotification } = useNotifications(isFinalReviewOpen);
 
    useEffect(() => {
@@ -146,38 +145,7 @@ export const App = () => {
    const updates = useAppUpdates({ loading, beforeRestart: beforeUpdateRestart, reportError });
    const { availableUpdate, updateActions, updateStatus } = updates;
 
-   const {
-      previewImage,
-      setPreviewImage,
-      previewImages,
-      travelDirection,
-      beginCompare,
-      closeCompare,
-      compare,
-      comparePick,
-      keepCompareImage,
-      openAdjacentCompare,
-      goTo,
-      goToAdjacentSimilarityBand,
-      autoSelectImageSet,
-      clearImageSetChoices,
-      toggleImageRemoval,
-      toggleOnlyImageKept,
-      discardSet,
-      discardBand,
-      requestBandAutoselect,
-      requestDiscardSet,
-      confirmClearAllDecisions,
-      openFolder,
-      contextMenu,
-      contextSet,
-      contextImage,
-      contextImageIsDeleted,
-      contextOnlyImageKept,
-      previewImageOf,
-      getWorkspaceActions,
-      getContextMenuActions,
-   } = useReviewController({
+   const review = useReviewController({
       groups,
       currentSet,
       currentIndex,
@@ -193,12 +161,34 @@ export const App = () => {
       clearFileResults,
       notify,
       reportError,
-      hideTooltip,
    });
+   const {
+      previewImage,
+      setPreviewImage,
+      previewImages,
+      travelDirection,
+      closeCompare,
+      compare,
+      comparePick,
+      keepCompareImage,
+      goTo,
+      discardSet,
+      discardBand,
+      confirmClearAllDecisions,
+      openFolder,
+      contextMenu,
+      contextSet,
+      contextImage,
+      contextImageIsDeleted,
+      contextOnlyImageKept,
+      getWorkspaceActions,
+      getContextMenuActions,
+   } = review;
 
    const reviewCommandsActive = reviewActive && compare === null;
 
    const commands = buildReviewCommands({
+      review,
       loading,
       isScanning,
       fileOperationActive,
@@ -215,22 +205,9 @@ export const App = () => {
       setConfirmAction,
       reviewCommandsActive,
       currentSet,
-      requestDiscardSet,
-      autoSelectImageSet,
-      requestBandAutoselect,
-      clearImageSetChoices,
       selectedImage,
-      beginCompare,
-      openAdjacentCompare,
-      previewImageOf,
-      toggleImageRemoval,
-      toggleOnlyImageKept,
       reviewActive,
-      compare,
-      keepCompareImage,
-      goTo,
       currentIndex,
-      goToAdjacentSimilarityBand,
       isFinalReviewOpen,
       setIsFinalReviewOpen,
       setIsAboutOpen,
@@ -259,7 +236,7 @@ export const App = () => {
    // rewrites the focused button's label (e.g. review ↔ final review).
    useEffect(() => {
       hideTooltip();
-   }, [hideTooltip, isInfoOpen, isSettingsOpen, isFinalReviewOpen, isStartupOpen]);
+   }, [isInfoOpen, isSettingsOpen, isFinalReviewOpen, isStartupOpen]);
 
    // Mouse back/forward navigates only while the plain review is interactive;
    // Navigating under an overlay would leave its image tied to a different set.
@@ -357,7 +334,6 @@ export const App = () => {
                canUndo={canUndo}
                commands={commands}
                finalReviewOpen={isFinalReviewOpen}
-               getTooltipProps={getTooltipProps}
                menu={menu}
                readyToMoveCount={fileWorkflow.readyToMoveCount}
                reviewActive={reviewActive}
@@ -370,22 +346,7 @@ export const App = () => {
                   <LoadingScreen />
                ) : isScanning ? (
                   <ScanningScreen folderName={getFolderName(scanningPath)} folderPath={scanningPath} progress={scanProgress} onCancel={cancelScan} />
-               ) : isStartupOpen ? (
-                  <StartupScreen
-                     hasSavedReview={groups.length > 0}
-                     savedSetCount={groups.length}
-                     pendingDiscardCount={fileWorkflow.readyToMoveCount}
-                     movedCount={fileWorkflow.movedCount}
-                     isDragOver={isDragOver}
-                     onContinue={() => setIsStartupOpen(false)}
-                     onDragLeave={handleDragLeave}
-                     onDragOver={handleDragOver}
-                     onDrop={handleDrop}
-                     onOpenFolder={() => void openNewFolder()}
-                     onShowOnLaunchChange={setShowStartupOnLaunch}
-                     showOnLaunch={showStartupOnLaunch}
-                  />
-               ) : scanRoot !== null && groups.length === 0 ? (
+               ) : scanRoot !== null && groups.length === 0 && !isStartupOpen ? (
                   <NoMatchesScreen
                      folderName={folderName}
                      isDragOver={isDragOver}
@@ -395,7 +356,7 @@ export const App = () => {
                      onOpenFolder={() => void openNewFolder()}
                      onStartScreen={() => setIsStartupOpen(true)}
                   />
-               ) : currentSet === null ? (
+               ) : isStartupOpen || currentSet === null ? (
                   <StartupScreen
                      hasSavedReview={groups.length > 0}
                      savedSetCount={groups.length}
@@ -411,23 +372,20 @@ export const App = () => {
                      showOnLaunch={showStartupOnLaunch}
                   />
                ) : (
-                  <>
-                     <ReviewWorkspace
-                        comparePick={comparePick}
-                        currentDecision={currentDecision}
-                        currentSet={currentSet}
-                        currentIndex={currentIndex}
-                        decisionRows={decisionRows}
-                        filmstripRef={filmstripRef}
-                        filmstripFade={filmstripFade}
-                        getTooltipProps={getTooltipProps}
-                        selectedImagePath={selectedImagePath}
-                        similarityBands={similarityBands}
-                        travelDirection={travelDirection}
-                        wrapShelf={wrapImageShelf}
-                        {...getWorkspaceActions(currentSet)}
-                     />
-                  </>
+                  <ReviewWorkspace
+                     comparePick={comparePick}
+                     currentDecision={currentDecision}
+                     currentSet={currentSet}
+                     currentIndex={currentIndex}
+                     decisionRows={decisionRows}
+                     filmstripRef={filmstripRef}
+                     filmstripFade={filmstripFade}
+                     selectedImagePath={selectedImagePath}
+                     similarityBands={similarityBands}
+                     travelDirection={travelDirection}
+                     wrapShelf={wrapImageShelf}
+                     {...getWorkspaceActions(currentSet)}
+                  />
                )}
             </div>
 
@@ -460,7 +418,7 @@ export const App = () => {
                />
             )}
 
-            {tooltip !== null && <TooltipBubble tooltip={tooltip} />}
+            <TooltipLayer />
 
             {confirmAction !== null && <ConfirmDialog action={confirmAction} onClose={() => setConfirmAction(null)} onConfirm={runConfirmAction} />}
 
@@ -470,7 +428,6 @@ export const App = () => {
                   destination={duplicateDestination}
                   duplicateFolderHasContent={duplicateFolderHasContent}
                   duplicatePreview={duplicatePreview}
-                  getTooltipProps={getTooltipProps}
                   isApplying={isApplying}
                   isRestoring={isRestoringDuplicate}
                   isTrashing={isTrashingDuplicate}

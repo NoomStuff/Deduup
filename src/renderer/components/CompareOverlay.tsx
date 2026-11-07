@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { CSSProperties, PointerEvent } from "react";
 import { X } from "lucide-react";
 import type { ImageItem } from "../../shared/types.js";
+import { toFullPreviewUrl } from "../../shared/previewUrl.js";
 import type { CompareState } from "../appTypes.js";
 import { clamp, formatBytes, getSetInsights, type ImageInsight } from "../reviewModel.js";
 import { usePanZoom } from "../hooks/usePanZoom.js";
@@ -53,11 +54,11 @@ export const CompareOverlay = ({ compare, onClose, onKeep }: { compare: CompareS
    // Warm the full-size decodes up front so zooming in never waits on disk.
    // Off-DOM Image() probes, since fetch() can't cross origins from file://.
    useEffect(() => {
-      for (const url of [compare.left.fullPreviewUrl, compare.right.fullPreviewUrl]) {
+      for (const url of [toFullPreviewUrl(compare.left.previewUrl), toFullPreviewUrl(compare.right.previewUrl)]) {
          const probe = new Image();
          probe.src = url;
       }
-   }, [compare.left.fullPreviewUrl, compare.right.fullPreviewUrl]);
+   }, [compare.left.previewUrl, compare.right.previewUrl]);
 
    const flushReveal = useCallback((): void => {
       const next = revealTargetRef.current;
@@ -146,7 +147,7 @@ export const CompareOverlay = ({ compare, onClose, onKeep }: { compare: CompareS
                         aria-hidden="true"
                         className={"compare__bottom compare__full" + (fullState.left ? " compare__full--visible" : "")}
                         onLoad={() => setFullState((current) => (current.left ? current : { ...current, left: true }))}
-                        src={compare.left.fullPreviewUrl}
+                        src={toFullPreviewUrl(compare.left.previewUrl)}
                         style={{ transform: cssTransform }}
                      />
                   )}
@@ -166,7 +167,7 @@ export const CompareOverlay = ({ compare, onClose, onKeep }: { compare: CompareS
                         aria-hidden="true"
                         className={"compare__top compare__full" + (fullState.right ? " compare__full--visible" : "")}
                         onLoad={() => setFullState((current) => (current.right ? current : { ...current, right: true }))}
-                        src={compare.right.fullPreviewUrl}
+                        src={toFullPreviewUrl(compare.right.previewUrl)}
                         style={{ transform: cssTransform }}
                      />
                   )}

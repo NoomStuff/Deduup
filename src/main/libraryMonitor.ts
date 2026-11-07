@@ -1,13 +1,14 @@
 import { watch } from "node:fs";
 import type { FSWatcher } from "node:fs";
 import path from "node:path";
-import { getManagedFolderPaths } from "./managedFolder.js";
+import { getManagedFolderPath } from "./paths.js";
 
 /** Coalesce filesystem changes and retry while review or file operations own the library. */
 export class LibraryMonitor {
    private watcher: FSWatcher | null = null;
    private timer: ReturnType<typeof setTimeout> | null = null;
    private poll: ReturnType<typeof setInterval> | null = null;
+   private initial: ReturnType<typeof setTimeout> | null = null;
    private controller: AbortController | null = null;
    private generation = 0;
    private dirty = false;
@@ -17,9 +18,12 @@ export class LibraryMonitor {
 
    private readonly refresh: (root: string, signal: AbortSignal) => Promise<boolean>;
    private readonly reportError: (error: unknown) => void;
-   constructor(refresh: (root: string, signal: AbortSignal) => Promise<boolean>, reportError: (error: unknown) => void) {
+   private readonly initialDelayMs: number;
+   /** initialDelayMs holds the catch-up reconcile back until startup work (first paint, thumbnails) settles. */
+   constructor(refresh: (root: string, signal: AbortSignal) => Promise<boolean>, reportError: (error: unknown) => void, initialDelayMs = 4000) {
       this.refresh = refresh;
       this.reportError = reportError;
+      this.initialDelayMs = initialDelayMs;
    }
 
    start(root: string): void {
@@ -36,7 +40,7 @@ export class LibraryMonitor {
             void this.flush(root, generation, controller.signal, schedule);
          }, 1000);
       };
-      const managed = path.relative(root, getManagedFolderPaths(root).managedPath);
+      const managed = path.relative(root, getManagedFolderPath(root));
       try {
          this.watcher = watch(root, { recursive: true }, (_event, filename) => {
             if (filename !== null && (filename === managed || filename.startsWith(`${managed}${path.sep}`))) return;
@@ -50,8 +54,14 @@ export class LibraryMonitor {
       } catch {
          // Periodic reconciliation also covers roots whose filesystem cannot be watched.
       }
-      this.poll = setInterval(schedule, 60_000);
-      schedule();
+      // Periodic reconciliation covers filesystems whose watchers stay silent
+      // (some network shares). A live watcher only needs a rare safety net.
+      this.poll = setInterval(schedule, this.watcher === null ? 60_000 : 10 * 60_000);
+      // Catch up on changes made while the app was closed, once startup work settles.
+      this.initial = setTimeout(() => {
+         this.initial = null;
+         schedule();
+      }, this.initialDelayMs);
    }
 
    private async flush(root: string, generation: number, signal: AbortSignal, schedule: () => void): Promise<void> {
@@ -90,6 +100,8 @@ export class LibraryMonitor {
       this.watcher = null;
       if (this.timer !== null) clearTimeout(this.timer);
       if (this.poll !== null) clearInterval(this.poll);
+      if (this.initial !== null) clearTimeout(this.initial);
+      this.initial = null;
       this.timer = null;
       this.poll = null;
       this.dirty = false;

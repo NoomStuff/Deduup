@@ -4,16 +4,8 @@ import { CircleCheck, Eraser, FolderOpen, MousePointer2, Search, Trash2 } from "
 import type { ImageItem, ImageSet, ImageSetDecision } from "../../shared/types.js";
 import type { ContextMenuState, SimilarityBand, TravelDirection } from "../appTypes.js";
 import { useBindingDisplay } from "../commands.js";
-import type { TooltipProps } from "../hooks/useTooltip.js";
-import {
-   getDeletedImagePaths,
-   getImageSetLabel,
-   getSetInsights,
-   getSetNumber,
-   getSimilarityColor,
-   getSimilarityLabel,
-   type LibrarySetRow,
-} from "../reviewModel.js";
+import { getDeletedImagePaths, getSetInsights, getSetNumber, getSimilarityColor, getSimilarityLabel, type LibrarySetRow } from "../reviewModel.js";
+import { tooltipProps } from "../tooltip.js";
 import { ReviewFilmstrip } from "./ReviewFilmstrip.js";
 import { ImageCard } from "./ImageCard.js";
 import "./ReviewWorkspace.css";
@@ -30,7 +22,6 @@ interface ReviewWorkspaceProps {
    similarityBands: SimilarityBand[];
    travelDirection: TravelDirection;
    wrapShelf: boolean;
-   getTooltipProps: (title: string, body: string, hotkey?: string) => TooltipProps;
    onBeginComparePick: () => void;
    onCompareSelected: () => void;
    onDiscardSelected: () => void;
@@ -88,11 +79,11 @@ export const ReviewWorkspace = (props: ReviewWorkspaceProps) => {
                         {getSetNumber(props.currentSet.id)}
                         <span>/{props.decisionRows.size}</span>
                      </span>
-                     <span className="setHeader__kept">{getImageSetLabel(props.currentSet, props.currentDecision)} kept</span>
+                     <span className="setHeader__kept">{props.decisionRows.get(props.currentSet.id)?.label} kept</span>
                      <span
                         className="setHeader__difference"
                         style={{ "--band-color": getSimilarityColor(props.currentSet.similarity) } as CSSProperties}
-                        {...props.getTooltipProps("Average image difference", "Lower means more alike.")}
+                        {...tooltipProps("Average image difference", "Lower means more alike.")}
                      >
                         difference {getSimilarityLabel(props.currentSet.similarity)}
                      </span>
@@ -100,7 +91,7 @@ export const ReviewWorkspace = (props: ReviewWorkspaceProps) => {
                         className="setHeader__folder"
                         onClick={() => props.onOpenSetFolder(setFolder)}
                         type="button"
-                        {...props.getTooltipProps("Open folder", setFolder)}
+                        {...tooltipProps("Open folder", setFolder)}
                      >
                         <FolderOpen aria-hidden="true" />
                         <span>{setFolder.split(/[\\/]/u).at(-1)}</span>
@@ -114,7 +105,7 @@ export const ReviewWorkspace = (props: ReviewWorkspaceProps) => {
                         disabled={!selectedIsAvailable}
                         onClick={props.onDiscardSelected}
                         type="button"
-                        {...props.getTooltipProps(
+                        {...tooltipProps(
                            selectedImageIsDiscarded ? "Restore" : "Discard",
                            selectedImageIsDiscarded ? "This image stays in its folder." : "Discarded images move in the final review, nothing moves yet.",
                            toggleHint
@@ -128,7 +119,7 @@ export const ReviewWorkspace = (props: ReviewWorkspaceProps) => {
                         disabled={!selectedIsAvailable || availableCount < 2}
                         onClick={props.onKeepOnlySelected}
                         type="button"
-                        {...props.getTooltipProps(
+                        {...tooltipProps(
                            selectedIsOnlyKept ? "Restore the others" : "Keep only this",
                            selectedIsOnlyKept ? "Bring back every other image in this set." : "Keep this image and discard every other image in the set.",
                            keepOnlyHint
@@ -142,7 +133,7 @@ export const ReviewWorkspace = (props: ReviewWorkspaceProps) => {
                         disabled={!selectedIsAvailable}
                         onClick={compareNeedsPick ? props.onBeginComparePick : props.onCompareSelected}
                         type="button"
-                        {...props.getTooltipProps(
+                        {...tooltipProps(
                            compareNeedsPick ? "Compare with…" : "Compare",
                            compareNeedsPick ? "Pick the image to compare against on the shelf." : "Wipe between the two images, then keep one.",
                            compareHint
@@ -157,7 +148,7 @@ export const ReviewWorkspace = (props: ReviewWorkspaceProps) => {
                         disabled={availableCount === 0}
                         onClick={props.onDiscardSet}
                         type="button"
-                        {...props.getTooltipProps("Discard set", "Discard every image in this set.", discardSetHint)}
+                        {...tooltipProps("Discard set", "Discard every image in this set.", discardSetHint)}
                      >
                         <Trash2 aria-hidden="true" />
                         <span>Discard set</span>
@@ -196,17 +187,10 @@ export const ReviewWorkspace = (props: ReviewWorkspaceProps) => {
             currentSetId={props.currentSet.id}
             fade={props.filmstripFade}
             filmstripRef={props.filmstripRef}
-            getTooltipProps={props.getTooltipProps}
             nextHint={nextHint}
             previousHint={previousHint}
             rows={props.decisionRows}
-            onBandContextMenu={(event, firstSet) =>
-               props.onOpenContextMenu({
-                  menuKind: "similarityBand",
-                  anchor: { kind: "rect", rect: event.currentTarget.getBoundingClientRect() },
-                  setId: firstSet.id,
-               })
-            }
+            onOpenContextMenu={props.onOpenContextMenu}
             onNavigate={props.onNavigate}
             onSetContextMenu={props.onImageSetContextMenu}
          />

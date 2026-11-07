@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import type { MouseEvent } from "react";
 import { ChevronLeft, ChevronRight, FolderOpen, X, ZoomIn, ZoomOut } from "lucide-react";
 import type { ImageItem } from "../../shared/types.js";
+import { toFullPreviewUrl } from "../../shared/previewUrl.js";
 import { formatBytes, formatDate } from "../reviewModel.js";
 import { panZoomMaxScale, usePanZoom } from "../hooks/usePanZoom.js";
 import { OverlayPanel } from "./OverlayPanel.js";
@@ -32,7 +33,7 @@ export const ImagePreviewOverlay = ({ image, images, onClose, onNavigate, onOpen
       if (thumbImg?.complete) setThumbLoaded(thumbImg.naturalWidth > 0);
       const fullImg = fullImgRef.current;
       if (fullImg?.complete) setFullLoaded(fullImg.naturalWidth > 0);
-   }, [image.previewUrl, image.fullPreviewUrl]);
+   }, [image.previewUrl]);
 
    useEffect(() => reset(), [image.originalPath, reset]);
 
@@ -144,7 +145,7 @@ export const ImagePreviewOverlay = ({ image, images, onClose, onNavigate, onOpen
                draggable={false}
                onLoad={() => setFullLoaded(true)}
                ref={fullImgRef}
-               src={image.fullPreviewUrl}
+               src={toFullPreviewUrl(image.previewUrl)}
                style={{ transform: `translate(${transform.x}px, ${transform.y}px) scale(${transform.scale})` }}
             />
          </figure>

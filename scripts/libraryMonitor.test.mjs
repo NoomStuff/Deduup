@@ -39,7 +39,8 @@ test("restarting monitoring cancels the old refresh and schedules the new root i
          markSecondStarted();
          return true;
       },
-      (error) => errors.push(error)
+      (error) => errors.push(error),
+      0
    );
    try {
       monitor.start(root);

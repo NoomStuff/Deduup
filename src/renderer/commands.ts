@@ -106,10 +106,8 @@ export type Commands = Record<CommandId, Command>;
 /** Live bindings for a command, provided above the whole app. */
 export const ShortcutsContext = createContext<ShortcutOverrides>({});
 
-export const useShortcutOverrides = (): ShortcutOverrides => useContext(ShortcutsContext);
-
 export const useBindingDisplay = (id: CommandId): string => {
-   const overrides = useShortcutOverrides();
+   const overrides = useContext(ShortcutsContext);
    const bindings = bindingsFor(id, overrides);
    if (overrides[id] === undefined && commandDefinitions[id].display !== undefined) return commandDefinitions[id].display;
    return bindings.join(" / ");
@@ -133,17 +131,6 @@ export const bindingFromEvent = (event: KeyboardEvent): string => {
 /** Bindings the browser or OS reserves; capturing one refuses to save. */
 const reservedBindings = new Set(["ALT+F4", "CTRL+Q", "CTRL+W", "CTRL+C", "CTRL+V", "CTRL+X", "ENTER"]);
 export const isReservedBinding = (binding: string): boolean => reservedBindings.has(binding.toUpperCase());
-
-/** Flat pointer-gesture list for the help panel; keyboard commands live in settings. */
-export const pointerHelp: { keys: string; action: string }[] = [
-   { keys: "Click", action: "Select an image" },
-   { keys: "Shift Click", action: "Toggle Discard on an image" },
-   { keys: "Shift Right Click", action: "Keep only this image" },
-   { keys: "Alt Click", action: "Compare two images" },
-   { keys: "Double Click", action: "Preview an image full size" },
-   { keys: "Mouse 4 / 5", action: "Back or forward between sets" },
-   { keys: "Right Click", action: "Open the actions menu" },
-];
 
 /**
  * Keyboard driver for the command registry. Review commands stand down while a

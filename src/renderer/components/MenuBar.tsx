@@ -2,14 +2,13 @@ import { useEffect, useRef, useState } from "react";
 import { Redo2, Undo2 } from "lucide-react";
 import type { CommandId, Commands } from "../commands.js";
 import { commandDefinitions, useBindingDisplay } from "../commands.js";
-import type { TooltipProps } from "../hooks/useTooltip.js";
+import { tooltipProps } from "../tooltip.js";
 import "./MenuBar.css";
 
 interface MenuBarProps {
    commands: Commands;
    menu: string | null;
    onMenuChange: (menu: string | null) => void;
-   getTooltipProps: (title: string, body: string, hotkey?: string) => TooltipProps;
    reviewActive: boolean;
    canUndo: boolean;
    canRedo: boolean;
@@ -216,7 +215,7 @@ export const MenuBar = ({ menu, onMenuChange, ...props }: MenuBarProps) => {
                   disabled={!props.canUndo}
                   onClick={() => props.commands.undo.run()}
                   type="button"
-                  {...props.getTooltipProps("Undo", "Restore the previous review choice.", undoHint)}
+                  {...tooltipProps("Undo", "Restore the previous review choice.", undoHint)}
                >
                   <Undo2 aria-hidden="true" />
                </button>
@@ -226,7 +225,7 @@ export const MenuBar = ({ menu, onMenuChange, ...props }: MenuBarProps) => {
                   disabled={!props.canRedo}
                   onClick={() => props.commands.redo.run()}
                   type="button"
-                  {...props.getTooltipProps("Redo", "Reapply a choice you just undid.", redoHint)}
+                  {...tooltipProps("Redo", "Reapply a choice you just undid.", redoHint)}
                >
                   <Redo2 aria-hidden="true" />
                </button>
@@ -236,7 +235,7 @@ export const MenuBar = ({ menu, onMenuChange, ...props }: MenuBarProps) => {
                   disabled={props.finalReviewOpen}
                   onClick={props.onToggleFinalReview}
                   type="button"
-                  {...props.getTooltipProps(
+                  {...tooltipProps(
                      "Final review",
                      props.finalReviewOpen ? "Already open, press Esc to close it." : "See everything you've discarded before anything moves.",
                      finalReviewHint
