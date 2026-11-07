@@ -3,15 +3,14 @@ export interface ImageItem {
    originalPath: string;
    currentPath: string;
    folderPath: string;
-   hash: string;
+   /** A short digest of the scan's visual hash: equal only when the scan evidence is equal. */
+   evidence: string;
    width: number;
    height: number;
    size: number;
    modifiedAt: number;
-   changedAt: number;
+   /** Thumbnail URL; toFullPreviewUrl gives the original-resolution one. */
    previewUrl: string;
-   fullPreviewUrl: string;
-   exists: boolean;
    sourceStatus: "available" | "movedByApp" | "recycledByApp" | "missing";
 }
 
@@ -54,8 +53,6 @@ export interface LoadDataResult {
    duplicateFolderHasContent: boolean;
    lastFileAction: FileActionStatus;
    scanWarningCount: number;
-   /** Up to five example paths for skipped items; scanWarningCount is the full total. */
-   scanWarningPaths: string[];
 }
 
 export interface ScanRequest {

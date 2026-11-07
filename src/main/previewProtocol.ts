@@ -1,35 +1,25 @@
-import { net, protocol } from "electron";
+import { net, protocol, screen } from "electron";
 import path from "node:path";
 import { pathToFileURL } from "node:url";
 import sharp from "sharp";
-
-const previewProtocol = "deduup-preview";
-type PreviewKind = "thumbnail" | "full";
-interface PreviewAccess {
-   filePath: string;
-   kind: PreviewKind;
+import { previewScheme as scheme } from "../shared/previewUrl.js";
+import type { PreviewKind } from "../shared/previewUrl.js";
+interface Thumbnail {
+   data: Buffer;
+   type: string;
 }
 
-const allowedPreviews = new Map<string, PreviewAccess>();
-const thumbnailCache = new Map<string, Promise<Buffer>>();
+protocol.registerSchemesAsPrivileged([{ scheme, privileges: { standard: true, secure: true, supportFetchAPI: true } }]);
+
+/**
+ * The path rides in the URL; the revision only changes the URL when the file
+ * does, so the renderer's image cache never serves stale pixels.
+ */
+export const createPreviewUrl = (filePath: string, kind: PreviewKind, revision: string): string =>
+   `${scheme}://${kind}/${Buffer.from(path.normalize(filePath), "utf8").toString("base64url")}?v=${encodeURIComponent(revision)}`;
+
+const thumbnailCache = new Map<string, Promise<Thumbnail>>();
 const thumbnailCacheLimit = 256;
-
-protocol.registerSchemesAsPrivileged([{ scheme: previewProtocol, privileges: { standard: true, secure: true, supportFetchAPI: true } }]);
-
-export const createPreviewUrl = (filePath: string, kind: PreviewKind = "thumbnail", revision = ""): string => {
-   const normalizedPath = path.normalize(filePath);
-   const encodedPath = Buffer.from(normalizedPath, "utf8").toString("base64url");
-   const accessKey = `${kind}/${encodedPath}/${revision}`;
-   allowedPreviews.set(accessKey, { filePath: normalizedPath, kind });
-   return `${previewProtocol}://file/${accessKey}`;
-};
-
-export const resetPreviewAccess = (): void => {
-   allowedPreviews.clear();
-   for (const encode of scheduledEncodes.values()) encode.cancel();
-   scheduledEncodes.clear();
-   thumbnailCache.clear();
-};
 
 // Encodes wait here instead of going straight to sharp, whose thread pool
 // drains strictly in request order. Holding an arrow key requests every set
@@ -37,25 +27,64 @@ export const resetPreviewAccess = (): void => {
 // backlog instead of waiting behind it.
 const maxConcurrentEncodes = 4;
 interface PendingEncode {
-   promise: Promise<Buffer>;
-   run: () => void;
-   cancel: () => void;
+   filePath: string;
+   resolve: (thumbnail: Thumbnail) => void;
+   reject: (error: unknown) => void;
 }
-const scheduledEncodes = new Map<string, PendingEncode>();
+const pendingEncodes = new Map<string, PendingEncode>();
 let activeEncodes = 0;
 
-const startNextEncode = (): void => {
-   if (activeEncodes >= maxConcurrentEncodes) return;
-   const newestKey = [...scheduledEncodes.keys()].at(-1);
-   if (newestKey === undefined) return;
-   const encode = scheduledEncodes.get(newestKey);
-   scheduledEncodes.delete(newestKey);
-   if (encode === undefined) return;
-   activeEncodes += 1;
-   encode.run();
+export const clearThumbnailCache = (): void => {
+   for (const encode of pendingEncodes.values()) encode.reject(new Error("Preview cache was reset"));
+   pendingEncodes.clear();
+   thumbnailCache.clear();
 };
 
-const createThumbnail = (filePath: string, cacheKey: string): Promise<Buffer> => {
+/**
+ * The largest a card can draw: a set always shows at least two cards side by
+ * side, so half the widest display, in device pixels. Anything bigger costs
+ * decode time and memory without adding a visible pixel.
+ */
+let thumbnailBox: { width: number; height: number } | null = null;
+const getThumbnailBox = (): { width: number; height: number } => {
+   if (thumbnailBox !== null) return thumbnailBox;
+   const displays = screen.getAllDisplays();
+   const width = Math.max(...displays.map((display) => display.size.width * display.scaleFactor));
+   const height = Math.max(...displays.map((display) => display.size.height * display.scaleFactor));
+   thumbnailBox = { width: Math.round(Math.min(1600, Math.max(640, width / 2))), height: Math.round(Math.min(1600, Math.max(480, height * 0.8))) };
+   return thumbnailBox;
+};
+
+/**
+ * JPEG encodes several times faster than WebP at the same visual quality.
+ * Only images with transparency need WebP to keep their alpha channel.
+ */
+const encodeThumbnail = async (filePath: string): Promise<Thumbnail> => {
+   const source = sharp(filePath, { animated: false, failOn: "none" });
+   const { hasAlpha } = await source.metadata();
+   const resized = source.rotate().resize({ ...getThumbnailBox(), fit: "inside", withoutEnlargement: true });
+   return hasAlpha
+      ? { data: await resized.webp({ quality: 82, effort: 2 }).toBuffer(), type: "image/webp" }
+      : { data: await resized.jpeg({ quality: 85 }).toBuffer(), type: "image/jpeg" };
+};
+
+const startNextEncode = (): void => {
+   while (activeEncodes < maxConcurrentEncodes) {
+      const newest = [...pendingEncodes].at(-1);
+      if (newest === undefined) return;
+      const [newestKey, encode] = newest;
+      pendingEncodes.delete(newestKey);
+      activeEncodes += 1;
+      encodeThumbnail(encode.filePath)
+         .then(encode.resolve, encode.reject)
+         .finally(() => {
+            activeEncodes -= 1;
+            startNextEncode();
+         });
+   }
+};
+
+const getThumbnail = (filePath: string, cacheKey: string): Promise<Thumbnail> => {
    const cached = thumbnailCache.get(cacheKey);
    if (cached !== undefined) {
       // Map iteration order is insertion order: re-insert to keep the entry young.
@@ -63,67 +92,38 @@ const createThumbnail = (filePath: string, cacheKey: string): Promise<Buffer> =>
       thumbnailCache.set(cacheKey, cached);
       return cached;
    }
-   const scheduled = scheduledEncodes.get(cacheKey);
-   if (scheduled !== undefined) return scheduled.promise;
-
    if (thumbnailCache.size >= thumbnailCacheLimit) {
       const oldestKey = thumbnailCache.keys().next().value;
       if (oldestKey !== undefined) thumbnailCache.delete(oldestKey);
    }
-
-   let resolveEncode!: (thumbnail: Buffer) => void;
-   let rejectEncode!: (error: unknown) => void;
-   const promise = new Promise<Buffer>((resolve, reject) => {
-      resolveEncode = resolve;
-      rejectEncode = reject;
-   });
-   const encode: PendingEncode = {
-      promise,
-      run: () => {
-         sharp(filePath, { animated: false, failOn: "none" })
-            .rotate()
-            .resize({ width: 1200, height: 900, fit: "inside", withoutEnlargement: true })
-            .webp({ quality: 82 })
-            .toBuffer()
-            .then(resolveEncode, rejectEncode)
-            .finally(() => {
-               activeEncodes -= 1;
-               startNextEncode();
-            });
-      },
-      cancel: () => rejectEncode(new Error("Preview cache was reset")),
-   };
-   scheduledEncodes.set(cacheKey, encode);
+   const promise = new Promise<Thumbnail>((resolve, reject) => pendingEncodes.set(cacheKey, { filePath, resolve, reject }));
    thumbnailCache.set(cacheKey, promise);
-   void promise.catch(() => {
+   promise.catch(() => {
       if (thumbnailCache.get(cacheKey) === promise) thumbnailCache.delete(cacheKey);
    });
    startNextEncode();
    return promise;
 };
 
-export const registerPreviewProtocol = (): void => {
-   protocol.handle(previewProtocol, async (request) => {
+/** Serves previews only for files the caller allows, which is the current scan root. */
+export const registerPreviewProtocol = (isAllowed: (filePath: string) => boolean): void => {
+   protocol.handle(scheme, async (request) => {
       try {
-         const accessKey = new URL(request.url).pathname.slice(1);
-         const access = allowedPreviews.get(accessKey);
-         if (access === undefined || !path.isAbsolute(access.filePath)) {
-            return new Response("Preview is not available", { status: 403 });
-         }
-
-         // Cacheable by URL: moves change the path, so a moved file is a new URL.
+         const url = new URL(request.url);
+         const filePath = Buffer.from(url.pathname.slice(1), "base64url").toString("utf8");
+         if (!path.isAbsolute(filePath) || !isAllowed(filePath)) return new Response("Preview is not available", { status: 403 });
          const headers = new Headers({ "cache-control": "private, max-age=3600" });
-         if (access.kind === "full") {
-            const file = await net.fetch(pathToFileURL(access.filePath).href);
-            for (const [name, value] of file.headers) headers.set(name, value);
-            headers.set("cache-control", "private, max-age=3600");
+         if (url.hostname === "full") {
+            const file = await net.fetch(pathToFileURL(filePath).href);
+            for (const [name, value] of file.headers) if (name !== "cache-control") headers.set(name, value);
             return new Response(file.body, { headers, status: file.status, statusText: file.statusText });
          }
-         const thumbnail = await createThumbnail(access.filePath, accessKey);
-         headers.set("content-type", "image/webp");
-         return new Response(new Uint8Array(thumbnail), { headers });
+         if (url.hostname !== "thumbnail") return new Response("Unknown preview kind", { status: 400 });
+         const thumbnail = await getThumbnail(filePath, `${url.pathname}${url.search}`);
+         headers.set("content-type", thumbnail.type);
+         return new Response(new Uint8Array(thumbnail.data), { headers });
       } catch {
-         return new Response("Invalid preview URL", { status: 400 });
+         return new Response("Preview is not available", { status: 400 });
       }
    });
 };

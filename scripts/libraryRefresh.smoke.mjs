@@ -105,10 +105,10 @@ try {
    await waitForFile(offline, true);
    const migrated = await load();
    assert.notEqual(migrated.scanId, updated.scanId);
-   assert.ok(migrated.groups.every((set) => set.images.every((image) => /^[0-9a-f]{16}:[0-9a-f]{432}$/u.test(image.hash))));
    const migratedDb = new DatabaseSync(path.join(profile, "deduup.sqlite"));
    assert.equal(migratedDb.prepare("SELECT value FROM settings WHERE key = 'hash_version'").get().value, "dhash64-rgb-v3");
    assert.equal(migratedDb.prepare("SELECT COUNT(*) AS count FROM image_inventory WHERE length(hash) != 449").get().count, 0);
+   assert.equal(migratedDb.prepare("SELECT COUNT(*) AS count FROM images WHERE length(hash) != 449").get().count, 0);
    migratedDb.close();
    await window.waitForSelector(".toolbar__progress", { state: "detached" });
    await window.getByRole("button", { name: "File", exact: true }).click();

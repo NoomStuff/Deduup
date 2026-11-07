@@ -350,6 +350,13 @@
 .moveSet {
    border-left: 2px solid var(--line);
    padding-left: 12px;
+   /* Off-screen sets skip layout and paint until scrolled near. */
+   content-visibility: auto;
+   contain-intrinsic-size: auto 220px;
+}
+
+.finalReview__sentinel {
+   height: 1px;
 }
 
 .moveSet--keepsNothing {

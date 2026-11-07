@@ -16,14 +16,12 @@ const image = (name, width = 100, height = 100, size = 1) => ({
    originalPath: `C:/lib/${name}`,
    currentPath: `C:/lib/${name}`,
    folderPath: "C:/lib",
-   hash: "0".repeat(16),
+   evidence: "0",
    width,
    height,
    size,
    modifiedAt: 0,
    previewUrl: "preview://x",
-   fullPreviewUrl: "preview://x/full",
-   exists: true,
    sourceStatus: "available",
 });
 

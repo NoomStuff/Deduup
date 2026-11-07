@@ -14,8 +14,6 @@ const normalizeDecisionForSave = (decision: ImageSetDecision): ImageSetDecision 
 const areDecisionsEqual = (left: ImageSetDecision, right: ImageSetDecision): boolean =>
    left.deletedImages.length === right.deletedImages.length && left.deletedImages.every((path, index) => path === right.deletedImages[index]);
 
-export { areDecisionsEqual };
-
 export const setImageSetDecisions = (decisions: Decisions, updates: Iterable<readonly [string, ImageSetDecision]>): Decisions => {
    let next = decisions;
    for (const [setId, decision] of updates) {
@@ -47,7 +45,7 @@ export const getImageSetDecision = (imageSet: ImageSet, deletedPaths: Set<string
    return { deletedImages: deleted };
 };
 
-export interface ReviewSummary {
+interface ReviewSummary {
    movePreview: MovePreview[];
    duplicatePreview: MovePreview[];
    workflow: FileWorkflowState;
@@ -138,10 +136,6 @@ export const getSetRow = (imageSet: ImageSet, decision: ImageSetDecision | undef
       differenceText: getSimilarityLabel(imageSet.similarity),
    };
 };
-
-export const getImageSetState = (imageSet: ImageSet, decision: ImageSetDecision | undefined): ImageSetState => getSetRow(imageSet, decision).state;
-
-export const getImageSetLabel = (imageSet: ImageSet, decision: ImageSetDecision): string => getSetRow(imageSet, decision).label;
 
 export const getSetNumber = (setId: string): string => setId.replace(/^set_0*/u, "#");
 

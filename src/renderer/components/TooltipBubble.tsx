@@ -3,6 +3,7 @@ import { createPortal } from "react-dom";
 import type { CSSProperties } from "react";
 import type { TooltipState } from "../appTypes.js";
 import { clamp } from "../reviewModel.js";
+import { useTooltipState } from "../tooltip.js";
 import "./TooltipBubble.css";
 
 interface Placement {
@@ -18,7 +19,7 @@ interface Placement {
  * (whichever has room), clamped into the viewport, with an arrow that slides
  * along the bubble edge to keep pointing at the trigger.
  */
-export const TooltipBubble = ({ tooltip }: { tooltip: TooltipState }) => {
+const TooltipBubble = ({ tooltip }: { tooltip: TooltipState }) => {
    const bubbleRef = useRef<HTMLDivElement | null>(null);
    const [placement, setPlacement] = useState<Placement>({ left: 0, top: 0, arrowX: 0, placement: "above", ready: false });
 
@@ -54,4 +55,10 @@ export const TooltipBubble = ({ tooltip }: { tooltip: TooltipState }) => {
       </div>,
       document.body
    );
+};
+
+/** Renders the app's single tooltip, if one is showing. */
+export const TooltipLayer = () => {
+   const tooltip = useTooltipState();
+   return tooltip === null ? null : <TooltipBubble tooltip={tooltip} />;
 };

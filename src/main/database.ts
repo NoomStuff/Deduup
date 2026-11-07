@@ -1,20 +1,18 @@
 import { app } from "electron";
-import { randomUUID } from "node:crypto";
-import { stat } from "node:fs/promises";
+import { createHash, randomUUID } from "node:crypto";
+import { readdir, stat } from "node:fs/promises";
+import type { Stats } from "node:fs";
 import path from "node:path";
 import { DatabaseSync } from "node:sqlite";
+import type { StatementSync } from "node:sqlite";
 import type { Decisions, FileActionStatus, ImageItem, ImageSet, LoadDataResult, PlannedMove } from "../shared/types.js";
-import { createPreviewUrl, resetPreviewAccess } from "./previewProtocol.js";
-import { collectManagedFolderFiles, isMissingPathError } from "./fileOperations.js";
-import { getManagedFolderPaths } from "./managedFolder.js";
-import { HASH_VERSION } from "./scanner.js";
-import type { GroupedImages } from "./scanner.js";
-import type { ScannedImage } from "./scanner.js";
 import { reconcileDecisions } from "../shared/reconcileDecisions.js";
+import { collectManagedFolderFiles, isMissingPathError } from "./fileOperations.js";
+import { getManagedFolderPath, isPathInside } from "./paths.js";
+import { createPreviewUrl, clearThumbnailCache } from "./previewProtocol.js";
+import { HASH_VERSION } from "./scanner.js";
+import type { GroupedImages, ScannedImage } from "./scanner.js";
 
-interface SettingRow {
-   value: string;
-}
 interface GroupRow {
    id: string;
    similarity: number;
@@ -42,6 +40,7 @@ export interface MoveRecord extends PlannedMove {
 }
 
 let database: DatabaseSync | null = null;
+const statements = new Map<string, StatementSync>();
 let scanMembership: Map<string, Set<string>> | null = null;
 
 export const getDatabase = (): DatabaseSync => {
@@ -73,46 +72,45 @@ export const getDatabase = (): DatabaseSync => {
          width INTEGER NOT NULL, height INTEGER NOT NULL, size INTEGER NOT NULL, modified_at REAL NOT NULL, changed_at REAL NOT NULL DEFAULT 0
       );
    `);
-   for (const table of ["images", "image_inventory"]) {
-      const fields = database.prepare(`PRAGMA table_info(${table})`).all() as unknown as { name: string }[];
-      if (!fields.some((field) => field.name === "changed_at")) database.exec(`ALTER TABLE ${table} ADD COLUMN changed_at REAL NOT NULL DEFAULT 0`);
-   }
-   const columns = database.prepare("PRAGMA table_info(decisions)").all() as unknown as { name: string }[];
-   if (columns.some((column) => column.name === "seen")) {
-      // Old empty records only established visits, not explicit keep-all intent.
-      const rows = database.prepare("SELECT set_id AS setId, deleted_images_json AS deletedImagesJson FROM decisions").all() as unknown as DecisionRow[];
-      database.exec("BEGIN IMMEDIATE");
-      try {
-         database.exec(
-            "DROP TABLE decisions; CREATE TABLE decisions (set_id TEXT PRIMARY KEY REFERENCES duplicate_groups(id) ON DELETE CASCADE, deleted_images_json TEXT NOT NULL);"
-         );
-         const insert = database.prepare("INSERT INTO decisions VALUES (?, ?)");
-         for (const row of rows) {
-            const candidates = parseStringArray(row.deletedImagesJson);
-            if (candidates.length > 0) insert.run(row.setId, JSON.stringify(candidates));
-         }
-         database.exec("COMMIT");
-      } catch (error: unknown) {
-         database.exec("ROLLBACK");
-         throw error;
-      }
-   }
    return database;
 };
 
+/** Prepared once per connection; every query here is a fixed string. */
+const query = (sql: string): StatementSync => {
+   let statement = statements.get(sql);
+   if (statement === undefined) {
+      statement = getDatabase().prepare(sql);
+      statements.set(sql, statement);
+   }
+   return statement;
+};
+
+const transaction = (run: () => void): void => {
+   const db = getDatabase();
+   db.exec("BEGIN IMMEDIATE");
+   try {
+      run();
+      db.exec("COMMIT");
+   } catch (error: unknown) {
+      db.exec("ROLLBACK");
+      throw error;
+   }
+};
+
 export const closeDatabase = (): void => {
+   statements.clear();
    database?.close();
    database = null;
    scanMembership = null;
 };
 
 export const getSetting = (key: string): string | null => {
-   const row = getDatabase().prepare("SELECT value FROM settings WHERE key = ?").get(key) as SettingRow | undefined;
+   const row = query("SELECT value FROM settings WHERE key = ?").get(key) as { value: string } | undefined;
    return row?.value ?? null;
 };
 
 export const setSetting = (key: string, value: string): void => {
-   getDatabase().prepare("INSERT INTO settings (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value").run(key, value);
+   query("INSERT INTO settings (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value").run(key, value);
 };
 
 export const getScanId = (): string => {
@@ -127,24 +125,23 @@ export const assertScanId = (scanId: unknown): void => {
    if (typeof scanId !== "string" || scanId !== getScanId()) throw new Error("The scan changed. Reload the review before saving or moving images.");
 };
 
-export const saveScan = (
-   rootPath: string,
-   groups: GroupedImages[],
-   warnings: { count: number; paths: string[] } = { count: 0, paths: [] },
-   inventory: ScannedImage[] = groups.flatMap((group) => group.images)
-): void => {
-   const db = getDatabase();
+const setIdAt = (index: number): string => `set_${String(index + 1).padStart(3, "0")}`;
+
+export const saveScan = (rootPath: string, groups: GroupedImages[], warnings: { count: number; paths: string[] }, inventory: ScannedImage[]): void => {
    const sameRoot = getSetting("scan_root") === rootPath;
-   const previousRows = db
-      .prepare("SELECT set_id AS setId, original_path AS originalPath, hash, size, modified_at AS modifiedAt, changed_at AS changedAt FROM images")
-      .all() as unknown as Pick<ImageRow, "setId" | "originalPath" | "hash" | "size" | "modifiedAt" | "changedAt">[];
+   const previousRows = query(
+      "SELECT set_id AS setId, original_path AS originalPath, hash AS evidence, size, modified_at AS modifiedAt FROM images"
+   ).all() as unknown as (Pick<ImageRow, "setId" | "originalPath" | "size" | "modifiedAt"> & { evidence: string })[];
    const previousGroups = new Map<string, typeof previousRows>();
    for (const row of previousRows) {
       const images = previousGroups.get(row.setId);
       if (images === undefined) previousGroups.set(row.setId, [row]);
       else images.push(row);
    }
-   const nextGroups = groups.map((group, index) => ({ id: `set_${String(index + 1).padStart(3, "0")}`, images: group.images }));
+   const nextGroups = groups.map((group, index) => ({
+      id: setIdAt(index),
+      images: group.images.map((image) => ({ originalPath: image.originalPath, evidence: image.hash, size: image.size, modifiedAt: image.modifiedAt })),
+   }));
    const retained = sameRoot
       ? reconcileDecisions(
            [...previousGroups].map(([id, images]) => ({ id, images })),
@@ -155,90 +152,77 @@ export const saveScan = (
    const anchor = previousGroups.get(getSetting("current_set_id") ?? "")?.[0]?.originalPath;
    const currentSetId =
       sameRoot && anchor !== undefined ? nextGroups.find((group) => group.images.some((image) => image.originalPath === anchor))?.id : undefined;
-   const insertGroup = db.prepare("INSERT INTO duplicate_groups (id, similarity, sort_index, folder_path) VALUES (?, ?, ?, ?)");
-   const insertImage = db.prepare(
-      "INSERT INTO images (original_path, set_id, file_name, hash, width, height, size, modified_at, changed_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)"
-   );
 
-   db.exec("BEGIN IMMEDIATE");
-   try {
-      db.exec("DELETE FROM decisions; DELETE FROM images; DELETE FROM duplicate_groups;");
-      db.exec("DELETE FROM file_moves;");
-      db.exec("DELETE FROM image_inventory;");
+   transaction(() => {
+      getDatabase().exec("DELETE FROM decisions; DELETE FROM images; DELETE FROM duplicate_groups; DELETE FROM file_moves; DELETE FROM image_inventory;");
+      const insertGroup = query("INSERT INTO duplicate_groups (id, similarity, sort_index, folder_path) VALUES (?, ?, ?, ?)");
+      const insertImage = query(
+         "INSERT INTO images (original_path, set_id, file_name, hash, width, height, size, modified_at, changed_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)"
+      );
       groups.forEach((group, index) => {
-         const setId = `set_${String(index + 1).padStart(3, "0")}`;
+         const setId = setIdAt(index);
          insertGroup.run(setId, group.similarity, index, rootPath);
-         for (const image of group.images) {
+         for (const image of group.images)
             insertImage.run(image.originalPath, setId, image.file, image.hash, image.width, image.height, image.size, image.modifiedAt, image.changedAt);
-         }
       });
-      const insertInventory = db.prepare("INSERT INTO image_inventory VALUES (?, ?, ?, ?, ?, ?, ?, ?)");
+      const insertInventory = query("INSERT INTO image_inventory VALUES (?, ?, ?, ?, ?, ?, ?, ?)");
       for (const image of inventory)
          insertInventory.run(image.originalPath, image.file, image.hash, image.width, image.height, image.size, image.modifiedAt, image.changedAt);
-      const insertDecision = db.prepare("INSERT INTO decisions VALUES (?, ?)");
+      const insertDecision = query("INSERT INTO decisions VALUES (?, ?)");
       for (const [id, decision] of Object.entries(retained)) insertDecision.run(id, JSON.stringify(decision.deletedImages));
       setSetting("scan_root", rootPath);
       setSetting("scan_id", randomUUID());
-      setSetting("move_journal_version", "1");
       setSetting("last_file_action", "idle");
-      setSetting("current_set_id", currentSetId ?? (groups.length === 0 ? "" : "set_001"));
+      setSetting("current_set_id", currentSetId ?? (groups.length === 0 ? "" : setIdAt(0)));
       setSetting("hash_version", HASH_VERSION);
       setSetting("scan_warning_count", String(warnings.count));
       setSetting("scan_warning_paths", JSON.stringify(warnings.paths));
-      db.exec("COMMIT");
-      scanMembership = null;
-      if (!sameRoot) resetPreviewAccess();
-   } catch (error: unknown) {
-      db.exec("ROLLBACK");
-      throw error;
-   }
+   });
+   scanMembership = null;
+   if (!sameRoot) clearThumbnailCache();
 };
 
 export const loadImageInventory = (): ScannedImage[] =>
    getSetting("hash_version") !== HASH_VERSION
       ? []
-      : (getDatabase()
-           .prepare(
-              "SELECT original_path AS originalPath, file_name AS file, hash, width, height, size, modified_at AS modifiedAt, changed_at AS changedAt FROM image_inventory"
-           )
-           .all() as unknown as ScannedImage[]);
+      : (query(
+           "SELECT original_path AS originalPath, file_name AS file, hash, width, height, size, modified_at AS modifiedAt, changed_at AS changedAt FROM image_inventory"
+        ).all() as unknown as ScannedImage[]);
 
 export const loadMoveRecords = (): MoveRecord[] =>
-   getDatabase()
-      .prepare('SELECT original_path AS "from", destination_path AS "to", set_id AS setId, file_name AS file, checksum, status FROM file_moves')
-      .all() as unknown as MoveRecord[];
+   query(
+      'SELECT original_path AS "from", destination_path AS "to", set_id AS setId, file_name AS file, checksum, status FROM file_moves'
+   ).all() as unknown as MoveRecord[];
 
 export const recordPendingMove = (move: PlannedMove, checksum: string): void => {
-   getDatabase()
-      .prepare(
-         "INSERT INTO file_moves (original_path, set_id, file_name, destination_path, checksum, status) VALUES (?, ?, ?, ?, ?, 'pending') " +
-            "ON CONFLICT(original_path) DO UPDATE SET set_id = excluded.set_id, file_name = excluded.file_name, destination_path = excluded.destination_path, checksum = excluded.checksum, status = 'pending'"
-      )
-      .run(move.from, move.setId, move.file, move.to, checksum);
+   query(
+      "INSERT INTO file_moves (original_path, set_id, file_name, destination_path, checksum, status) VALUES (?, ?, ?, ?, ?, 'pending') " +
+         "ON CONFLICT(original_path) DO UPDATE SET set_id = excluded.set_id, file_name = excluded.file_name, destination_path = excluded.destination_path, checksum = excluded.checksum, status = 'pending'"
+   ).run(move.from, move.setId, move.file, move.to, checksum);
 };
 
 export const updateMoveStatus = (originalPath: string, status: MoveRecord["status"]): void => {
-   getDatabase().prepare("UPDATE file_moves SET status = ? WHERE original_path = ?").run(status, originalPath);
+   query("UPDATE file_moves SET status = ? WHERE original_path = ?").run(status, originalPath);
 };
 
-export const loadMovePlan = (decisions: Decisions | null): PlannedMove[] => {
+/** Where every Discarded file in the given choices goes inside the managed folder. */
+export const loadMovePlan = (decisions: Decisions): PlannedMove[] => {
    const scanRoot = getSetting("scan_root");
-   const duplicatePath = getDuplicateFolderPath();
-   if (scanRoot === null || duplicatePath === null) return [];
-   const rows = getDatabase()
-      .prepare("SELECT set_id AS setId, file_name AS file, original_path AS originalPath, size, modified_at AS modifiedAt, changed_at AS changedAt FROM images")
-      .all() as unknown as Pick<ImageRow, "setId" | "file" | "originalPath" | "size" | "modifiedAt" | "changedAt">[];
-   const selectedBySet = decisions === null ? null : new Map(Object.entries(decisions).map(([setId, decision]) => [setId, new Set(decision.deletedImages)]));
+   if (scanRoot === null) return [];
+   const duplicatePath = getManagedFolderPath(scanRoot);
+   const rows = query(
+      "SELECT set_id AS setId, file_name AS file, original_path AS originalPath, size, modified_at AS modifiedAt FROM images"
+   ).all() as unknown as Pick<ImageRow, "setId" | "file" | "originalPath" | "size" | "modifiedAt">[];
+   const selectedBySet = new Map(Object.entries(decisions).map(([setId, decision]) => [setId, new Set(decision.deletedImages)]));
    return rows.flatMap((row) => {
-      if (selectedBySet !== null && selectedBySet.get(row.setId)?.has(row.originalPath) !== true) return [];
-      const relative = path.relative(scanRoot, row.originalPath);
-      if (relative === ".." || relative.startsWith(`..${path.sep}`) || path.isAbsolute(relative)) throw new Error("A saved image is outside the scan folder.");
+      if (selectedBySet.get(row.setId)?.has(row.originalPath) !== true) return [];
+      if (!isPathInside(scanRoot, row.originalPath)) throw new Error("A saved image is outside the scan folder.");
       return [
          {
             setId: row.setId,
             file: row.file,
             from: row.originalPath,
-            to: path.join(duplicatePath, row.setId, relative),
+            to: path.join(duplicatePath, row.setId, path.relative(scanRoot, row.originalPath)),
             expectedSource: { size: row.size, modifiedAt: row.modifiedAt },
          },
       ];
@@ -255,19 +239,20 @@ const parseStringArray = (value: string): string[] => {
 };
 
 export const loadDecisions = (): Decisions => {
-   const rows = getDatabase().prepare("SELECT set_id AS setId, deleted_images_json AS deletedImagesJson FROM decisions").all() as unknown as DecisionRow[];
+   const rows = query("SELECT set_id AS setId, deleted_images_json AS deletedImagesJson FROM decisions").all() as unknown as DecisionRow[];
    return Object.fromEntries(rows.map((row) => [row.setId, { deletedImages: parseStringArray(row.deletedImagesJson) }]));
 };
 
 export const saveDecisions = (decisions: Decisions): void => {
-   const db = getDatabase();
    if (scanMembership === null) {
-      const imageRows = db.prepare("SELECT set_id, original_path FROM images").all() as unknown as { set_id: string; original_path: string }[];
       scanMembership = new Map();
-      for (const row of imageRows) {
-         const paths = scanMembership.get(row.set_id);
-         if (paths === undefined) scanMembership.set(row.set_id, new Set([row.original_path]));
-         else paths.add(row.original_path);
+      for (const row of query("SELECT set_id AS setId, original_path AS originalPath FROM images").all() as unknown as Pick<
+         ImageRow,
+         "setId" | "originalPath"
+      >[]) {
+         const paths = scanMembership.get(row.setId);
+         if (paths === undefined) scanMembership.set(row.setId, new Set([row.originalPath]));
+         else paths.add(row.originalPath);
       }
    }
    for (const [setId, decision] of Object.entries(decisions)) {
@@ -275,35 +260,24 @@ export const saveDecisions = (decisions: Decisions): void => {
       if (paths === undefined || decision.deletedImages.some((candidate) => !paths.has(candidate)))
          throw new Error("The review contains unknown sets or images.");
    }
-   const existingRows = db.prepare("SELECT set_id, deleted_images_json FROM decisions").all() as unknown as {
-      set_id: string;
-      deleted_images_json: string;
-   }[];
-   const existing = new Map(existingRows.map((row) => [row.set_id, row]));
-   const upsert = db.prepare(
-      "INSERT INTO decisions (set_id, deleted_images_json) VALUES (?, ?) " +
-         "ON CONFLICT(set_id) DO UPDATE SET deleted_images_json = excluded.deleted_images_json"
+   const existing = new Map(
+      (query("SELECT set_id AS setId, deleted_images_json AS deletedImagesJson FROM decisions").all() as unknown as DecisionRow[]).map((row) => [
+         row.setId,
+         row.deletedImagesJson,
+      ])
    );
-
-   db.exec("BEGIN IMMEDIATE");
-   try {
-      const seenIds = new Set<string>();
+   transaction(() => {
+      const upsert = query(
+         "INSERT INTO decisions (set_id, deleted_images_json) VALUES (?, ?) ON CONFLICT(set_id) DO UPDATE SET deleted_images_json = excluded.deleted_images_json"
+      );
       for (const [setId, decision] of Object.entries(decisions)) {
-         seenIds.add(setId);
          const serialized = JSON.stringify(decision.deletedImages);
-         const row = existing.get(setId);
-         if (row?.deleted_images_json === serialized) continue;
-         upsert.run(setId, serialized);
+         if (existing.get(setId) !== serialized) upsert.run(setId, serialized);
+         existing.delete(setId);
       }
-      const remove = db.prepare("DELETE FROM decisions WHERE set_id = ?");
-      for (const setId of existing.keys()) {
-         if (!seenIds.has(setId)) remove.run(setId);
-      }
-      db.exec("COMMIT");
-   } catch (error: unknown) {
-      db.exec("ROLLBACK");
-      throw error;
-   }
+      const remove = query("DELETE FROM decisions WHERE set_id = ?");
+      for (const setId of existing.keys()) remove.run(setId);
+   });
 };
 
 export const getLastFileAction = (): FileActionStatus => {
@@ -313,12 +287,11 @@ export const getLastFileAction = (): FileActionStatus => {
 
 export const getDuplicateFolderPath = (): string | null => {
    const scanRoot = getSetting("scan_root");
-   return scanRoot === null ? null : getManagedFolderPaths(scanRoot).managedPath;
+   return scanRoot === null ? null : getManagedFolderPath(scanRoot);
 };
 
 export const saveCurrentSetId = (setId: string): void => {
-   const row = getDatabase().prepare("SELECT 1 AS value FROM duplicate_groups WHERE id = ?").get(setId) as SettingRow | undefined;
-   if (row === undefined) throw new Error(`Unknown set: ${setId}`);
+   if (query("SELECT 1 FROM duplicate_groups WHERE id = ?").get(setId) === undefined) throw new Error(`Unknown set: ${setId}`);
    setSetting("current_set_id", setId);
 };
 
@@ -330,96 +303,74 @@ const statFile = async (filePath: string) =>
          throw error;
       });
 
-const findMovedFile = async (row: ImageRow, scanRoot: string | null) => {
-   if (scanRoot === null) return null;
-   const relativePath = path.relative(scanRoot, row.originalPath);
-   const safeRelativePath = relativePath === ".." || relativePath.startsWith(`..${path.sep}`) || path.isAbsolute(relativePath) ? row.file : relativePath;
-   const movedPath = path.join(getManagedFolderPaths(scanRoot).managedPath, row.setId, safeRelativePath);
-   const metadata = await statFile(movedPath);
-   return metadata === null ? null : { path: movedPath, metadata };
-};
-
-const buildImageItem = async (
-   row: ImageRow,
-   decisions: Decisions,
-   scanRoot: string | null,
-   lastFileAction: FileActionStatus,
-   moveStatus: MoveRecord["status"] | undefined,
-   legacyJournal: boolean
-): Promise<ImageItem> => {
-   const sourceStat = await statFile(row.originalPath);
-   const exists = sourceStat !== null;
-   // Current profiles journal every move. Normal library loads only need to
-   // stat source files; old profiles still discover their recovery locations.
-   const movedFile = legacyJournal || moveStatus === "moved" || moveStatus === "pending" ? await findMovedFile(row, scanRoot) : null;
-   const wasRecycledByApp =
-      movedFile === null &&
-      (moveStatus === "recycled" ||
-         (legacyJournal && lastFileAction === "recycled" && decisions[row.setId]?.deletedImages.includes(row.originalPath) === true));
-   const previewPath = movedFile?.path ?? row.originalPath;
-   const previewStat = movedFile?.metadata ?? sourceStat;
-   const previewRevision = previewStat === null ? "missing" : `${previewStat.size}-${previewStat.mtimeMs}-${previewStat.ctimeMs}`;
+const buildImageItem = (row: ImageRow, present: ReadonlySet<string>, move: MoveRecord | undefined, movedStat: Stats | null): ImageItem => {
+   // Only a journalled move can have put the image in the managed folder.
+   const movedPath = movedStat === null ? null : (move?.to ?? null);
+   const previewPath = movedPath ?? row.originalPath;
+   // A source's revision is its scan evidence: a change on disk triggers a
+   // rescan, which writes new values and so a new preview URL.
+   const revision = movedStat !== null ? `${movedStat.size}-${movedStat.mtimeMs}-${movedStat.ctimeMs}` : `${row.size}-${row.modifiedAt}-${row.changedAt}`;
    return {
       file: row.file,
       originalPath: row.originalPath,
       currentPath: previewPath,
       folderPath: path.dirname(previewPath),
-      hash: row.hash,
+      evidence: createHash("sha1").update(row.hash).digest("base64url").slice(0, 16),
       width: row.width,
       height: row.height,
       size: row.size,
       modifiedAt: row.modifiedAt,
-      changedAt: row.changedAt,
-      previewUrl: createPreviewUrl(previewPath, "thumbnail", previewRevision),
-      fullPreviewUrl: createPreviewUrl(previewPath, "full", previewRevision),
-      exists,
-      sourceStatus: movedFile !== null ? "movedByApp" : exists ? "available" : wasRecycledByApp ? "recycledByApp" : "missing",
+      previewUrl: createPreviewUrl(previewPath, "thumbnail", revision),
+      sourceStatus: movedPath !== null ? "movedByApp" : present.has(row.originalPath) ? "available" : move?.status === "recycled" ? "recycledByApp" : "missing",
    };
+};
+
+/** Which regular files exist in these folders: one readdir per folder instead of one stat per image. */
+const listPresentFiles = async (folders: string[]): Promise<Set<string>> => {
+   const present = new Set<string>();
+   await mapWithConcurrency(folders, 16, async (folder) => {
+      const entries = await readdir(folder, { withFileTypes: true }).catch((error: unknown) => {
+         if (isMissingPathError(error)) return [];
+         throw error;
+      });
+      for (const entry of entries) if (entry.isFile()) present.add(path.join(folder, entry.name));
+   });
+   return present;
 };
 
 const mapWithConcurrency = async <T, R>(items: T[], limit: number, worker: (item: T) => Promise<R>): Promise<R[]> => {
    const results = new Array<R>(items.length);
    let nextIndex = 0;
-   const runners = Array.from({ length: Math.min(limit, items.length) }, async () => {
+   const runner = async (): Promise<void> => {
       while (nextIndex < items.length) {
          const index = nextIndex;
          nextIndex += 1;
-         const item = items[index];
-         if (item !== undefined) results[index] = await worker(item);
+         results[index] = await worker(items[index] as T);
       }
-   });
-   await Promise.all(runners);
+   };
+   await Promise.all(Array.from({ length: Math.min(limit, items.length) }, runner));
    return results;
 };
 
-export const loadGroups = async (
-   decisions = loadDecisions(),
-   scanRoot = getSetting("scan_root"),
-   lastFileAction = getLastFileAction()
-): Promise<ImageSet[]> => {
-   const groupRows = getDatabase()
-      .prepare("SELECT id, similarity, folder_path AS folderPath FROM duplicate_groups ORDER BY sort_index")
-      .all() as unknown as GroupRow[];
-   const imageRows = getDatabase()
-      .prepare(
-         "SELECT set_id AS setId, file_name AS file, original_path AS originalPath, hash, width, height, size, modified_at AS modifiedAt, changed_at AS changedAt FROM images ORDER BY set_id, original_path"
-      )
-      .all() as unknown as ImageRow[];
-
-   const moveStatuses = new Map(loadMoveRecords().map((record) => [record.from, record.status]));
-   const legacyJournal = getSetting("move_journal_version") === null;
-   const items = await mapWithConcurrency(imageRows, 64, (row) =>
-      buildImageItem(row, decisions, scanRoot, lastFileAction, moveStatuses.get(row.originalPath), legacyJournal)
-   );
+const loadGroups = async (): Promise<ImageSet[]> => {
+   const groupRows = query("SELECT id, similarity, folder_path AS folderPath FROM duplicate_groups ORDER BY sort_index").all() as unknown as GroupRow[];
+   const imageRows = query(
+      "SELECT set_id AS setId, file_name AS file, original_path AS originalPath, hash, width, height, size, modified_at AS modifiedAt, changed_at AS changedAt FROM images ORDER BY set_id, original_path"
+   ).all() as unknown as ImageRow[];
+   const moves = new Map(loadMoveRecords().map((record) => [record.from, record]));
+   const activeMoves = [...moves.values()].filter((move) => move.status === "moved" || move.status === "pending");
+   const [present, movedStats] = await Promise.all([
+      listPresentFiles([...new Set(imageRows.map((row) => path.dirname(row.originalPath)))]),
+      mapWithConcurrency(activeMoves, 16, async (move) => [move.from, await statFile(move.to)] as const),
+   ]);
+   const movedStatByPath = new Map(movedStats);
    const imagesBySet = new Map<string, ImageItem[]>();
-   imageRows.forEach((row, index) => {
-      const item = items[index];
-      if (item === undefined) return;
+   for (const row of imageRows) {
+      const item = buildImageItem(row, present, moves.get(row.originalPath), movedStatByPath.get(row.originalPath) ?? null);
       const images = imagesBySet.get(row.setId);
       if (images === undefined) imagesBySet.set(row.setId, [item]);
       else images.push(item);
-   });
-
+   }
    return groupRows.map((row) => ({ ...row, images: imagesBySet.get(row.id) ?? [] }));
 };
 
@@ -431,21 +382,17 @@ export const getDuplicateFolderFiles = async (): Promise<string[]> => {
 export const getDuplicateFolderStatus = async (): Promise<boolean> => (await getDuplicateFolderFiles()).length > 0;
 
 export const getLoadResult = async (): Promise<LoadDataResult> => {
-   const decisions = loadDecisions();
-   const scanRoot = getSetting("scan_root");
-   const lastFileAction = getLastFileAction();
-   const groups = await loadGroups(decisions, scanRoot, lastFileAction);
+   const [groups, duplicateFolderHasContent] = await Promise.all([loadGroups(), getDuplicateFolderStatus()]);
    const savedSetId = getSetting("current_set_id");
    return {
       scanId: getScanId(),
       groups,
-      decisions,
-      scanRoot,
+      decisions: loadDecisions(),
+      scanRoot: getSetting("scan_root"),
       duplicateFolderPath: getDuplicateFolderPath(),
       currentSetId: savedSetId !== null && groups.some((group) => group.id === savedSetId) ? savedSetId : (groups[0]?.id ?? null),
-      duplicateFolderHasContent: await getDuplicateFolderStatus(),
-      lastFileAction,
+      duplicateFolderHasContent,
+      lastFileAction: getLastFileAction(),
       scanWarningCount: Number(getSetting("scan_warning_count") ?? 0),
-      scanWarningPaths: parseStringArray(getSetting("scan_warning_paths") ?? "[]"),
    };
 };

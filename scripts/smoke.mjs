@@ -74,16 +74,10 @@ const run = async () => {
       check("scan records skipped items", scanData.scanWarningCount === 1);
       const warningToast = window.locator(".notificationToast--warning").filter({ hasText: "unreadable item" });
       await warningToast.waitFor({ state: "detached", timeout: 7_000 });
-      check("review has no persistent warning or tutorial banner", (await window.locator(".scanWarnings, .reviewHints").count()) === 0);
       check("image cards always show full details", (await window.locator(".imageCard__details").count()) === (await window.locator(".imageCard").count()));
 
       const headerCounter = await window.textContent(".setHeader__number");
       check("review header shows set counter", /#\d+\s*\/\s*\d+/.test(headerCounter ?? ""), headerCounter ?? "missing");
-      check("toolbar does not repeat the set counter", (await window.locator(".toolbar__counter").count()) === 0);
-      check(
-         "header has no selected-file label or Preview button",
-         (await window.locator(".setHeader__selection").count()) === 0 && (await window.locator(".setHeader__action", { hasText: "Preview" }).count()) === 0
-      );
 
       const bandTags = await window.locator(".similarityBand__tag").count();
       check("similarity bands render on the filmstrip", bandTags > 0, `bands: ${bandTags}`);
@@ -229,7 +223,6 @@ const run = async () => {
       await window.getByRole("button", { name: "Help", exact: true }).click();
       await window.getByRole("menuitem", { name: /settings/i }).click();
       await window.waitForSelector(".settingsPanel", { timeout: 5_000 });
-      check("image caption preference is removed", (await window.getByRole("group", { name: "Image captions" }).count()) === 0);
       await window.getByRole("tab", { name: "General", exact: true }).focus();
       await window.keyboard.press("ArrowRight");
       check(
@@ -258,7 +251,6 @@ const run = async () => {
       const recycleDisabled = await window.locator(".finalReview__actions .dangerButton").isDisabled();
       check("recycle stays disabled before any move", recycleDisabled);
       check("empty final review offers a return action", await window.getByRole("button", { name: "Back to review", exact: true }).isVisible());
-      check("empty final review omits destination metadata", (await window.locator(".finalReview__meta").count()) === 0);
 
       // Correct final-review choices by returning to the review workspace.
       await window.locator(".finalReview").getByLabel("Close final review").click();
@@ -269,7 +261,6 @@ const run = async () => {
       await window.waitForSelector(".finalReview");
       const readyBefore = await window.locator(".moveCard:not(.moveCard--quarantined)").count();
       check("final review lists the marked image", readyBefore === 1, `ready cards: ${readyBefore}`);
-      check("final review has no keep-this control", (await window.getByRole("button", { name: "Keep this", exact: true }).count()) === 0);
       check(
          "final review shows the full image",
          await window

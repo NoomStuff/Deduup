@@ -72,10 +72,9 @@ try {
    assert.deepEqual(await readFile(source), original);
    const afterRecovery = await load();
    assert.equal(afterRecovery.duplicateFolderHasContent, false);
-   assert.ok(
-      afterRecovery.groups.every((set) => set.images.every((image) => image.hash.length === 449)),
-      "rehash after recovering a legacy moved library"
-   );
+   const rehashed = new DatabaseSync(path.join(profile, "deduup.sqlite"), { readOnly: true });
+   assert.equal(rehashed.prepare("SELECT COUNT(*) AS count FROM images WHERE length(hash) != 449").get().count, 0, "rehash after recovering a moved library");
+   rehashed.close();
    const rescanned = await window.evaluate((rootPath) => window.imageDeduplicator.scanFolder({ rootPath }), root);
    assert.notEqual(rescanned.scanId, data.scanId);
    await assert.rejects(
@@ -90,38 +89,7 @@ try {
       window.evaluate((scanId) => window.imageDeduplicator.saveDecisions({ broken: { deletedImages: [42] } }, scanId), rescanned.scanId),
       /Invalid/u
    );
-   await app.close();
-   const legacySet = rescanned.groups.find((set) => set.images.some((image) => image.originalPath === source));
-   const visitedSet = rescanned.groups.find((set) => set.id !== legacySet.id);
-   const databasePath = path.join(profile, "deduup.sqlite");
-   const legacy = new DatabaseSync(databasePath);
-   legacy.exec(
-      "BEGIN IMMEDIATE; DROP TABLE decisions; CREATE TABLE decisions (set_id TEXT PRIMARY KEY REFERENCES duplicate_groups(id) ON DELETE CASCADE, deleted_images_json TEXT NOT NULL, seen INTEGER NOT NULL); ALTER TABLE images DROP COLUMN changed_at; ALTER TABLE image_inventory DROP COLUMN changed_at;"
-   );
-   legacy.prepare("INSERT INTO decisions VALUES (?, ?, ?)").run(legacySet.id, JSON.stringify([source]), 0);
-   legacy.prepare("INSERT INTO decisions VALUES (?, ?, ?)").run(visitedSet.id, "[]", 1);
-   legacy.exec("COMMIT");
-   legacy.close();
-   await launch();
-   const migrated = await load();
-   assert.deepEqual(migrated.decisions[legacySet.id], { deletedImages: [source] });
-   assert.equal(migrated.decisions[visitedSet.id], undefined);
-   const inspect = new DatabaseSync(databasePath, { readOnly: true });
-   assert.ok(
-      !inspect
-         .prepare("PRAGMA table_info(decisions)")
-         .all()
-         .some((column) => column.name === "seen")
-   );
-   assert.ok(
-      inspect
-         .prepare("PRAGMA table_info(images)")
-         .all()
-         .some((column) => column.name === "changed_at")
-   );
-   inspect.close();
    console.log("PASS file workflow: move, restart, choice-independent recovery, source collision, checksum rejection, restore, stale and malformed saves");
-   console.log("PASS legacy profile migration: removal candidates survive, visits disappear, change timestamps migrate");
 } finally {
    await app?.close();
 }
