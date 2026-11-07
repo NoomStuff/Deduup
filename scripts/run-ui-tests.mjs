@@ -1,5 +1,10 @@
 import { spawn } from "node:child_process";
+import { createRequire } from "node:module";
 import process from "node:process";
+
+// Electron downloads its binary on first require. Resolve it once here, or a
+// fresh machine (CI) has all four suites racing to install the same file.
+createRequire(import.meta.url)("electron");
 
 // Each suite owns a different fixture folder and Electron profile. Run them
 // together, but print each suite's output as a block so failures stay readable.
