@@ -1,8 +1,8 @@
-import { useMemo } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { CircleCheck, FolderOpen, ShieldCheck, Trash2, TriangleAlert, Undo2, X } from "lucide-react";
 import type { FileActionStatus, ImageSet, MoveResult } from "../../shared/types.js";
 import type { FileWorkflowState, MovePreview } from "../appTypes.js";
-import type { TooltipProps } from "../hooks/useTooltip.js";
+import { tooltipProps } from "../tooltip.js";
 import { describeFileResult, formatBytes, getFinalReviewSets, getSetNumber, type FinalReviewSet } from "../reviewModel.js";
 import { OverlayPanel } from "./OverlayPanel.js";
 import "./FinalReview.css";
@@ -27,8 +27,32 @@ interface FinalReviewProps {
    onClose: () => void;
    /** Back to the review on this set, with the image selected when given. */
    onOpenSet: (setId: string, imagePath?: string) => void;
-   getTooltipProps: (title: string, body: string, hotkey?: string) => TooltipProps;
 }
+
+/**
+ * Renders a long list a page at a time: the first page paints with the panel,
+ * and the next one mounts as the reader scrolls toward the end. A library
+ * with thousands of discards opens as fast as one with ten.
+ */
+const useProgressiveCount = (total: number, pageSize: number) => {
+   const [count, setCount] = useState(pageSize);
+   const sentinelRef = useRef<HTMLDivElement | null>(null);
+   const visible = Math.min(count, total);
+   useEffect(() => {
+      const sentinel = sentinelRef.current;
+      if (sentinel === null || visible >= total) return undefined;
+      const observer = new IntersectionObserver(
+         (entries) => {
+            if (entries.some((entry) => entry.isIntersecting)) setCount((current) => current + pageSize);
+         },
+         { root: sentinel.closest(".finalReview__scroll"), rootMargin: "1200px 0px" }
+      );
+      observer.observe(sentinel);
+      return () => observer.disconnect();
+   }, [pageSize, total, visible]);
+   const sentinel = visible < total ? <div aria-hidden="true" className="finalReview__sentinel" ref={sentinelRef} /> : null;
+   return { visible, sentinel };
+};
 
 const MoveCard = ({ row, quarantined, detail }: { row: MovePreview; quarantined: boolean; detail?: string }) => (
    <figure className={`moveCard${quarantined ? " moveCard--quarantined" : ""}`}>
@@ -142,11 +166,12 @@ export const FinalReview = ({
    onClose,
    onOpenSet,
    groups,
-   getTooltipProps,
 }: FinalReviewProps) => {
    const moveSets = useMemo(() => getFinalReviewSets(groups, movePreview), [groups, movePreview]);
    const keepsNothingCount = moveSets.filter((entry) => entry.kept.length === 0).length;
    const isEmpty = movePreview.length === 0 && duplicatePreview.length === 0;
+   const moveSetPage = useProgressiveCount(moveSets.length, 30);
+   const duplicatePage = useProgressiveCount(duplicatePreview.length, 120);
    const totalVisibleBytes = [...movePreview, ...duplicatePreview].reduce((total, file) => total + file.size, 0);
    const heading =
       workflow.readyToMoveCount > 0
@@ -204,10 +229,11 @@ export const FinalReview = ({
                            <small>click an image to revisit its set</small>
                         </h3>
                         <div className="moveSets">
-                           {moveSets.map((entry) => (
+                           {moveSets.slice(0, moveSetPage.visible).map((entry) => (
                               <MoveSet entry={entry} key={entry.setId} onOpenSet={onOpenSet} />
                            ))}
                         </div>
+                        {moveSetPage.sentinel}
                      </section>
                   )}
                   {duplicatePreview.length > 0 && (
@@ -218,10 +244,11 @@ export const FinalReview = ({
                         </h3>
                         <p className="moveSection__hint">Restore or recycle these images before new library changes appear.</p>
                         <div className="moveGrid">
-                           {duplicatePreview.map((row) => (
+                           {duplicatePreview.slice(0, duplicatePage.visible).map((row) => (
                               <MoveCard key={row.originalPath} quarantined row={row} />
                            ))}
                         </div>
+                        {duplicatePage.sentinel}
                      </section>
                   )}
                </>
@@ -292,7 +319,7 @@ export const FinalReview = ({
                   disabled={workflow.movedCount === 0 || isApplying || isRestoring || isTrashing}
                   onClick={onRestore}
                   type="button"
-                  {...getTooltipProps("Undo move", "Move everything from the duplicate folder back to where it came from.")}
+                  {...tooltipProps("Undo move", "Move everything from the duplicate folder back to where it came from.")}
                >
                   <Undo2 aria-hidden="true" />
                   {isRestoring ? "Undoing…" : "Undo move"}
@@ -302,7 +329,7 @@ export const FinalReview = ({
                   disabled={isApplying || isRestoring || isTrashing || workflow.readyToMoveCount === 0}
                   onClick={onApply}
                   type="button"
-                  {...getTooltipProps("Move discarded", "Move every discarded image that is still at its source into the duplicate folder.")}
+                  {...tooltipProps("Move discarded", "Move every discarded image that is still at its source into the duplicate folder.")}
                >
                   <FolderOpen aria-hidden="true" />
                   {isApplying ? "Moving…" : workflow.readyToMoveCount > 0 ? `Move ${workflow.readyToMoveCount}` : "Move"}
@@ -312,7 +339,7 @@ export const FinalReview = ({
                   disabled={!duplicateFolderHasContent || workflow.movedCount === 0 || isApplying || isTrashing || isRestoring}
                   onClick={onTrash}
                   type="button"
-                  {...getTooltipProps("Recycle duplicates", "Send the duplicate folder and everything in it to the Recycle Bin.")}
+                  {...tooltipProps("Recycle duplicates", "Send the duplicate folder and everything in it to the Recycle Bin.")}
                >
                   <Trash2 aria-hidden="true" />
                   {isTrashing ? "Recycling…" : "Recycle"}

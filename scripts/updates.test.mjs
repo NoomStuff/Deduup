@@ -4,7 +4,7 @@ import { fetchAvailableUpdate, isNewerVersion } from "../src/main/updateCheck.ts
 
 const releaseResponse = (release) => new Response(JSON.stringify(release), { status: 200 });
 
-test("version comparison orders semver levels and prereleases", () => {
+test("version comparison follows semver precedence", () => {
    assert.equal(isNewerVersion("0.1.1", "0.1.0"), true);
    assert.equal(isNewerVersion("0.2.0", "0.1.9"), true);
    assert.equal(isNewerVersion("1.0.0", "0.9.9"), true);
@@ -12,21 +12,17 @@ test("version comparison orders semver levels and prereleases", () => {
    assert.equal(isNewerVersion("0.1.0", "0.1.1"), false);
    assert.equal(isNewerVersion("0.1", "0.1.0"), false);
    assert.equal(isNewerVersion("", "0.1.0"), false);
-});
 
-test("version comparison handles prerelease ordering per semver", () => {
+   // Prereleases order per semver; numeric identifiers never compare as strings.
    assert.equal(isNewerVersion("0.2.0", "0.2.0-rc.1"), true);
    assert.equal(isNewerVersion("0.2.0-rc.1", "0.2.0"), false);
    assert.equal(isNewerVersion("0.2.0-rc.2", "0.2.0-rc.1"), true);
    assert.equal(isNewerVersion("0.2.0-rc.10", "0.2.0-rc.9"), true);
    assert.equal(isNewerVersion("0.2.0-beta", "0.2.0-alpha"), true);
    assert.equal(isNewerVersion("0.2.0-rc.1", "0.2.0-beta"), true);
-   // Numeric identifiers never compare as strings: 9 < 10.
    assert.equal(isNewerVersion("0.2.0-2", "0.2.0-10"), false);
    assert.equal(isNewerVersion("0.2.0-rc.1", "0.2.0-1"), true);
-});
-
-test("version comparison ignores a v prefix and build metadata", () => {
+   // A v prefix and build metadata do not count.
    assert.equal(isNewerVersion("v0.2.0", "0.1.0"), true);
    assert.equal(isNewerVersion("0.2.0", "v0.2.0"), false);
    assert.equal(isNewerVersion("0.2.0+build.5", "0.2.0"), false);

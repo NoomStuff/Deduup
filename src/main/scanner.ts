@@ -3,7 +3,7 @@ import path from "node:path";
 import sharp from "sharp";
 import type { ScanProgress } from "../shared/types.js";
 import { matchDistanceLimit } from "../shared/similarity.js";
-import { getManagedFolderPaths } from "./managedFolder.js";
+import { getManagedFolderPath } from "./paths.js";
 
 export interface ScannedImage {
    file: string;
@@ -56,7 +56,17 @@ const similarityCap = hashDistanceThreshold;
 
 const hashPartitionCount = 4;
 const hashPartitionBits = 16;
-type SimilarityIndex = Map<number, number[]>[];
+/**
+ * One bucket chain per partition value, as flat typed arrays: heads[value] is
+ * the newest image index + 1 in that bucket (0 means empty) and next[image]
+ * links to the one before it. Two typed arrays per partition replace one
+ * JS array per bucket, so a large scan allocates almost nothing here.
+ */
+interface PartitionIndex {
+   heads: Int32Array;
+   next: Int32Array;
+}
+type SimilarityIndex = PartitionIndex[];
 
 const createPartitionMasks = (): number[] => {
    const masks = [0];
@@ -77,10 +87,10 @@ const partitionMasks = createPartitionMasks();
 export const collectImagePaths = async (rootPath: string, reportWarning?: ScanWarningReporter, signal?: AbortSignal): Promise<string[]> => {
    const collected: string[] = [];
    const normalizedRoot = path.resolve(rootPath);
-   const duplicateOutputPath = getManagedFolderPaths(normalizedRoot).managedPath;
+   const duplicateOutputPath = getManagedFolderPath(normalizedRoot);
 
    const visit = async (folderPath: string, isRoot = false): Promise<void> => {
-      if (signal?.aborted) throw new ScanCancelledError();
+      throwIfScanCancelled(signal);
       const normalizedFolderPath = path.resolve(folderPath);
       if (!isRoot && normalizedFolderPath === duplicateOutputPath) {
          return;
@@ -113,7 +123,9 @@ export const collectImagePaths = async (rootPath: string, reportWarning?: ScanWa
 // bits participate in the four 16-bit candidate indexes.
 const hashPattern = /^[0-9a-f]{16}:[0-9a-f]{432}$/u;
 interface ImageHash {
-   spatial: bigint;
+   /** The 64 spatial bits as two unsigned 32-bit halves; plain numbers keep distance checks allocation-free. */
+   high: number;
+   low: number;
    colors: Buffer;
    /** 1 landscape, -1 portrait, 0 close to square or unknown. */
    orientation: -1 | 0 | 1;
@@ -135,7 +147,12 @@ const getOrientation = (width: number, height: number): ImageHash["orientation"]
 
 const parseHash = (hash: string, width = 0, height = 0): ImageHash => {
    if (!hashPattern.test(hash)) throw new Error("Unsupported image hash. Rescan the library.");
-   return { spatial: BigInt(`0x${hash.slice(0, 16)}`), colors: Buffer.from(hash.slice(17), "hex"), orientation: getOrientation(width, height) };
+   return {
+      high: Number.parseInt(hash.slice(0, 8), 16),
+      low: Number.parseInt(hash.slice(8, 16), 16),
+      colors: Buffer.from(hash.slice(17), "hex"),
+      orientation: getOrientation(width, height),
+   };
 };
 
 const parseImageHash = (image: ScannedImage): ImageHash => parseHash(image.hash, image.width, image.height);
@@ -155,40 +172,44 @@ const createDifferenceHash = (pixels: Buffer): string => {
    return `${hash.toString(16).padStart(16, "0")}:${pixels.toString("hex")}`;
 };
 
+/** Hashes one file. Throws when it can't be decoded or changes while being read. */
+const hashImageFile = async (filePath: string): Promise<ScannedImage> => {
+   const before = await stat(filePath);
+   if (!before.isFile()) throw new Error("The image is not a regular file");
+   const source = sharp(filePath, { animated: false, failOn: "none" }).rotate();
+   const metadata = await source.metadata();
+   const pixels = await source.clone().resize(9, 8, { fit: "fill" }).toColourspace("srgb").removeAlpha().raw().toBuffer();
+   const after = await stat(filePath);
+   if (
+      before.dev !== after.dev ||
+      before.ino !== after.ino ||
+      before.size !== after.size ||
+      before.mtimeMs !== after.mtimeMs ||
+      before.ctimeMs !== after.ctimeMs
+   )
+      throw new Error("The image changed while scanning");
+   return {
+      file: path.basename(filePath),
+      originalPath: path.normalize(filePath),
+      hash: createDifferenceHash(pixels),
+      width: metadata.autoOrient.width,
+      height: metadata.autoOrient.height,
+      size: after.size,
+      modifiedAt: after.mtimeMs,
+      changedAt: after.ctimeMs,
+   };
+};
+
+const isUnchanged = async (filePath: string, cached: ScannedImage | undefined): Promise<boolean> => {
+   if (cached === undefined || !hashPattern.test(cached.hash)) return false;
+   const current = await stat(filePath);
+   return current.isFile() && cached.size === current.size && cached.modifiedAt === current.mtimeMs && cached.changedAt === current.ctimeMs;
+};
+
 const scanImage = async (filePath: string, reportWarning?: ScanWarningReporter, cached?: ScannedImage): Promise<ScannedImage | null> => {
    try {
-      const before = await stat(filePath);
-      if (!before.isFile()) throw new Error("The image is not a regular file");
-      if (
-         cached !== undefined &&
-         hashPattern.test(cached.hash) &&
-         cached.size === before.size &&
-         cached.modifiedAt === before.mtimeMs &&
-         cached.changedAt === before.ctimeMs
-      )
-         return cached;
-      const source = sharp(filePath, { animated: false, failOn: "none" }).rotate();
-      const metadata = await source.metadata();
-      const pixels = await source.clone().resize(9, 8, { fit: "fill" }).toColourspace("srgb").removeAlpha().raw().toBuffer();
-      const fileStat = await stat(filePath);
-      if (
-         before.dev !== fileStat.dev ||
-         before.ino !== fileStat.ino ||
-         before.size !== fileStat.size ||
-         before.mtimeMs !== fileStat.mtimeMs ||
-         before.ctimeMs !== fileStat.ctimeMs
-      )
-         throw new Error("The image changed while scanning");
-      return {
-         file: path.basename(filePath),
-         originalPath: path.normalize(filePath),
-         hash: createDifferenceHash(pixels),
-         width: metadata.autoOrient.width,
-         height: metadata.autoOrient.height,
-         size: fileStat.size,
-         modifiedAt: fileStat.mtimeMs,
-         changedAt: fileStat.ctimeMs,
-      };
+      if (cached !== undefined && (await isUnchanged(filePath, cached))) return cached;
+      return await hashImageFile(filePath);
    } catch (error: unknown) {
       console.warn(`Skipping unreadable image: ${filePath}`, error);
       reportWarning?.(filePath);
@@ -206,7 +227,7 @@ export const scanImages = async (
    const results: (ScannedImage | null)[] = Array.from({ length: paths.length }, () => null);
    let nextIndex = 0;
    let completed = 0;
-   const workerCount = Math.min(8, Math.max(1, paths.length));
+   const workerCount = Math.min(8, paths.length);
    // Huge folders would otherwise flood the renderer with one IPC message per
    // file; ~500 updates keep the progress bar just as smooth.
    const progressStride = Math.max(1, Math.ceil(paths.length / 500));
@@ -230,7 +251,7 @@ export const scanImages = async (
    };
 
    await Promise.all(Array.from({ length: workerCount }, worker));
-   if (signal?.aborted) throw new ScanCancelledError();
+   throwIfScanCancelled(signal);
    return results.filter((image): image is ScannedImage => image !== null);
 };
 
@@ -248,7 +269,7 @@ export const getHashDistance = (left: string, right: string): number => {
  */
 const getImageHashDistance = (left: ImageHash, right: ImageHash): number => {
    if (left.orientation * right.orientation === -1) return 64;
-   const spatialDistance = getHashValueDistance(left.spatial, right.spatial);
+   const spatialDistance = getSpatialDistance(left, right);
    let colorDifference = 0;
    for (let offset = 0; offset < left.colors.length; offset += 3) {
       colorDifference += Math.max(
@@ -260,15 +281,13 @@ const getImageHashDistance = (left: ImageHash, right: ImageHash): number => {
    return Math.max(spatialDistance, (colorDifference * 64) / (72 * 255));
 };
 
-const getHashValueDistance = (left: bigint, right: bigint): number => {
-   let value = left ^ right;
-   let distance = 0;
-   while (value !== 0n) {
-      value &= value - 1n;
-      distance += 1;
-   }
-   return distance;
+const popcount32 = (value: number): number => {
+   let bits = value - ((value >>> 1) & 0x55555555);
+   bits = (bits & 0x33333333) + ((bits >>> 2) & 0x33333333);
+   return Math.imul((bits + (bits >>> 4)) & 0x0f0f0f0f, 0x01010101) >>> 24;
 };
+
+const getSpatialDistance = (left: ImageHash, right: ImageHash): number => popcount32(left.high ^ right.high) + popcount32(left.low ^ right.low);
 
 const getGroupSimilarity = (images: ScannedImage[]): number => {
    const firstHash = images[0]?.hash;
@@ -307,7 +326,10 @@ const getGroupSimilarity = (images: ScannedImage[]): number => {
    return comparisons === 0 ? 0 : totalDistance / comparisons;
 };
 
-const getHashPartition = (hash: bigint, partition: number): number => Number((hash >> BigInt(partition * hashPartitionBits)) & 0xffffn);
+const getHashPartition = (hash: ImageHash, partition: number): number => {
+   const half = partition < 2 ? hash.low : hash.high;
+   return partition % 2 === 0 ? half & 0xffff : half >>> 16;
+};
 
 /**
  * Transitive matching can chain wildly different images into one enormous set.
@@ -376,30 +398,26 @@ const findAndIndexMatches = (
    for (let partition = 0; partition < hashPartitionCount; partition += 1) {
       const index = indexes[partition];
       if (index === undefined) continue;
-      const partitionValue = getHashPartition(hash.spatial, partition);
+      const partitionValue = getHashPartition(hash, partition);
       for (const mask of partitionMasks) {
-         const candidates = index.get(partitionValue ^ mask);
-         if (candidates === undefined) continue;
-         for (const candidateIndex of candidates) {
+         for (let link = index.heads[partitionValue ^ mask] ?? 0; link !== 0; link = index.next[link - 1] ?? 0) {
+            const candidateIndex = link - 1;
             if (candidateMarkers[candidateIndex] === marker) continue;
             candidateMarkers[candidateIndex] = marker;
+            // Most bucket neighbours are far apart; the popcount rules them
+            // out before anything else runs.
+            const candidateHash = hashValues[candidateIndex];
+            if (candidateHash === undefined || getSpatialDistance(hash, candidateHash) > hashDistanceThreshold) continue;
             // Another accepted edge already connects these images. Rechecking
             // their distance cannot change this component, but every distinct
             // signature must still be indexed to discover later bridge edges.
             if (isConnected(candidateIndex)) continue;
-            const candidateHash = hashValues[candidateIndex];
-            if (
-               candidateHash !== undefined &&
-               getHashValueDistance(hash.spatial, candidateHash.spatial) <= hashDistanceThreshold &&
-               getImageHashDistance(hash, candidateHash) <= hashDistanceThreshold
-            )
-               onMatch(candidateIndex);
+            if (getImageHashDistance(hash, candidateHash) <= hashDistanceThreshold) onMatch(candidateIndex);
          }
       }
 
-      const bucket = index.get(partitionValue);
-      if (bucket === undefined) index.set(partitionValue, [imageIndex]);
-      else bucket.push(imageIndex);
+      index.next[imageIndex] = index.heads[partitionValue] ?? 0;
+      index.heads[partitionValue] = imageIndex + 1;
    }
 };
 
@@ -426,7 +444,10 @@ const getConnectedGroups = async (images: ScannedImage[], reportProgress: ScanPr
       if (leftRoot !== rightRoot) parent[rightRoot] = leftRoot;
    };
 
-   const indexes: SimilarityIndex = Array.from({ length: hashPartitionCount }, () => new Map<number, number[]>());
+   const indexes: SimilarityIndex = Array.from({ length: hashPartitionCount }, () => ({
+      heads: new Int32Array(1 << hashPartitionBits),
+      next: new Int32Array(images.length),
+   }));
    const candidateMarkers = new Int32Array(images.length);
    const exactHashRepresentatives = new Map<string, number>();
    reportProgress({ phase: "grouping", completed: 0, total: images.length });
@@ -475,7 +496,7 @@ export const groupImages = async (images: ScannedImage[], reportProgress: ScanPr
    let pending: ScannedImage[][] = [];
 
    const admit = async (group: ScannedImage[]): Promise<void> => {
-      if (signal?.aborted) throw new ScanCancelledError();
+      throwIfScanCancelled(signal);
       if (group.length < 2) return;
       const similarity = getGroupSimilarity(group);
       if (similarity <= similarityCap) {
@@ -518,7 +539,7 @@ export const groupImages = async (images: ScannedImage[], reportProgress: ScanPr
       await admit(group);
    }
    while (pending.length > 0) {
-      if (signal?.aborted) throw new ScanCancelledError();
+      throwIfScanCancelled(signal);
       const pool = pending.flatMap((group) => group);
       pending = [];
       for (const group of await getConnectedGroups(pool, () => undefined, signal)) {

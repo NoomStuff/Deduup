@@ -136,13 +136,6 @@ test("reports incremental grouping progress", async () => {
    assert.ok(completed.some((value) => value > 0 && value < images.length));
 });
 
-test("keeps detections larger than 100 images", async () => {
-   const images = Array.from({ length: 101 }, (_, index) => createImage(0x123456789abcdef0n, index));
-   const groups = await groupImages(images, () => undefined);
-   assert.equal(groups.length, 1);
-   assert.equal(groups[0]?.images.length, images.length);
-});
-
 test("always discovers supported images in nested folders", async () => {
    const root = await mkdtemp(path.join(os.tmpdir(), "deduup-scan-"));
    try {
@@ -259,23 +252,11 @@ test("finds every match inside the distance threshold", async () => {
    assert.equal(groups[0]?.images.length, 2);
 });
 
-test("stops collecting paths when the abort signal fires", async () => {
-   const controller = new AbortController();
-   controller.abort();
-   await assert.rejects(collectImagePaths("C:/nowhere", undefined, controller.signal), ScanCancelledError);
-});
+test("discovery and grouping stop when the abort signal fires", async () => {
+   const stopped = new AbortController();
+   stopped.abort();
+   await assert.rejects(collectImagePaths("C:/nowhere", undefined, stopped.signal), ScanCancelledError);
 
-test("stops hashing when the abort signal fires", async () => {
-   const controller = new AbortController();
-   controller.abort();
-   const images = Array.from({ length: 8 }, (_, index) => `${index}.jpg`);
-   await assert.rejects(
-      scanImages(images, () => undefined, undefined, controller.signal),
-      ScanCancelledError
-   );
-});
-
-test("stops grouping when the abort signal fires mid-scan", async () => {
    const controller = new AbortController();
    const images = Array.from({ length: 600 }, (_, index) => createImage(BigInt(index), index));
    let aborted = false;

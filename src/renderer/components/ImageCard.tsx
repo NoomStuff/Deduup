@@ -97,7 +97,9 @@ export const ImageCard = memo(function ImageCard({
                   className="imageCard__img"
                   decoding="async"
                   draggable={false}
-                  loading="lazy"
+                  // The first cards are on screen the moment a set opens; only
+                  // long sets need lazy loading for the cards further along.
+                  loading={index < 8 ? "eager" : "lazy"}
                   onError={() => setLoadState("failed")}
                   onLoad={() => setLoadState("loaded")}
                   ref={imgRef}

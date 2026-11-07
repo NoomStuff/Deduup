@@ -1,9 +1,11 @@
 import type { ImageItem, ImageSet } from "../shared/types.js";
-import type { CompareState, ConfirmAction } from "./appTypes.js";
+import type { ConfirmAction } from "./appTypes.js";
+import type { ReviewController } from "./hooks/useReviewController.js";
 import type { Commands } from "./commands.js";
 import { createConfirmAction } from "./reviewModel.js";
 
 interface ReviewCommandOptions {
+   review: ReviewController;
    loading: boolean;
    isScanning: boolean;
    fileOperationActive: boolean;
@@ -20,22 +22,9 @@ interface ReviewCommandOptions {
    setConfirmAction: (action: ConfirmAction) => void;
    reviewCommandsActive: boolean;
    currentSet: ImageSet | null;
-   requestDiscardSet: (imageSet: ImageSet) => void;
-   autoSelectImageSet: (imageSet: ImageSet) => void;
-   requestBandAutoselect: (imageSet: ImageSet) => void;
-   clearImageSetChoices: (imageSet: ImageSet) => void;
    selectedImage: ImageItem | null;
-   beginCompare: (image: ImageItem) => void;
-   openAdjacentCompare: (image: ImageItem) => void;
-   previewImageOf: (image: ImageItem) => void;
-   toggleImageRemoval: (imageSet: ImageSet, image: ImageItem, advance: boolean) => void;
-   toggleOnlyImageKept: (imageSet: ImageSet, image: ImageItem, advance: boolean) => void;
    reviewActive: boolean;
-   compare: CompareState | null;
-   keepCompareImage: (image: ImageItem, advance: boolean) => void;
-   goTo: (index: number) => void;
    currentIndex: number;
-   goToAdjacentSimilarityBand: (direction: -1 | 1) => void;
    isFinalReviewOpen: boolean;
    setIsFinalReviewOpen: (open: boolean) => void;
    setIsAboutOpen: (open: boolean) => void;
@@ -47,6 +36,7 @@ interface ReviewCommandOptions {
 // surface that is no longer in front of the user. Rebuilt each render;
 // useCommands reads the latest object through its ref.
 export const buildReviewCommands = ({
+   review,
    loading,
    isScanning,
    fileOperationActive,
@@ -63,27 +53,29 @@ export const buildReviewCommands = ({
    setConfirmAction,
    reviewCommandsActive,
    currentSet,
-   requestDiscardSet,
-   autoSelectImageSet,
-   requestBandAutoselect,
-   clearImageSetChoices,
    selectedImage,
-   beginCompare,
-   openAdjacentCompare,
-   previewImageOf,
-   toggleImageRemoval,
-   toggleOnlyImageKept,
    reviewActive,
-   compare,
-   keepCompareImage,
-   goTo,
    currentIndex,
-   goToAdjacentSimilarityBand,
    isFinalReviewOpen,
    setIsFinalReviewOpen,
    setIsAboutOpen,
    openReleasesPage,
 }: ReviewCommandOptions): Commands => {
+   const {
+      autoSelectImageSet,
+      beginCompare,
+      clearImageSetChoices,
+      compare,
+      goTo,
+      goToAdjacentSimilarityBand,
+      keepCompareImage,
+      openAdjacentCompare,
+      previewImageOf,
+      requestBandAutoselect,
+      requestDiscardSet,
+      toggleImageRemoval,
+      toggleOnlyImageKept,
+   } = review;
    return {
       openFolder: {
          enabled: () => !loading && !isScanning && !fileOperationActive,

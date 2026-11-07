@@ -94,7 +94,8 @@ try {
       globalThis.updateFixture.failCheck = true;
    });
    await check();
-   assert.match(await page.locator(".updateSettings").innerText(), /Couldn't check for updates/);
+   // Main-process state settles before the renderer has drawn it.
+   await page.locator(".updateSettings", { hasText: /Couldn't check for updates/ }).waitFor();
    await app.evaluate(() => {
       globalThis.updateFixture.failCheck = false;
       globalThis.updateFixture.version = "99.0.0";

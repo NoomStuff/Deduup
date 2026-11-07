@@ -1,7 +1,7 @@
 import { app, BrowserWindow, dialog, Menu } from "electron";
 import path from "node:path";
 import { closeDatabase, getDatabase } from "./database.js";
-import { registerIpcHandlers, runScan, startLibraryMonitoring, stopLibraryMonitoring } from "./ipc.js";
+import { isWithinScanRoot, prefetchLoadResult, registerIpcHandlers, runScan, startLibraryMonitoring, stopLibraryMonitoring } from "./ipc.js";
 import { registerPreviewProtocol } from "./previewProtocol.js";
 import { createWindow } from "./window.js";
 import { registerWindowsIdentity } from "./identity.js";
@@ -30,10 +30,11 @@ if (!app.requestSingleInstanceLock()) {
 
    void app.whenReady().then(() => {
       getDatabase();
-      registerPreviewProtocol();
+      registerPreviewProtocol(isWithinScanRoot);
       registerWindowsIdentity();
       Menu.setApplicationMenu(null);
       const window = createWindow();
+      if (scanArg === undefined) prefetchLoadResult();
       updateManager.attach(window);
       if (scanArg === undefined) startLibraryMonitoring(window.webContents);
       // Test/dev hook: --scan=<path> starts a scan as soon as the renderer is up,

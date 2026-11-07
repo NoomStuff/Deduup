@@ -21,6 +21,7 @@ import { moveMarkedImages, assertDuplicateFolderCanBeRecycled, recordRecycledMov
 import { HASH_VERSION, collectImagePaths, groupImages, scanImages, throwIfScanCancelled } from "./scanner.js";
 import { assertReviewWritable, hasActiveOperation, runExclusiveOperation } from "./operationCoordinator.js";
 import { LibraryMonitor } from "./libraryMonitor.js";
+import { isPathInside } from "./paths.js";
 
 /** All scan entry points share the same cancellation owner. */
 let activeScanController: AbortController | null = null;
@@ -74,11 +75,25 @@ const normalizeScanRequest = (value: unknown): ScanRequest => {
    return { rootPath: path.resolve(value["rootPath"]) };
 };
 
-const isWithinScanRoot = (candidatePath: string): boolean => {
+/** Renderer-supplied paths are only honored inside the current scan root, which also holds the managed folder. */
+export const isWithinScanRoot = (candidatePath: string): boolean => {
    const scanRoot = getSetting("scan_root");
-   if (scanRoot === null || !path.isAbsolute(candidatePath)) return false;
-   const relativePath = path.relative(scanRoot, path.resolve(candidatePath));
-   return relativePath !== ".." && !relativePath.startsWith(`..${path.sep}`) && !path.isAbsolute(relativePath);
+   return scanRoot !== null && path.isAbsolute(candidatePath) && isPathInside(scanRoot, candidatePath);
+};
+
+// The saved review is read while the renderer boots instead of after it asks.
+// Any scan that saves in between invalidates it.
+let prefetchedLoad: Promise<LoadDataResult> | null = null;
+export const prefetchLoadResult = (): void => {
+   if (getSetting("scan_root") === null || getSetting("hash_version") !== HASH_VERSION) return;
+   const pending = getLoadResult();
+   pending.catch(() => undefined);
+   prefetchedLoad = pending;
+};
+const takePrefetchedLoad = (): Promise<LoadDataResult> | null => {
+   const pending = prefetchedLoad;
+   prefetchedLoad = null;
+   return pending;
 };
 
 const openPath = async (targetPath: string): Promise<void> => {
@@ -124,6 +139,7 @@ const executeScan = async (rootPath: string, sender: WebContents, signal: AbortS
    throwIfScanCancelled(signal);
    if (background && libraryMonitor.busy) throw new RefreshDeferredError();
    saveScan(rootPath, groups, { count: scanWarningCount, paths: scanWarningPaths }, images);
+   prefetchedLoad = null;
    report({ phase: "saving", completed: groups.length, total: groups.length });
    return true;
 };
@@ -205,6 +221,8 @@ export const registerIpcHandlers = (): void => {
    ipcMain.handle("data:load", async (event) => {
       const pendingScan = getPendingScanResult();
       if (pendingScan !== null) return pendingScan;
+      const prefetched = takePrefetchedLoad();
+      if (prefetched !== null) return prefetched;
       const root = getSetting("scan_root");
       // Rehash before presenting old detections. A moved library must remain
       // available for recovery first; executeScan already enforces that rule.

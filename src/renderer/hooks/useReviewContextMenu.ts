@@ -3,6 +3,7 @@ import type { MouseEvent } from "react";
 import type { Decisions, ImageItem, ImageSet } from "../../shared/types.js";
 import type { ContextMenuState } from "../appTypes.js";
 import { getDecision, getDeletedImagePaths } from "../reviewModel.js";
+import { hideTooltip } from "../tooltip.js";
 
 interface ReviewContextMenuOptions {
    groups: ImageSet[];
@@ -10,14 +11,13 @@ interface ReviewContextMenuOptions {
    decisions: Decisions;
    selectedImage: ImageItem | null;
    selectImage: (imagePath: string | null) => void;
-   hideTooltip: () => void;
 }
 
 /**
  * Owns the review context menu: where it anchors, which image, set, or band it
  * targets, and the derived state the menu commands render from.
  */
-export const useReviewContextMenu = ({ groups, currentSet, decisions, selectedImage, selectImage, hideTooltip }: ReviewContextMenuOptions) => {
+export const useReviewContextMenu = ({ groups, currentSet, decisions, selectedImage, selectImage }: ReviewContextMenuOptions) => {
    const [contextMenu, setContextMenu] = useState<ContextMenuState | null>(null);
 
    const openImageContextMenu = useCallback(
@@ -34,18 +34,15 @@ export const useReviewContextMenu = ({ groups, currentSet, decisions, selectedIm
             anchor: { kind: "point", x: event.clientX, y: event.clientY },
          });
       },
-      [currentSet, hideTooltip, selectImage]
+      [currentSet, selectImage]
    );
 
-   const openSetContextMenu = useCallback(
-      (event: MouseEvent, imageSet: ImageSet): void => {
-         event.preventDefault();
-         event.stopPropagation();
-         hideTooltip();
-         setContextMenu({ menuKind: "imageSet", setId: imageSet.id, anchor: { kind: "point", x: event.clientX, y: event.clientY } });
-      },
-      [hideTooltip]
-   );
+   const openSetContextMenu = useCallback((event: MouseEvent, imageSet: ImageSet): void => {
+      event.preventDefault();
+      event.stopPropagation();
+      hideTooltip();
+      setContextMenu({ menuKind: "imageSet", setId: imageSet.id, anchor: { kind: "point", x: event.clientX, y: event.clientY } });
+   }, []);
 
    const closeContextMenu = (): void => setContextMenu(null);
 

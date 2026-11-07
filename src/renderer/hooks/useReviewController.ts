@@ -9,6 +9,7 @@ import type { ReviewContextMenu } from "../components/ReviewContextMenu.js";
 import { useCompareController } from "./useCompareController.js";
 import type { NotificationInput } from "./useNotifications.js";
 import { useReviewContextMenu } from "./useReviewContextMenu.js";
+import { hideTooltip } from "../tooltip.js";
 
 type WorkspaceProps = ComponentProps<typeof ReviewWorkspace>;
 type WorkspaceActions = Pick<WorkspaceProps, Extract<keyof WorkspaceProps, `on${Capitalize<string>}`>>;
@@ -31,7 +32,6 @@ interface ReviewControllerOptions {
    clearFileResults: () => void;
    notify: (notification: NotificationInput) => void;
    reportError: (title: string, error: unknown, fallback: string) => void;
-   hideTooltip: () => void;
 }
 
 export const useReviewController = ({
@@ -50,7 +50,6 @@ export const useReviewController = ({
    clearFileResults,
    notify,
    reportError,
-   hideTooltip,
 }: ReviewControllerOptions) => {
    const [previewImage, setPreviewImage] = useState<ImageItem | null>(null);
    const [travelDirection, setTravelDirection] = useState<TravelDirection>("idle");
@@ -77,12 +76,18 @@ export const useReviewController = ({
    });
 
    const lastSetNudgeRef = useRef(0);
+   // goTo stays one function for the whole review: the filmstrip's thousands
+   // of tiles take it as a prop, and a new identity per step would re-render
+   // every one of them on every navigation.
+   const positionRef = useRef({ currentIndex, setCount: groups.length });
+   positionRef.current = { currentIndex, setCount: groups.length };
    const goTo = useCallback(
       (index: number): void => {
-         const nextIndex = Math.max(0, Math.min(groups.length - 1, index));
+         const { currentIndex, setCount } = positionRef.current;
+         const nextIndex = Math.max(0, Math.min(setCount - 1, index));
          // Stepping past the last set is the natural moment to point at the
          // next stage; repeated presses within a few seconds stay quiet.
-         if (index > groups.length - 1 && currentIndex === groups.length - 1 && groups.length > 0 && Date.now() - lastSetNudgeRef.current > 6000) {
+         if (index > setCount - 1 && currentIndex === setCount - 1 && setCount > 0 && Date.now() - lastSetNudgeRef.current > 6000) {
             lastSetNudgeRef.current = Date.now();
             notify({ tone: "info", title: "That was the last set", message: "Open the final review to see everything you discarded before anything moves." });
          }
@@ -91,6 +96,7 @@ export const useReviewController = ({
          setTravelDirection(nextIndex > currentIndex ? "right" : "left");
          closeCompare();
          setSelectedImagePath(null);
+         positionRef.current = { currentIndex: nextIndex, setCount };
          setCurrentIndex(nextIndex);
          // Rapid navigation must not let an older timer reset the direction
          // mid-flight, or the shelf animation restarts from the wrong side.
@@ -100,7 +106,7 @@ export const useReviewController = ({
             setTravelDirection("idle");
          }, 180);
       },
-      [closeCompare, currentIndex, groups.length, hideTooltip, notify, setCurrentIndex, setSelectedImagePath]
+      [closeCompare, notify, setCurrentIndex, setSelectedImagePath]
    );
 
    const goToAdjacentSimilarityBand = useCallback(
@@ -203,7 +209,7 @@ export const useReviewController = ({
       contextImage,
       contextImageIsDeleted,
       contextOnlyImageKept,
-   } = useReviewContextMenu({ groups, currentSet, decisions, selectedImage, selectImage: setSelectedImagePath, hideTooltip });
+   } = useReviewContextMenu({ groups, currentSet, decisions, selectedImage, selectImage: setSelectedImagePath });
 
    const handleImageClick = useCallback(
       (event: MouseEvent, image: ImageItem): void => {
@@ -346,3 +352,5 @@ export const useReviewController = ({
       previewImageOf,
    };
 };
+
+export type ReviewController = ReturnType<typeof useReviewController>;

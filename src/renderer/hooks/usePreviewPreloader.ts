@@ -33,6 +33,11 @@ export const usePreviewPreloader = (groups: ImageSet[], currentIndex: number): v
          }
       };
       enqueue(groups[currentIndex]);
+      // The main process encodes newest request first. Neighbours requested
+      // alongside the set on screen would jump ahead of it, so they wait
+      // until every image of the current set has arrived.
+      const currentCount = queue.length;
+      let currentPending = 0;
       for (let distance = 1; distance <= preloadRadius; distance += 1) {
          enqueue(groups[currentIndex + distance]);
          enqueue(groups[currentIndex - distance]);
@@ -42,16 +47,19 @@ export const usePreviewPreloader = (groups: ImageSet[], currentIndex: number): v
       let inFlight = 0;
       const pump = (): void => {
          if (generation !== generationCounter) return;
-         while (inFlight < maxConcurrentLoads && cursor < queue.length) {
+         while (inFlight < maxConcurrentLoads && cursor < queue.length && (cursor < currentCount || currentPending === 0)) {
+            const isCurrent = cursor < currentCount;
             const url = queue[cursor];
             cursor += 1;
             if (url === undefined || warmedUrls.has(url)) continue;
             if (warmedUrls.size >= warmedLimit) warmedUrls.clear();
             warmedUrls.add(url);
             inFlight += 1;
+            if (isCurrent) currentPending += 1;
             const probe = new Image();
             const done = (): void => {
                inFlight -= 1;
+               if (isCurrent) currentPending -= 1;
                pump();
             };
             probe.onload = done;

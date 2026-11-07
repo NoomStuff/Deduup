@@ -25,13 +25,16 @@ const run = (tick, limit = 500) => {
    return frames;
 };
 
-test("the recenter glide ends even when the target is a fraction of a pixel away", () => {
+test("the recenter glide always ends, for sub-pixel targets and targets past the scroll range", () => {
    // A target 1.4px away used to step 0.3px per frame, round to no movement,
    // and keep the animation alive forever.
-   const strip = makeStrip(9536);
-   const frames = run(createGlideTick(strip, () => 9537.4));
-   assert.ok(Number.isFinite(frames), "glide never ended");
-   assert.ok(Math.abs(strip.scrollLeft - 9537.4) <= 1);
+   const nearby = makeStrip(9536);
+   assert.ok(Number.isFinite(run(createGlideTick(nearby, () => 9537.4))), "sub-pixel glide never ended");
+   assert.ok(Math.abs(nearby.scrollLeft - 9537.4) <= 1);
+
+   const clamped = makeStrip(100, 500);
+   assert.ok(Number.isFinite(run(createGlideTick(clamped, () => 900))), "clamped glide never ended");
+   assert.equal(clamped.scrollLeft, 500);
 });
 
 test("the recenter glide reaches a distant target in a bounded number of frames", () => {
@@ -48,11 +51,4 @@ test("a manual scroll stops the glide instead of being pulled back", () => {
    strip.scrollLeft = 0; // the user drags the scrollbar
    assert.equal(tick(), false);
    assert.equal(strip.scrollLeft, 0);
-});
-
-test("a target past the scroll range ends instead of pushing forever", () => {
-   const strip = makeStrip(100, 500);
-   const frames = run(createGlideTick(strip, () => 900));
-   assert.ok(Number.isFinite(frames), "glide never ended");
-   assert.equal(strip.scrollLeft, 500);
 });

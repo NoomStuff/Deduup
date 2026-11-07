@@ -61,7 +61,10 @@ export const useFilmstrip = ({
       if (!reviewActive || filmstrip === null) return undefined;
       const updateFade = (): void => {
          const max = Math.max(0, filmstrip.scrollWidth - filmstrip.clientWidth);
-         setFade({ left: filmstrip.scrollLeft > 2, right: filmstrip.scrollLeft < max - 2 });
+         const left = filmstrip.scrollLeft > 2;
+         const right = filmstrip.scrollLeft < max - 2;
+         // Scroll fires every frame of a glide; only an edge flip is news.
+         setFade((current) => (current.left === left && current.right === right ? current : { left, right }));
       };
       updateFade();
       filmstrip.addEventListener("scroll", updateFade, { passive: true });

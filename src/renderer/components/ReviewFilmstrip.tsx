@@ -2,9 +2,9 @@ import { memo } from "react";
 import type { CSSProperties, MouseEvent, RefObject } from "react";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import type { ImageSet } from "../../shared/types.js";
-import type { SimilarityBand } from "../appTypes.js";
-import type { TooltipProps } from "../hooks/useTooltip.js";
+import type { ContextMenuState, SimilarityBand } from "../appTypes.js";
 import { getSimilarityColor, type LibrarySetRow } from "../reviewModel.js";
+import { tooltipProps } from "../tooltip.js";
 
 interface ReviewFilmstripProps {
    bands: SimilarityBand[];
@@ -15,9 +15,8 @@ interface ReviewFilmstripProps {
    nextHint: string;
    previousHint: string;
    rows: Map<string, LibrarySetRow>;
-   getTooltipProps: (title: string, body: string, hotkey?: string) => TooltipProps;
    onNavigate: (index: number) => void;
-   onBandContextMenu: (event: MouseEvent<HTMLElement>, firstSet: ImageSet) => void;
+   onOpenContextMenu: (state: ContextMenuState) => void;
    onSetContextMenu: (event: MouseEvent<HTMLElement>, imageSet: ImageSet) => void;
 }
 
@@ -29,7 +28,6 @@ interface FilmstripItemProps {
    isActive: boolean;
    imageSet: ImageSet;
    index: number;
-   getTooltipProps: ReviewFilmstripProps["getTooltipProps"];
    onNavigate: ReviewFilmstripProps["onNavigate"];
    onSetContextMenu: ReviewFilmstripProps["onSetContextMenu"];
 }
@@ -42,7 +40,7 @@ const FilmstripItem = memo(function FilmstripItem(props: FilmstripItemProps) {
          onClick={() => props.onNavigate(props.index)}
          onContextMenu={(event) => props.onSetContextMenu(event, props.imageSet)}
          type="button"
-         {...props.getTooltipProps(`Set ${props.number}`, `${props.label} kept · difference ${props.differenceText}`)}
+         {...tooltipProps(`Set ${props.number}`, `${props.label} kept · difference ${props.differenceText}`)}
       >
          <span>{props.number}</span>
          <small>{props.label}</small>
@@ -54,9 +52,8 @@ const BandTag = memo(function BandTag(props: {
    label: string;
    firstIndex: number;
    firstSet: ImageSet;
-   getTooltipProps: ReviewFilmstripProps["getTooltipProps"];
    onNavigate: ReviewFilmstripProps["onNavigate"];
-   onBandContextMenu: ReviewFilmstripProps["onBandContextMenu"];
+   onOpenContextMenu: ReviewFilmstripProps["onOpenContextMenu"];
 }) {
    return (
       <button
@@ -64,10 +61,14 @@ const BandTag = memo(function BandTag(props: {
          onClick={() => props.onNavigate(props.firstIndex)}
          onContextMenu={(event) => {
             event.preventDefault();
-            props.onBandContextMenu(event, props.firstSet);
+            props.onOpenContextMenu({
+               menuKind: "similarityBand",
+               anchor: { kind: "rect", rect: event.currentTarget.getBoundingClientRect() },
+               setId: props.firstSet.id,
+            });
          }}
          type="button"
-         {...props.getTooltipProps(`Difference ${props.label}`, "Sets with this displayed image difference. Lower means more alike.")}
+         {...tooltipProps(`Difference ${props.label}`, "Sets with this displayed image difference. Lower means more alike.")}
       >
          <span aria-hidden="true" className="similarityBand__link" />
          {props.label}
@@ -90,7 +91,7 @@ export const ReviewFilmstrip = memo(function ReviewFilmstrip(props: ReviewFilmst
             disabled={props.currentIndex === 0}
             onClick={() => props.onNavigate(props.currentIndex - 1)}
             type="button"
-            {...props.getTooltipProps("Previous set", "Move to the previous set.", props.previousHint)}
+            {...tooltipProps("Previous set", "Move to the previous set.", props.previousHint)}
          >
             <ChevronLeft aria-hidden="true" />
          </button>
@@ -105,9 +106,8 @@ export const ReviewFilmstrip = memo(function ReviewFilmstrip(props: ReviewFilmst
                            <BandTag
                               firstIndex={firstGroup.index}
                               firstSet={firstGroup.imageSet}
-                              getTooltipProps={props.getTooltipProps}
                               label={band.label}
-                              onBandContextMenu={props.onBandContextMenu}
+                              onOpenContextMenu={props.onOpenContextMenu}
                               onNavigate={props.onNavigate}
                            />
                         )}
@@ -117,7 +117,6 @@ export const ReviewFilmstrip = memo(function ReviewFilmstrip(props: ReviewFilmst
                               return (
                                  <FilmstripItem
                                     differenceText={row?.differenceText ?? ""}
-                                    getTooltipProps={props.getTooltipProps}
                                     imageSet={imageSet}
                                     index={index}
                                     isActive={imageSet.id === props.currentSetId}
@@ -144,7 +143,7 @@ export const ReviewFilmstrip = memo(function ReviewFilmstrip(props: ReviewFilmst
             disabled={props.currentIndex >= props.rows.size - 1}
             onClick={() => props.onNavigate(props.currentIndex + 1)}
             type="button"
-            {...props.getTooltipProps("Next set", "Move to the next set.", props.nextHint)}
+            {...tooltipProps("Next set", "Move to the next set.", props.nextHint)}
          >
             <ChevronRight aria-hidden="true" />
          </button>
