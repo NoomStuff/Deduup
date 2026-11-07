@@ -1,6 +1,6 @@
 import { memo, useLayoutEffect, useRef, useState } from "react";
 import type { MouseEvent } from "react";
-import { Crown, Folder, FolderOpen, ImageOff, Trash2 } from "lucide-react";
+import { Folder, FolderOpen, ImageOff, Trash2 } from "lucide-react";
 import type { ImageItem } from "../../shared/types.js";
 import type { ImageDeleteState } from "../appTypes.js";
 import { formatBytes, formatDate, type ImageInsight } from "../reviewModel.js";
@@ -15,10 +15,8 @@ export const ImageCard = memo(function ImageCard({
    image,
    index,
    state,
-   showIndexHint,
    isComparePick,
    isSelected,
-   isSuggested,
    insight,
    onClick,
    onPreview,
@@ -27,10 +25,8 @@ export const ImageCard = memo(function ImageCard({
    image: ImageItem;
    index: number;
    state: ImageDeleteState;
-   showIndexHint: boolean;
    isComparePick: boolean;
    isSelected: boolean;
-   isSuggested: boolean;
    insight: ImageInsight | undefined;
    onClick: (event: MouseEvent, image: ImageItem) => void;
    onPreview: (image: ImageItem) => void;
@@ -61,7 +57,7 @@ export const ImageCard = memo(function ImageCard({
 
    return (
       <button
-         aria-label={`${image.file}${state === "deleted" ? ", discarded" : ""}${isSuggested ? ", largest" : ""}${isAvailable ? "" : `, ${unavailableTitle}`}`}
+         aria-label={`${image.file}${state === "deleted" ? ", discarded" : ""}${isAvailable ? "" : `, ${unavailableTitle}`}`}
          aria-pressed={isSelected}
          className={`imageCard imageCard--${state}${isSelected ? " imageCard--selected" : ""}${isComparePick ? " imageCard--comparePick" : ""}${isAvailable ? "" : " imageCard--immutable"}`}
          onClick={(event) => onClick(event, image)}
@@ -87,17 +83,7 @@ export const ImageCard = memo(function ImageCard({
          }}
          type="button"
       >
-         {showIndexHint && isAvailable && index < 9 && (
-            <span className="imageCard__indexHint" aria-hidden="true">
-               Ctrl+{index + 1}
-            </span>
-         )}
          {isComparePick && <span className="imageCard__chip imageCard__chip--compare">1/2 picked</span>}
-         {isSuggested && isAvailable && (
-            <span className="imageCard__chip imageCard__chip--suggested">
-               <Crown aria-hidden="true" /> Largest
-            </span>
-         )}
          {state === "deleted" && isAvailable && (
             <span className="imageCard__chip imageCard__chip--discarded">
                <Trash2 aria-hidden="true" /> Discarded

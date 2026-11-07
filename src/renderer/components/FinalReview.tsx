@@ -174,7 +174,7 @@ export const FinalReview = ({
                   <div className="finalReview__meta">
                      <span>
                         {formatBytes(totalVisibleBytes)}
-                        {moveSets.length > 0 && ` from ${moveSets.length} set${moveSets.length === 1 ? "" : "s"}`} · recoverable until you recycle the folder
+                        {moveSets.length > 0 && ` from ${moveSets.length} set${moveSets.length === 1 ? "" : "s"}`}
                      </span>
                      {keepsNothingCount > 0 && (
                         <span className="finalReview__warning">

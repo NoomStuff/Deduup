@@ -77,8 +77,13 @@ const run = async () => {
       check("review has no persistent warning or tutorial banner", (await window.locator(".scanWarnings, .reviewHints").count()) === 0);
       check("image cards always show full details", (await window.locator(".imageCard__details").count()) === (await window.locator(".imageCard").count()));
 
-      const headerCounter = await window.textContent(".toolbar__counter");
+      const headerCounter = await window.textContent(".setHeader__number");
       check("review header shows set counter", /#\d+\s*\/\s*\d+/.test(headerCounter ?? ""), headerCounter ?? "missing");
+      check("toolbar does not repeat the set counter", (await window.locator(".toolbar__counter").count()) === 0);
+      check(
+         "header has no selected-file label or Preview button",
+         (await window.locator(".setHeader__selection").count()) === 0 && (await window.locator(".setHeader__action", { hasText: "Preview" }).count()) === 0
+      );
 
       const bandTags = await window.locator(".similarityBand__tag").count();
       check("similarity bands render on the filmstrip", bandTags > 0, `bands: ${bandTags}`);
@@ -90,9 +95,9 @@ const run = async () => {
       check("Space selects a focused image", (await window.locator('.imageCard[aria-pressed="true"]').count()) === 1);
       check("selection does not discard an image", (await window.locator(".imageCard__chip--discarded").count()) === 0);
       await window.locator(".imageCard").first().click();
-      const beforeSpace = await window.textContent(".toolbar__counter");
+      const beforeSpace = await window.textContent(".setHeader__number");
       await window.keyboard.press("Space");
-      await window.waitForFunction((previous) => document.querySelector(".toolbar__counter")?.textContent !== previous, beforeSpace);
+      await window.waitForFunction((previous) => document.querySelector(".setHeader__number")?.textContent !== previous, beforeSpace);
       check("Space advances after pointer selection", true);
       await window.keyboard.press("ArrowLeft");
 
@@ -159,9 +164,9 @@ const run = async () => {
       check("Shift+2 keeps only the second image", (await window.locator(".imageCard").nth(1).locator(".imageCard__chip--discarded").count()) === 0);
       await window.keyboard.press("Control+z");
       await window.waitForFunction(() => document.querySelectorAll(".imageCard__chip--discarded").length === 0);
-      const beforeAdvance = await window.textContent(".toolbar__counter");
+      const beforeAdvance = await window.textContent(".setHeader__number");
       await window.keyboard.press("Control+1");
-      await window.waitForFunction((previous) => document.querySelector(".toolbar__counter")?.textContent !== previous, beforeAdvance);
+      await window.waitForFunction((previous) => document.querySelector(".setHeader__number")?.textContent !== previous, beforeAdvance);
       check("Ctrl+1 marks and advances", true);
       await window.keyboard.press("ArrowLeft");
       await window.keyboard.press("Control+z");
