@@ -1,11 +1,12 @@
 import { useCallback, useEffect, useRef, useState } from "react";
+import { createGlideTick } from "../filmstripGlide.js";
 
 const centerTarget = (filmstrip: HTMLElement, active: HTMLElement): number => {
    const stripRect = filmstrip.getBoundingClientRect();
    const activeRect = active.getBoundingClientRect();
    const activeCenter = activeRect.left - stripRect.left + filmstrip.scrollLeft + activeRect.width / 2;
    const maxScroll = Math.max(0, filmstrip.scrollWidth - filmstrip.clientWidth);
-   return Math.max(0, Math.min(maxScroll, activeCenter - filmstrip.clientWidth / 2));
+   return Math.round(Math.max(0, Math.min(maxScroll, activeCenter - filmstrip.clientWidth / 2)));
 };
 
 export const useFilmstrip = ({
@@ -31,21 +32,16 @@ export const useFilmstrip = ({
 
    const animate = useCallback((): void => {
       if (animationRef.current !== null) return;
+      const filmstrip = filmstripRef.current;
+      if (filmstrip === null) return;
+      const step = createGlideTick(filmstrip, () => targetRef.current);
       const tick = (): void => {
-         const filmstrip = filmstripRef.current;
-         const target = targetRef.current;
-         if (filmstrip === null || target === null) {
-            animationRef.current = null;
+         if (filmstripRef.current === filmstrip && step()) {
+            animationRef.current = window.requestAnimationFrame(tick);
             return;
          }
-         const distance = target - filmstrip.scrollLeft;
-         if (Math.abs(distance) < 0.5) {
-            filmstrip.scrollLeft = target;
-            animationRef.current = null;
-            return;
-         }
-         filmstrip.scrollLeft += distance * 0.22;
-         animationRef.current = window.requestAnimationFrame(tick);
+         animationRef.current = null;
+         targetRef.current = null;
       };
       animationRef.current = window.requestAnimationFrame(tick);
    }, []);
