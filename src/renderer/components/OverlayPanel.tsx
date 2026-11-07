@@ -117,7 +117,8 @@ export const OverlayPanel = ({
 
       const focusFrame = window.requestAnimationFrame(() => {
          const surface = surfaceRef.current;
-         const firstFocusable = surface?.querySelector<HTMLElement>(focusableSelector);
+         // A surface can name its starting control; otherwise the first one.
+         const firstFocusable = surface?.querySelector<HTMLElement>("[data-autofocus]") ?? surface?.querySelector<HTMLElement>(focusableSelector);
          (firstFocusable ?? surface)?.focus({ preventScroll: true });
       });
 

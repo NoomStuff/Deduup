@@ -37,6 +37,7 @@ const definitions = {
    compareSelected: { label: "Compare images", group: "Review", keys: ["C"] },
    previewSelected: { label: "Preview image", group: "Review", keys: ["Enter"] },
    toggleSelected: { label: "Toggle Discard", group: "Review", keys: ["Delete", "Ctrl+Delete"] },
+   keepOnlySelected: { label: "Keep only selected", group: "Review", keys: ["K", "Ctrl+K"] },
    toggleImageByNumber: {
       label: "Toggle Discard (N)",
       group: "Review",

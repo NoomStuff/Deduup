@@ -1,12 +1,14 @@
-import { FolderOpen, ShieldCheck, Trash2, Undo2, X } from "lucide-react";
-import type { FileActionStatus, MoveResult } from "../../shared/types.js";
+import { useMemo } from "react";
+import { CircleCheck, FolderOpen, ShieldCheck, Trash2, TriangleAlert, Undo2, X } from "lucide-react";
+import type { FileActionStatus, ImageSet, MoveResult } from "../../shared/types.js";
 import type { FileWorkflowState, MovePreview } from "../appTypes.js";
 import type { TooltipProps } from "../hooks/useTooltip.js";
-import { formatBytes, getSetNumber } from "../reviewModel.js";
+import { formatBytes, getFinalReviewSets, getSetNumber, type FinalReviewSet } from "../reviewModel.js";
 import { OverlayPanel } from "./OverlayPanel.js";
 import "./FinalReview.css";
 
 interface FinalReviewProps {
+   groups: ImageSet[];
    movePreview: MovePreview[];
    duplicatePreview: MovePreview[];
    workflow: FileWorkflowState;
@@ -23,20 +25,83 @@ interface FinalReviewProps {
    onRestore: () => void;
    onTrash: () => void;
    onClose: () => void;
+   /** Back to the review on this set, with the image selected when given. */
+   onOpenSet: (setId: string, imagePath?: string) => void;
    getTooltipProps: (title: string, body: string, hotkey?: string) => TooltipProps;
 }
 
-const MoveCard = ({ row, quarantined }: { row: MovePreview; quarantined: boolean }) => (
+const MoveCard = ({ row, quarantined, detail }: { row: MovePreview; quarantined: boolean; detail?: string }) => (
    <figure className={`moveCard${quarantined ? " moveCard--quarantined" : ""}`}>
       <img alt={row.file} loading="lazy" src={row.previewUrl} />
       <figcaption>
          <strong title={row.file}>{row.file}</strong>
-         <span>
-            {getSetNumber(row.setId)} · {formatBytes(row.size)}
-         </span>
+         <span>{detail ?? `${getSetNumber(row.setId)} · ${formatBytes(row.size)}`}</span>
       </figcaption>
    </figure>
 );
+
+/**
+ * One set's part of the move: what leaves, beside what stays. Choices are
+ * corrected in the review itself, so every card is a way back to its set
+ * rather than a control that changes the choice here, out of context.
+ */
+const MoveSet = ({ entry, onOpenSet }: { entry: FinalReviewSet; onOpenSet: FinalReviewProps["onOpenSet"] }) => {
+   const keepsNothing = entry.kept.length === 0;
+   const total = entry.kept.length + entry.discarded.length;
+   return (
+      <section aria-label={`Set ${entry.number}`} className={`moveSet${keepsNothing ? " moveSet--keepsNothing" : ""}`}>
+         <header className="moveSet__header">
+            <button className="moveSet__number" onClick={() => onOpenSet(entry.setId)} type="button">
+               {entry.number}
+            </button>
+            {keepsNothing ? (
+               <span className="moveSet__status moveSet__status--warning">
+                  <TriangleAlert aria-hidden="true" /> Keeps nothing, every image in this set moves
+               </span>
+            ) : (
+               <span className="moveSet__status">
+                  Keeps {entry.kept.length} of {total}
+               </span>
+            )}
+         </header>
+         <div className="moveGrid">
+            {entry.kept.map((image) => (
+               <button
+                  aria-label={`${image.file}, kept. Open set ${entry.number}`}
+                  className="moveCardButton"
+                  key={image.originalPath}
+                  onClick={() => onOpenSet(entry.setId, image.originalPath)}
+                  type="button"
+               >
+                  <figure className="keptCard">
+                     <img alt={image.file} loading="lazy" src={image.previewUrl} />
+                     <span className="keptCard__chip">
+                        <CircleCheck aria-hidden="true" /> Kept
+                     </span>
+                     <figcaption>
+                        <strong title={image.file}>{image.file}</strong>
+                        <span>
+                           {image.width}x{image.height} · {formatBytes(image.size)}
+                        </span>
+                     </figcaption>
+                  </figure>
+               </button>
+            ))}
+            {entry.discarded.map((row) => (
+               <button
+                  aria-label={`${row.file}, discarded. Open set ${entry.number}`}
+                  className="moveCardButton"
+                  key={row.originalPath}
+                  onClick={() => onOpenSet(entry.setId, row.originalPath)}
+                  type="button"
+               >
+                  <MoveCard detail={formatBytes(row.size)} quarantined={false} row={row} />
+               </button>
+            ))}
+         </div>
+      </section>
+   );
+};
 
 const ResultBanner = ({ result, tone, verb }: { result: MoveResult; tone: "success" | "warning"; verb: string }) => (
    <div className={`resultBanner resultBanner--${tone}`} role="status">
@@ -77,8 +142,12 @@ export const FinalReview = ({
    onRestore,
    onTrash,
    onClose,
+   onOpenSet,
+   groups,
    getTooltipProps,
 }: FinalReviewProps) => {
+   const moveSets = useMemo(() => getFinalReviewSets(groups, movePreview), [groups, movePreview]);
+   const keepsNothingCount = moveSets.filter((entry) => entry.kept.length === 0).length;
    const isEmpty = movePreview.length === 0 && duplicatePreview.length === 0;
    const totalVisibleBytes = [...movePreview, ...duplicatePreview].reduce((total, file) => total + file.size, 0);
    const heading =
@@ -105,7 +174,16 @@ export const FinalReview = ({
                <h2 id="final-review-title">{heading}</h2>
                {!isEmpty && (
                   <div className="finalReview__meta">
-                     <span>{formatBytes(totalVisibleBytes)} · recoverable until you recycle the folder</span>
+                     <span>
+                        {formatBytes(totalVisibleBytes)}
+                        {moveSets.length > 0 && ` from ${moveSets.length} set${moveSets.length === 1 ? "" : "s"}`} · recoverable until you recycle the folder
+                     </span>
+                     {keepsNothingCount > 0 && (
+                        <span className="finalReview__warning">
+                           <TriangleAlert aria-hidden="true" />
+                           {keepsNothingCount} set{keepsNothingCount === 1 ? " keeps" : "s keep"} nothing
+                        </span>
+                     )}
                      <button className="finalReview__path" onClick={onOpenFolder} title={`Open ${destination}`} type="button">
                         <FolderOpen aria-hidden="true" />
                         <span>{destination}</span>
@@ -113,7 +191,7 @@ export const FinalReview = ({
                   </div>
                )}
             </div>
-            <button aria-label="Close final review" className="iconButton" onClick={onClose} type="button">
+            <button aria-label="Close final review" className="iconButton" data-autofocus onClick={onClose} type="button">
                <X aria-hidden="true" />
             </button>
          </header>
@@ -125,10 +203,11 @@ export const FinalReview = ({
                      <section aria-label="Images ready to move" className="moveSection">
                         <h3>
                            Ready to move <span>{movePreview.length}</span>
+                           <small>click an image to revisit its set</small>
                         </h3>
-                        <div className="moveGrid">
-                           {movePreview.map((row) => (
-                              <MoveCard key={row.originalPath} quarantined={false} row={row} />
+                        <div className="moveSets">
+                           {moveSets.map((entry) => (
+                              <MoveSet entry={entry} key={entry.setId} onOpenSet={onOpenSet} />
                            ))}
                         </div>
                      </section>

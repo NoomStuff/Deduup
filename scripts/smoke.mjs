@@ -140,6 +140,20 @@ const run = async () => {
       check("Shift+right-click keeps only the chosen copy", (await window.locator(".contextMenu").count()) === 0);
       await window.keyboard.press("Control+z");
       await window.waitForFunction(() => document.querySelectorAll(".imageCard__chip--discarded").length === 0);
+
+      // K and the header button keep only the selected image; pressing again restores the others.
+      await window.locator(".imageCard").first().click();
+      await window.keyboard.press("k");
+      await window.waitForFunction((count) => document.querySelectorAll(".imageCard__chip--discarded").length === count - 1, copies);
+      check("K keeps only the selected image", (await window.locator('.imageCard[aria-pressed="true"] .imageCard__chip--discarded').count()) === 0);
+      await window.getByRole("button", { name: "Restore others", exact: true }).click();
+      await window.waitForFunction(() => document.querySelectorAll(".imageCard__chip--discarded").length === 0);
+      check("the keep-only button restores the others", true);
+      check(
+         "clicked review controls leave keyboard focus free for Space",
+         await window.evaluate(() => document.activeElement === document.body || !document.activeElement?.closest("button"))
+      );
+      check("cards show their number key", (await window.locator(".imageCard__key").first().textContent()) === "1");
       const beforeAdvance = await window.textContent(".toolbar__counter");
       await window.keyboard.press("Control+1");
       await window.waitForFunction((previous) => document.querySelector(".toolbar__counter")?.textContent !== previous, beforeAdvance);
@@ -253,10 +267,18 @@ const run = async () => {
             .first()
             .evaluate((img) => getComputedStyle(img).objectFit === "contain")
       );
+      check("final review shows what the set keeps beside the move", (await window.locator(".moveSet .keptCard").count()) > 0);
       await window.screenshot({ path: path.join(artifactsDir, "13-final-review-populated.png") });
 
-      await window.locator(".finalReview").getByLabel("Close final review").click();
+      // A final-review card is a way back to its set, with that image selected.
+      const discardedName = await window.locator(".moveSet .moveCard strong").first().textContent();
+      await window.locator(".moveSet .moveCardButton:has(.moveCard)").first().click();
       await window.waitForSelector(".finalReview", { state: "detached" });
+      check(
+         "final review card returns to its set with the image selected",
+         (await window.locator('.imageCard[aria-pressed="true"] .imageCard__caption strong').textContent()) === discardedName,
+         discardedName ?? "missing"
+      );
       await window.locator(".imageCard").first().click();
       await window.getByRole("button", { name: "Restore", exact: true }).click();
       await window.waitForSelector(".imageCard__chip--discarded", { state: "detached" });
