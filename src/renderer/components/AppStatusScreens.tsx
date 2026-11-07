@@ -135,6 +135,10 @@ export const NoMatchesScreen = (props: {
 interface StartupScreenProps {
    hasSavedReview: boolean;
    savedSetCount: number;
+   /** Discarded images still at their source, waiting for the final review. */
+   pendingDiscardCount: number;
+   /** Images sitting in the duplicate folder, not yet recycled. */
+   movedCount: number;
    showOnLaunch: boolean;
    isDragOver: boolean;
    onOpenFolder: () => void;
@@ -148,6 +152,8 @@ interface StartupScreenProps {
 const StartupScreenBody = ({
    hasSavedReview,
    savedSetCount,
+   pendingDiscardCount,
+   movedCount,
    showOnLaunch,
    isDragOver,
    onOpenFolder,
@@ -197,7 +203,9 @@ const StartupScreenBody = ({
                   Continue review
                   {hasSavedReview && (
                      <small>
-                        {savedSetCount} set{savedSetCount === 1 ? "" : "s"}. Updates automatically.
+                        {savedSetCount} set{savedSetCount === 1 ? "" : "s"}
+                        {pendingDiscardCount > 0 && ` · ${pendingDiscardCount} discarded, not moved yet`}
+                        {movedCount > 0 && ` · ${movedCount} in the duplicate folder`}. Updates automatically.
                      </small>
                   )}
                </span>

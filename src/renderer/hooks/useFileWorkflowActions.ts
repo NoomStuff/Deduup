@@ -1,6 +1,7 @@
 import { useRef, useState } from "react";
 import type { Decisions, LoadDataResult, MoveResult } from "../../shared/types.js";
 import type { NotificationInput } from "./useNotifications.js";
+import { describeFileResult } from "../reviewModel.js";
 
 interface FileWorkflowActionsOptions {
    clearHistory: () => void;
@@ -36,7 +37,7 @@ export const useFileWorkflowActions = ({ clearHistory, notify, onRefresh, report
          notify({
             tone: result.errors.length > 0 ? "warning" : "success",
             title: result.errors.length > 0 ? "Move finished with errors" : "Discarded images moved",
-            message: `Moved ${result.moved.length}, skipped ${result.skipped.length}, errors ${result.errors.length}.`,
+            message: `${describeFileResult(result, "Moved")} The duplicate folder keeps them until you recycle it.`,
          });
       } catch (error: unknown) {
          reportError("Couldn't move discarded images", error, "Failed to move discarded images");
@@ -54,6 +55,9 @@ export const useFileWorkflowActions = ({ clearHistory, notify, onRefresh, report
       try {
          await api.trashDuplicateFolder();
          onRefresh(await api.loadData());
+         // The recycle is now the latest outcome; an older move or restore
+         // result must not keep speaking for the folder.
+         setMoveResult(null);
          setRestoreResult(null);
          notify({ tone: "success", title: "Duplicates recycled", message: "The duplicate folder is in the Recycle Bin." });
       } catch (error: unknown) {
@@ -77,7 +81,7 @@ export const useFileWorkflowActions = ({ clearHistory, notify, onRefresh, report
          notify({
             tone: result.errors.length > 0 ? "warning" : "success",
             title: result.errors.length > 0 ? "Restore finished with errors" : "Images restored",
-            message: `Restored ${result.moved.length}, skipped ${result.skipped.length}, errors ${result.errors.length}.`,
+            message: describeFileResult(result, "Restored"),
          });
       } catch (error: unknown) {
          reportError("Couldn't restore images", error, "Failed to restore moved images");

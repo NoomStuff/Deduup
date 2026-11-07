@@ -292,6 +292,15 @@ export const getSetInsights = (imageSet: ImageSet): SetInsights => {
    return { suggestedPath, commonFolder, images };
 };
 
+/** "Moved 9 images." plus only the counts that need attention. */
+export const describeFileResult = (result: { moved: unknown[]; skipped: unknown[]; errors: unknown[] }, verb: string): string => {
+   const moved = result.moved.length;
+   const parts = [`${verb} ${moved} image${moved === 1 ? "" : "s"}`];
+   if (result.skipped.length > 0) parts.push(`${result.skipped.length} skipped`);
+   if (result.errors.length > 0) parts.push(`${result.errors.length} failed`);
+   return `${parts.join(", ")}.`;
+};
+
 export const formatBytes = (bytes: number): string => {
    if (bytes < 1024) {
       return `${bytes} B`;

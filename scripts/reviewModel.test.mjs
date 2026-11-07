@@ -231,3 +231,9 @@ test("final review sets pair each move with what the set keeps", async () => {
       ]
    );
 });
+
+test("file results read as one sentence and only mention counts that need attention", async () => {
+   const { describeFileResult } = await import("../src/renderer/reviewModel.ts");
+   assert.equal(describeFileResult({ moved: [1], skipped: [], errors: [] }, "Moved"), "Moved 1 image.");
+   assert.equal(describeFileResult({ moved: [1, 2, 3], skipped: [1], errors: [1, 2] }, "Restored"), "Restored 3 images, 1 skipped, 2 failed.");
+});

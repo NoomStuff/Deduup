@@ -34,8 +34,8 @@ const topics: { id: HelpTab; label: string; body: ReactNode }[] = [
                <li>Open a folder. Drag it onto the window, or use File in the menu bar.</li>
                <li>The scanner sorts similar images into sets along the strip at the bottom, grouped by image difference. Lower means more alike.</li>
                <li>
-                  In each set, keep the image you prefer and discard the rest. Numbers 1–9 discard images, X discards a whole set, and Autoselect (right-click a
-                  set or band) keeps the largest image of a set.
+                  In each set, keep the image you prefer and discard the rest. The number on each image is its key: 1–9 discard images, K keeps only the
+                  selected one, X discards a whole set, and Autoselect (right-click a set or band) keeps the largest image of a set.
                </li>
                <li>Open the final review, move the discarded images to the duplicate folder, and recycle that folder when you're happy.</li>
             </ol>
@@ -55,16 +55,30 @@ const topics: { id: HelpTab; label: string; body: ReactNode }[] = [
       body: (
          <>
             <p>A set is one group of related images. Select an image and the header offers the actions that apply to it.</p>
+            <h3>Choosing what to keep</h3>
+            <ul>
+               <li>
+                  Where the images of a set differ, the larger resolution and file size read <strong>green</strong> and weaker values fade. Identical values
+                  stay plain.
+               </li>
+               <li>
+                  The <strong>Largest</strong> tag marks the image Autoselect would keep. It is a suggestion; the choice is yours.
+               </li>
+               <li>When a set spans folders, each image shows its folder.</li>
+            </ul>
             <h3>Discarding</h3>
             <ul>
                <li>
-                  Select an image, then <strong>Discard</strong>. Shift Click and the number keys (Ctrl shows the numbers on the shelf) do the same without
-                  leaving the shelf.
+                  Select an image, then <strong>Discard</strong>, or press the number shown on the image. Shift Click does the same without selecting.
+               </li>
+               <li>
+                  <strong>Keep only this</strong> (K) discards every other image in the set. Hold Ctrl with a number key or K to move on to the next set in the
+                  same press.
                </li>
                <li>
                   <strong>X</strong> discards every image in the set; <strong>V</strong> autoselects sets without existing choices in the band.
                </li>
-               <li>Right-click an image, a set tile, or a band tag for its full menu, including Keep only this.</li>
+               <li>Right-click an image, a set tile, or a band tag for its full menu.</li>
             </ul>
             <h3>Comparing</h3>
             <p>
@@ -75,6 +89,11 @@ const topics: { id: HelpTab; label: string; body: ReactNode }[] = [
             <p>
                The dot under a set tile reflects its choices: gray has no discards, amber has some, and red means every image is discarded. Click a tile to jump
                there; a band tag jumps to its whole group.
+            </p>
+            <h3>The final review</h3>
+            <p>
+               Every set with discards appears beside what it keeps, and sets that keep nothing are flagged. Click any image there to return to its set and
+               change your mind before anything moves.
             </p>
          </>
       ),

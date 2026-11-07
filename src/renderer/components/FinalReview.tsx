@@ -3,7 +3,7 @@ import { CircleCheck, FolderOpen, ShieldCheck, Trash2, TriangleAlert, Undo2, X }
 import type { FileActionStatus, ImageSet, MoveResult } from "../../shared/types.js";
 import type { FileWorkflowState, MovePreview } from "../appTypes.js";
 import type { TooltipProps } from "../hooks/useTooltip.js";
-import { formatBytes, getFinalReviewSets, getSetNumber, type FinalReviewSet } from "../reviewModel.js";
+import { describeFileResult, formatBytes, getFinalReviewSets, getSetNumber, type FinalReviewSet } from "../reviewModel.js";
 import { OverlayPanel } from "./OverlayPanel.js";
 import "./FinalReview.css";
 
@@ -106,9 +106,7 @@ const MoveSet = ({ entry, onOpenSet }: { entry: FinalReviewSet; onOpenSet: Final
 const ResultBanner = ({ result, tone, verb }: { result: MoveResult; tone: "success" | "warning"; verb: string }) => (
    <div className={`resultBanner resultBanner--${tone}`} role="status">
       <ShieldCheck aria-hidden="true" />
-      <span>
-         {verb} {result.moved.length}, skipped {result.skipped.length}, failed {result.errors.length}.
-      </span>
+      <span>{describeFileResult(result, verb)}</span>
       {result.errors.length > 0 && (
          <details className="resultBanner__details">
             <summary>{result.errors.length} need attention</summary>

@@ -1,13 +1,15 @@
 /* --- Notifications ---------------------------------------------------------------- */
 
-/* Bottom-left above the filmstrip. Portaled to the body so toasts stay
+/* Bottom-left over the set timeline. Portaled to the body so toasts stay
    clickable while an overlay holds the app root inert. Top-center collided
-   with the skipped-items banner and the hint bar; the only band that never
-   carries state or actions is the caption row above the timeline. */
+   with the skipped-items banner and the hint bar, and the caption row above
+   the timeline now carries each image's decision details (resolution, size,
+   folder). The timeline is navigation, so a brief toast over a few tiles
+   costs the least. */
 
 .notificationCenter {
    position: fixed;
-   bottom: 104px;
+   bottom: 12px;
    left: 14px;
    z-index: 85;
    display: grid;
