@@ -165,3 +165,69 @@ test("set numbers format to a hash plus plain number", () => {
    assert.equal(getSetNumber("set_001"), "#1");
    assert.equal(getSetNumber("set_341"), "#341");
 });
+
+test("set insights rank only real differences and point at the autoselect pick", async () => {
+   const { getSetInsights } = await import("../src/renderer/reviewModel.ts");
+   const identical = makeSet("set_010", 0, [image("a.jpg", 800, 600, 500), image("b.jpg", 800, 600, 500)]);
+   const flat = getSetInsights(identical);
+   assert.equal(flat.suggestedPath, null);
+   assert.deepEqual(
+      [...flat.images.values()],
+      [
+         { resolution: null, size: null, folderLabel: null },
+         { resolution: null, size: null, folderLabel: null },
+      ]
+   );
+
+   // Re-saves a few bytes apart read as the same size.
+   const resaved = getSetInsights(makeSet("set_011", 1, [image("a.jpg", 800, 600, 1000), image("b.jpg", 800, 600, 1010)]));
+   assert.equal(resaved.suggestedPath, null);
+   assert.equal(resaved.images.get("C:/lib/a.jpg")?.size, null);
+
+   const ranked = getSetInsights(threeSet);
+   assert.equal(ranked.suggestedPath, "C:/lib/c.jpg");
+   assert.equal(ranked.images.get("C:/lib/a.jpg")?.resolution, "lower");
+   assert.equal(ranked.images.get("C:/lib/b.jpg")?.resolution, "best");
+   assert.equal(ranked.images.get("C:/lib/b.jpg")?.size, "lower");
+   assert.equal(ranked.images.get("C:/lib/c.jpg")?.size, "best");
+});
+
+test("set insights label folders relative to the folder every image shares", async () => {
+   const { getSetInsights } = await import("../src/renderer/reviewModel.ts");
+   // Windows paths, written with "/" here and converted so the test reads cleanly.
+   const win = (value) => value.replaceAll("/", "\\");
+   const at = (name, folder) => ({ ...image(name, 10, 10, 10), originalPath: win(`${folder}/${name}`), folderPath: win(folder) });
+   const nested = getSetInsights(makeSet("set_012", 1, [at("a.jpg", "C:/Photos/2014"), at("b.jpg", "C:/Photos/Backup/2014")]));
+   assert.equal(nested.commonFolder, win("C:/Photos"));
+   assert.equal(nested.images.get(win("C:/Photos/2014/a.jpg"))?.folderLabel, "2014");
+   assert.equal(nested.images.get(win("C:/Photos/Backup/2014/b.jpg"))?.folderLabel, "Backup/2014");
+
+   const rooted = getSetInsights(makeSet("set_013", 1, [at("a.jpg", "C:/Photos"), at("b.jpg", "C:/Photos/Backup")]));
+   assert.equal(rooted.images.get(win("C:/Photos/a.jpg"))?.folderLabel, "Photos");
+   assert.equal(rooted.images.get(win("C:/Photos/Backup/b.jpg"))?.folderLabel, "Photos/Backup");
+
+   const together = getSetInsights(makeSet("set_014", 1, [at("a.jpg", "C:/Photos"), at("b.jpg", "C:/Photos")]));
+   assert.equal(together.commonFolder, win("C:/Photos"));
+   assert.equal(together.images.get(win("C:/Photos/a.jpg"))?.folderLabel, null);
+
+   // POSIX roots keep their leading separator.
+   const posixAt = (name, folder) => ({ ...image(name, 10, 10, 10), originalPath: `${folder}/${name}`, folderPath: folder });
+   const posix = getSetInsights(makeSet("set_015", 1, [posixAt("a.jpg", "/home/me/a"), posixAt("b.jpg", "/home/me/b")]));
+   assert.equal(posix.commonFolder, "/home/me");
+   assert.equal(posix.images.get("/home/me/b/b.jpg")?.folderLabel, "b");
+});
+
+test("final review sets pair each move with what the set keeps", async () => {
+   const { getFinalReviewSets } = await import("../src/renderer/reviewModel.ts");
+   const other = makeSet("set_002", 3, [image("d.jpg", 10, 10, 1), image("e.jpg", 10, 10, 1)]);
+   const decisions = { set_001: { deletedImages: ["C:/lib/a.jpg"] }, set_002: { deletedImages: ["C:/lib/d.jpg", "C:/lib/e.jpg"] } };
+   const { movePreview } = getReviewSummary([threeSet, other], decisions);
+   const sets = getFinalReviewSets([threeSet, other], movePreview);
+   assert.deepEqual(
+      sets.map((entry) => [entry.number, entry.kept.map((item) => item.file), entry.discarded.map((row) => row.file)]),
+      [
+         ["#1", ["b.jpg", "c.jpg"], ["a.jpg"]],
+         ["#2", [], ["d.jpg", "e.jpg"]],
+      ]
+   );
+});

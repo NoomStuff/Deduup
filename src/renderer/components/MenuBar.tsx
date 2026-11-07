@@ -39,6 +39,7 @@ const menuItems: Record<string, MenuEntry[]> = {
       "compareSelected",
       "previewSelected",
       "toggleSelected",
+      "keepOnlySelected",
       "finalReview",
    ],
    Help: ["help", "about", "divider", "releasesPage", "settings"],
@@ -62,7 +63,9 @@ const usePresence = (open: boolean, closeMs = 120): { mounted: boolean; closing:
          if (timer !== null) window.clearTimeout(timer);
       };
    }, [open, closeMs]);
-   return state;
+   // An open menu renders in the same pass that opened it: waiting for the
+   // effect left a frame where a fast arrow key found no items to focus.
+   return open ? { mounted: true, closing: false } : state;
 };
 
 const MenuItem = ({ id, commands, onClose }: { id: CommandId; commands: Commands; onClose: () => void }) => {
@@ -200,7 +203,15 @@ export const MenuBar = ({ menu, onMenuChange, ...props }: MenuBarProps) => {
          </nav>
 
          {props.reviewActive && (
-            <div className="toolbar__actions">
+            <div
+               className="toolbar__actions"
+               onMouseDown={(event) => {
+                  // Like the review surface: a clicked undo or redo must not hold
+                  // focus, or the next Space repeats it instead of moving on.
+                  if (event.button !== 0 || !(event.target instanceof Element) || event.target.closest("button") === null) return;
+                  event.preventDefault();
+               }}
+            >
                <button
                   aria-label="Undo"
                   className="iconButton"

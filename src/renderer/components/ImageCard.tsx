@@ -1,12 +1,15 @@
 import { memo, useLayoutEffect, useRef, useState } from "react";
 import type { MouseEvent } from "react";
-import { FolderOpen, ImageOff, Trash2 } from "lucide-react";
+import { Crown, Folder, FolderOpen, ImageOff, Trash2 } from "lucide-react";
 import type { ImageItem } from "../../shared/types.js";
 import type { ImageDeleteState } from "../appTypes.js";
-import { formatBytes, formatDate } from "../reviewModel.js";
+import { formatBytes, formatDate, type ImageInsight } from "../reviewModel.js";
 import "./ImageCard.css";
 
 type CardLoadState = "loading" | "loaded" | "failed";
+
+const rankClass = (rank: ImageInsight["resolution"] | undefined): string | undefined =>
+   rank === "best" ? "imageCard__value--best" : rank === "lower" ? "imageCard__value--lower" : undefined;
 
 export const ImageCard = memo(function ImageCard({
    image,
@@ -15,6 +18,8 @@ export const ImageCard = memo(function ImageCard({
    showIndexHint,
    isComparePick,
    isSelected,
+   isSuggested,
+   insight,
    onClick,
    onPreview,
    onContextMenu,
@@ -25,6 +30,8 @@ export const ImageCard = memo(function ImageCard({
    showIndexHint: boolean;
    isComparePick: boolean;
    isSelected: boolean;
+   isSuggested: boolean;
+   insight: ImageInsight | undefined;
    onClick: (event: MouseEvent, image: ImageItem) => void;
    onPreview: (image: ImageItem) => void;
    onContextMenu: (event: MouseEvent, image: ImageItem) => void;
@@ -54,7 +61,7 @@ export const ImageCard = memo(function ImageCard({
 
    return (
       <button
-         aria-label={`${image.file}${state === "deleted" ? ", discarded" : ""}${isAvailable ? "" : `, ${unavailableTitle}`}`}
+         aria-label={`${image.file}${state === "deleted" ? ", discarded" : ""}${isSuggested ? ", largest" : ""}${isAvailable ? "" : `, ${unavailableTitle}`}`}
          aria-pressed={isSelected}
          className={`imageCard imageCard--${state}${isSelected ? " imageCard--selected" : ""}${isComparePick ? " imageCard--comparePick" : ""}${isAvailable ? "" : " imageCard--immutable"}`}
          onClick={(event) => onClick(event, image)}
@@ -86,6 +93,11 @@ export const ImageCard = memo(function ImageCard({
             </span>
          )}
          {isComparePick && <span className="imageCard__chip imageCard__chip--compare">1/2 picked</span>}
+         {isSuggested && isAvailable && (
+            <span className="imageCard__chip imageCard__chip--suggested">
+               <Crown aria-hidden="true" /> Largest
+            </span>
+         )}
          {state === "deleted" && isAvailable && (
             <span className="imageCard__chip imageCard__chip--discarded">
                <Trash2 aria-hidden="true" /> Discarded
@@ -121,10 +133,29 @@ export const ImageCard = memo(function ImageCard({
             </div>
          )}
          <span className="imageCard__caption">
-            <strong title={image.file}>{image.file}</strong>
-            <span className="imageCard__details">
-               {image.width}x{image.height} · {formatBytes(image.size)} · {formatDate(image.modifiedAt)}
+            <span className="imageCard__title">
+               {isAvailable && index < 9 && (
+                  <kbd aria-hidden="true" className="imageCard__key">
+                     {index + 1}
+                  </kbd>
+               )}
+               <strong title={image.file}>{image.file}</strong>
             </span>
+            <span className="imageCard__details">
+               <span className={rankClass(insight?.resolution)}>
+                  {image.width}x{image.height}
+               </span>
+               {" · "}
+               <span className={rankClass(insight?.size)}>{formatBytes(image.size)}</span>
+               {" · "}
+               {formatDate(image.modifiedAt)}
+            </span>
+            {insight?.folderLabel != null && (
+               <span className="imageCard__folder" title={image.folderPath}>
+                  <Folder aria-hidden="true" />
+                  <span>{insight.folderLabel}</span>
+               </span>
+            )}
          </span>
       </button>
    );

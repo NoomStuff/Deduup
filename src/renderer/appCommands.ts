@@ -29,6 +29,7 @@ interface ReviewCommandOptions {
    openAdjacentCompare: (image: ImageItem) => void;
    previewImageOf: (image: ImageItem) => void;
    toggleImageRemoval: (imageSet: ImageSet, image: ImageItem, advance: boolean) => void;
+   toggleOnlyImageKept: (imageSet: ImageSet, image: ImageItem, advance: boolean) => void;
    reviewActive: boolean;
    compare: CompareState | null;
    keepCompareImage: (image: ImageItem, advance: boolean) => void;
@@ -71,6 +72,7 @@ export const buildReviewCommands = ({
    openAdjacentCompare,
    previewImageOf,
    toggleImageRemoval,
+   toggleOnlyImageKept,
    reviewActive,
    compare,
    keepCompareImage,
@@ -151,6 +153,12 @@ export const buildReviewCommands = ({
          enabled: () => reviewCommandsActive && selectedImage !== null,
          run: (event) => {
             if (currentSet !== null && selectedImage !== null) toggleImageRemoval(currentSet, selectedImage, event?.ctrlKey === true);
+         },
+      },
+      keepOnlySelected: {
+         enabled: () => reviewCommandsActive && selectedImage !== null,
+         run: (event) => {
+            if (currentSet !== null && selectedImage !== null) toggleOnlyImageKept(currentSet, selectedImage, event?.ctrlKey === true);
          },
       },
       toggleImageByNumber: {

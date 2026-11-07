@@ -11,6 +11,10 @@ interface ConfirmDialogProps {
    onClose: () => void;
 }
 
+/** Review choices stay staged and undoable, so their confirm is the Enter
+   default; anything that moves files or clears every choice starts on Cancel. */
+const confirmFirstKinds = new Set<ConfirmAction["kind"]>(["discardSet", "discardBand"]);
+
 export const ConfirmDialog = ({ action, onConfirm, onClose }: ConfirmDialogProps) => (
    <OverlayPanel
       backdropClassName="confirmOverlay__backdrop"
@@ -35,6 +39,7 @@ export const ConfirmDialog = ({ action, onConfirm, onClose }: ConfirmDialogProps
          </button>
          <button
             className="dangerButton"
+            data-autofocus={confirmFirstKinds.has(action.kind) ? true : undefined}
             onClick={() => {
                onConfirm();
                onClose();

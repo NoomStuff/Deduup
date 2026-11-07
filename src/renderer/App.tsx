@@ -162,6 +162,7 @@ export const App = () => {
       autoSelectImageSet,
       clearImageSetChoices,
       toggleImageRemoval,
+      toggleOnlyImageKept,
       discardSet,
       discardBand,
       requestBandAutoselect,
@@ -223,6 +224,7 @@ export const App = () => {
       openAdjacentCompare,
       previewImageOf,
       toggleImageRemoval,
+      toggleOnlyImageKept,
       reviewActive,
       compare,
       keepCompareImage,
@@ -462,6 +464,7 @@ export const App = () => {
 
             {isFinalReviewOpen && (
                <FinalReview
+                  groups={groups}
                   destination={duplicateDestination}
                   duplicateFolderHasContent={duplicateFolderHasContent}
                   duplicatePreview={duplicatePreview}
@@ -484,6 +487,13 @@ export const App = () => {
                      });
                   }}
                   onClose={() => setIsFinalReviewOpen(false)}
+                  onOpenSet={(setId, imagePath) => {
+                     const index = groups.findIndex((imageSet) => imageSet.id === setId);
+                     if (index < 0) return;
+                     setIsFinalReviewOpen(false);
+                     goTo(index);
+                     setSelectedImagePath(imagePath ?? null);
+                  }}
                   onOpenFolder={() => {
                      if (duplicateFolderPath !== null) void openFolder(duplicateFolderPath);
                   }}

@@ -1,11 +1,20 @@
+import { useMemo } from "react";
 import type { CSSProperties, MouseEvent, RefObject } from "react";
-import { Eraser, Eye, FolderOpen, MousePointer2, Search, Trash2 } from "lucide-react";
+import { CircleCheck, Eraser, Eye, FolderOpen, MousePointer2, Search, Trash2 } from "lucide-react";
 import type { ImageItem, ImageSet, ImageSetDecision } from "../../shared/types.js";
 import type { ContextMenuState, SimilarityBand, TravelDirection } from "../appTypes.js";
 import { useBindingDisplay } from "../commands.js";
 import { useCtrlHeld } from "../hooks/usePreference.js";
 import type { TooltipProps } from "../hooks/useTooltip.js";
-import { getDeletedImagePaths, getImageSetLabel, getSetNumber, getSimilarityColor, getSimilarityLabel, type LibrarySetRow } from "../reviewModel.js";
+import {
+   getDeletedImagePaths,
+   getImageSetLabel,
+   getSetInsights,
+   getSetNumber,
+   getSimilarityColor,
+   getSimilarityLabel,
+   type LibrarySetRow,
+} from "../reviewModel.js";
 import { ReviewFilmstrip } from "./ReviewFilmstrip.js";
 import { ImageCard } from "./ImageCard.js";
 import "./ReviewWorkspace.css";
@@ -32,9 +41,10 @@ interface ReviewWorkspaceProps {
    onImageContextMenu: (event: MouseEvent, image: ImageItem) => void;
    onImagePreview: (image: ImageItem) => void;
    onImageSetContextMenu: (event: MouseEvent, imageSet: ImageSet) => void;
+   onKeepOnlySelected: () => void;
    onNavigate: (index: number) => void;
    onOpenContextMenu: (state: ContextMenuState) => void;
-   onOpenSetFolder: () => void;
+   onOpenSetFolder: (folderPath: string) => void;
    onPreviewSelected: () => void;
 }
 
@@ -47,6 +57,16 @@ export const ReviewWorkspace = (props: ReviewWorkspaceProps) => {
    const availableCount = props.currentSet.images.filter((image) => image.sourceStatus === "available").length;
    const compareNeedsPick = availableCount > 2;
    const discardCount = discardedPaths.size;
+   const insights = useMemo(() => getSetInsights(props.currentSet), [props.currentSet]);
+   const setFolder = insights.commonFolder.length > 0 ? insights.commonFolder : props.currentSet.folderPath;
+   const selectedIsOnlyKept =
+      selectedIsAvailable &&
+      !selectedImageIsDiscarded &&
+      availableCount > 1 &&
+      props.currentSet.images.every(
+         (image) => image.originalPath === selectedImage.originalPath || image.sourceStatus !== "available" || discardedPaths.has(image.originalPath)
+      );
+   const keepOnlyHint = useBindingDisplay("keepOnlySelected");
    const ctrlHeld = useCtrlHeld();
    const discardSetHint = useBindingDisplay("discardSet");
    const compareHint = useBindingDisplay("compareSelected");
@@ -56,7 +76,17 @@ export const ReviewWorkspace = (props: ReviewWorkspaceProps) => {
    const nextHint = useBindingDisplay("nextSet");
 
    return (
-      <section className={`workFrame imageGrid--${props.travelDirection}`}>
+      <section
+         className={`workFrame imageGrid--${props.travelDirection}`}
+         onMouseDown={(event) => {
+            // Mouse clicks on review controls never take keyboard focus: a
+            // focused button would swallow Space (next set) and Enter, so the
+            // click-then-keyboard flow keeps working. Tab focus is unaffected.
+            if (event.button !== 0 || !(event.target instanceof Element) || event.target.closest("button") === null) return;
+            event.preventDefault();
+            if (document.activeElement instanceof HTMLElement && document.activeElement !== document.body) document.activeElement.blur();
+         }}
+      >
          <section className="reviewWorkspace">
             <div className="reviewWorkspace__main">
                <header className="setHeader">
@@ -72,12 +102,12 @@ export const ReviewWorkspace = (props: ReviewWorkspaceProps) => {
                      </span>
                      <button
                         className="setHeader__folder"
-                        onClick={props.onOpenSetFolder}
+                        onClick={() => props.onOpenSetFolder(setFolder)}
                         type="button"
-                        {...props.getTooltipProps("Open folder", "Open this set's folder in the file explorer.")}
+                        {...props.getTooltipProps("Open folder", setFolder)}
                      >
                         <FolderOpen aria-hidden="true" />
-                        <span>{props.currentSet.folderPath.split(/[\\/]/u).at(-1)}</span>
+                        <span>{setFolder.split(/[\\/]/u).at(-1)}</span>
                      </button>
                   </div>
                   {/* Actions stay visible and disable instead of appearing and
@@ -99,6 +129,20 @@ export const ReviewWorkspace = (props: ReviewWorkspaceProps) => {
                      >
                         {selectedImageIsDiscarded ? <Eraser aria-hidden="true" /> : <Trash2 aria-hidden="true" />}
                         <span>{selectedImageIsDiscarded ? "Restore" : "Discard"}</span>
+                     </button>
+                     <button
+                        className="setHeader__action"
+                        disabled={!selectedIsAvailable || availableCount < 2}
+                        onClick={props.onKeepOnlySelected}
+                        type="button"
+                        {...props.getTooltipProps(
+                           selectedIsOnlyKept ? "Restore the others" : "Keep only this",
+                           selectedIsOnlyKept ? "Bring back every other image in this set." : "Keep this image and discard every other image in the set.",
+                           keepOnlyHint
+                        )}
+                     >
+                        <CircleCheck aria-hidden="true" />
+                        <span>{selectedIsOnlyKept ? "Restore others" : "Keep only this"}</span>
                      </button>
                      <button
                         className="setHeader__action"
@@ -161,6 +205,8 @@ export const ReviewWorkspace = (props: ReviewWorkspaceProps) => {
                         index={index}
                         isComparePick={props.comparePick?.originalPath === image.originalPath}
                         isSelected={props.selectedImagePath === image.originalPath}
+                        insight={insights.images.get(image.originalPath)}
+                        isSuggested={insights.suggestedPath === image.originalPath}
                         key={image.originalPath}
                         onClick={props.onImageClick}
                         onContextMenu={props.onImageContextMenu}
