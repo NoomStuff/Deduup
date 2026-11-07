@@ -120,19 +120,6 @@
    margin: 0 2px;
 }
 
-.toolbar__counter {
-   margin: 0;
-   color: var(--text);
-   font-size: 13px;
-   font-weight: 600;
-   font-variant-numeric: tabular-nums;
-}
-
-.toolbar__counter > span {
-   color: var(--faint);
-   font-weight: 500;
-}
-
 .toolbar__finalStep {
    white-space: nowrap;
 }

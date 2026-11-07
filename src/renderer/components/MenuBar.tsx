@@ -13,8 +13,6 @@ interface MenuBarProps {
    reviewActive: boolean;
    canUndo: boolean;
    canRedo: boolean;
-   currentNumber: string;
-   totalSets: number;
    readyToMoveCount: number;
    finalReviewOpen: boolean;
    onToggleFinalReview: () => void;
@@ -232,11 +230,6 @@ export const MenuBar = ({ menu, onMenuChange, ...props }: MenuBarProps) => {
                >
                   <Redo2 aria-hidden="true" />
                </button>
-               <span aria-hidden="true" className="toolbar__divider" />
-               <p aria-label={`${props.currentNumber.replace("#", "")} of ${props.totalSets} sets`} className="toolbar__counter">
-                  {props.currentNumber}
-                  <span>/{props.totalSets}</span>
-               </p>
                <span aria-hidden="true" className="toolbar__divider" />
                <button
                   className="primaryButton toolbar__finalStep"

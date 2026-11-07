@@ -17,12 +17,6 @@
    animation: overlay-drop 200ms ease-in both;
 }
 
-.helpPanel__sub {
-   margin: 2px 0 0;
-   color: var(--faint);
-   font-size: 12px;
-}
-
 .helpPanel__body {
    padding-top: 18px;
 }

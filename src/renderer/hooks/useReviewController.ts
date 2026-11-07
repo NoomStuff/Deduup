@@ -266,7 +266,6 @@ export const useReviewController = ({
       onBeginComparePick: () => {
          if (selectedImage !== null) beginCompare(selectedImage);
       },
-      onClearSet: () => clearImageSetChoices(currentSet),
       onCompareSelected: () => {
          if (selectedImage !== null) openAdjacentCompare(selectedImage);
       },
@@ -284,9 +283,6 @@ export const useReviewController = ({
       onNavigate: goTo,
       onOpenContextMenu: setContextMenu,
       onOpenSetFolder: (folderPath) => void openFolder(folderPath),
-      onPreviewSelected: () => {
-         if (selectedImage !== null) previewImageOf(selectedImage);
-      },
    });
 
    const getContextMenuActions = (contextSet: ImageSet): ContextMenuActions => ({

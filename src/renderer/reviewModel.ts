@@ -221,8 +221,6 @@ export interface ImageInsight {
 }
 
 export interface SetInsights {
-   /** The image autoselect keeps, when the set has a real difference to choose by. */
-   suggestedPath: string | null;
    /** The deepest folder every image shares. */
    commonFolder: string;
    images: Map<string, ImageInsight>;
@@ -254,8 +252,7 @@ const getCommonFolder = (folders: string[]): string => {
  * What tells the images of one set apart: which has the most pixels, which is
  * the largest file, and where each lives. Only available images take part, and
  * a rank appears only when the set actually differs on it, so identical files
- * show no highlight at all. The suggestion is the autoselect pick, shown only
- * when resolution or file size gives it a reason.
+ * show no highlight at all.
  */
 export const getSetInsights = (imageSet: ImageSet): SetInsights => {
    const available = imageSet.images.filter((image) => image.sourceStatus === "available");
@@ -288,8 +285,7 @@ export const getSetInsights = (imageSet: ImageSet): SetInsights => {
       });
    });
 
-   const suggestedPath = (pixelsDiffer || sizesDiffer) && available.length > 1 ? getLargestImage({ ...imageSet, images: available }).originalPath : null;
-   return { suggestedPath, commonFolder, images };
+   return { commonFolder, images };
 };
 
 /** "Moved 9 images." plus only the counts that need attention. */
