@@ -22,10 +22,10 @@ const isAlert = (tone: NotificationTone): boolean => tone === "error" || tone ==
 
 /**
  * Owns the toast queue. While a blocking surface holds the screen
- * (`holdWhile`; the final review with its safety footer), quiet outcomes
- * (success/info) queue and land after it closes, and alerts show immediately
- * in the raised column, clear of the panel. Queued notes get a fresh window
- * when they finally display.
+ * (`holdWhile`; the final review with its safety footer), the latest quiet
+ * outcome (success/info) waits and lands after it closes, and alerts show
+ * immediately in the raised column, clear of the panel. The held note gets a
+ * fresh window when it finally displays.
  */
 export const useNotifications = (
    holdWhile = false
@@ -58,7 +58,9 @@ export const useNotifications = (
             elevated: holdWhile && isAlert(input.tone),
          };
          if (holdWhile && !isAlert(input.tone)) {
-            heldRef.current = [...heldRef.current.slice(-3), notification];
+            // Only the latest quiet outcome survives the hold: after a move
+            // and a recycle, "recycled" is the news and "moved" is history.
+            heldRef.current = [notification];
             return;
          }
          setNotifications((current) => [...current.slice(-3), notification]);
