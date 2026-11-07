@@ -115,11 +115,30 @@ const hashPattern = /^[0-9a-f]{16}:[0-9a-f]{432}$/u;
 interface ImageHash {
    spatial: bigint;
    colors: Buffer;
+   /** 1 landscape, -1 portrait, 0 close to square or unknown. */
+   orientation: -1 | 0 | 1;
 }
-const parseHash = (hash: string): ImageHash => {
-   if (!hashPattern.test(hash)) throw new Error("Unsupported image hash. Rescan the library.");
-   return { spatial: BigInt(`0x${hash.slice(0, 16)}`), colors: Buffer.from(hash.slice(17), "hex") };
+
+/**
+ * The hash squeezes every image into the same 9x8 grid, so a portrait and a
+ * landscape photo can land on similar thumbnails. A duplicate, resize,
+ * re-encode, or light edit never flips orientation (the hash is taken after
+ * EXIF rotation), so a flip is evidence against a match.
+ */
+const orientationRatio = 1.15;
+const getOrientation = (width: number, height: number): ImageHash["orientation"] => {
+   if (width <= 0 || height <= 0) return 0;
+   if (width >= height * orientationRatio) return 1;
+   if (height >= width * orientationRatio) return -1;
+   return 0;
 };
+
+const parseHash = (hash: string, width = 0, height = 0): ImageHash => {
+   if (!hashPattern.test(hash)) throw new Error("Unsupported image hash. Rescan the library.");
+   return { spatial: BigInt(`0x${hash.slice(0, 16)}`), colors: Buffer.from(hash.slice(17), "hex"), orientation: getOrientation(width, height) };
+};
+
+const parseImageHash = (image: ScannedImage): ImageHash => parseHash(image.hash, image.width, image.height);
 
 const createDifferenceHash = (pixels: Buffer): string => {
    // Ignore tiny quantization gradients in otherwise flat images.
@@ -223,9 +242,12 @@ export const getHashDistance = (left: string, right: string): number => {
  * Difference stays on the 0..64 scale. Color difference is the mean largest
  * RGB channel change per thumbnail pixel, scaled from 0..255 to 0..64.
  * Taking the maximum means color can reject a spatial match, never rescue one.
- * Zero requires identical spatial bits AND identical RGB thumbnails.
+ * Zero requires identical spatial bits AND identical RGB thumbnails. A
+ * portrait/landscape flip scores the full scale, so it never matches and a
+ * chain that reaches one through other images splits it back out.
  */
 const getImageHashDistance = (left: ImageHash, right: ImageHash): number => {
+   if (left.orientation * right.orientation === -1) return 64;
    const spatialDistance = getHashValueDistance(left.spatial, right.spatial);
    let colorDifference = 0;
    for (let offset = 0; offset < left.colors.length; offset += 3) {
@@ -251,7 +273,7 @@ const getHashValueDistance = (left: bigint, right: bigint): number => {
 const getGroupSimilarity = (images: ScannedImage[]): number => {
    const firstHash = images[0]?.hash;
    if (images.every((image) => image.hash === firstHash)) return 0;
-   const hashes = images.map((image) => parseHash(image.hash));
+   const hashes = images.map(parseImageHash);
    let totalDistance = 0;
    let comparisons = 0;
 
@@ -296,7 +318,7 @@ const getHashPartition = (hash: bigint, partition: number): number => Number((ha
  */
 const splitOverCapGroup = (group: ScannedImage[]): { kept: ScannedImage[]; exiled: ScannedImage[] } => {
    const size = group.length;
-   const hashes = group.map((image) => parseHash(image.hash));
+   const hashes = group.map(parseImageHash);
    const distances = new Float64Array(size * size);
    const sums = new Float64Array(size);
    let totalDistance = 0;
@@ -410,9 +432,12 @@ const getConnectedGroups = async (images: ScannedImage[], reportProgress: ScanPr
    reportProgress({ phase: "grouping", completed: 0, total: images.length });
    for (const [imageIndex, image] of images.entries()) {
       throwIfScanCancelled(signal);
-      const exactRepresentative = exactHashRepresentatives.get(image.hash);
+      // Identical signatures share one index entry, but only within one
+      // orientation: a flipped twin must still face the orientation check.
+      const signature = `${image.hash}|${getOrientation(image.width, image.height)}`;
+      const exactRepresentative = exactHashRepresentatives.get(signature);
       if (exactRepresentative === undefined) {
-         const hash = parseHash(image.hash);
+         const hash = parseImageHash(image);
          hashValues[imageIndex] = hash;
          findAndIndexMatches(
             imageIndex,
@@ -423,7 +448,7 @@ const getConnectedGroups = async (images: ScannedImage[], reportProgress: ScanPr
             (candidateIndex) => find(imageIndex) === find(candidateIndex),
             (matchingIndex) => union(imageIndex, matchingIndex)
          );
-         exactHashRepresentatives.set(image.hash, imageIndex);
+         exactHashRepresentatives.set(signature, imageIndex);
       } else {
          union(imageIndex, exactRepresentative);
       }
