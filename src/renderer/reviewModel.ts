@@ -80,6 +80,42 @@ export const getReviewSummary = (imageSets: ImageSet[], decisions: Decisions): R
    return { movePreview, duplicatePreview, workflow };
 };
 
+export interface FinalReviewSet {
+   setId: string;
+   number: string;
+   /** Images that stay at their source after the move. */
+   kept: ImageItem[];
+   /** Discarded images still at their source, in set order. */
+   discarded: MovePreview[];
+}
+
+/**
+ * The ready-to-move rows regrouped by set, each beside what the set keeps, so
+ * the final review answers "what stays?" next to "what goes?". A set whose
+ * every image is leaving shows an empty kept list.
+ */
+export const getFinalReviewSets = (imageSets: ImageSet[], movePreview: MovePreview[]): FinalReviewSet[] => {
+   const discardedBySet = new Map<string, MovePreview[]>();
+   for (const row of movePreview) {
+      const rows = discardedBySet.get(row.setId);
+      if (rows === undefined) discardedBySet.set(row.setId, [row]);
+      else rows.push(row);
+   }
+   const result: FinalReviewSet[] = [];
+   for (const imageSet of imageSets) {
+      const discarded = discardedBySet.get(imageSet.id);
+      if (discarded === undefined) continue;
+      const leaving = new Set(discarded.map((row) => row.originalPath));
+      result.push({
+         setId: imageSet.id,
+         number: getSetNumber(imageSet.id),
+         kept: imageSet.images.filter((image) => image.sourceStatus === "available" && !leaving.has(image.originalPath)),
+         discarded,
+      });
+   }
+   return result;
+};
+
 export interface LibrarySetRow {
    /** "#N" without a per-item call to getSetNumber. */
    number: string;
@@ -172,6 +208,88 @@ export const getLargestImage = (imageSet: ImageSet): ImageItem => {
       if (rank > 0) largest = image;
    }
    return largest;
+};
+
+/** How one image's value compares inside its set: the strongest, a weaker one, or no difference worth showing. */
+export type ValueRank = "best" | "lower" | null;
+
+export interface ImageInsight {
+   resolution: ValueRank;
+   size: ValueRank;
+   /** Folder relative to the set's shared folder, only when the set spans several folders. */
+   folderLabel: string | null;
+}
+
+export interface SetInsights {
+   /** The image autoselect keeps, when the set has a real difference to choose by. */
+   suggestedPath: string | null;
+   /** The deepest folder every image shares. */
+   commonFolder: string;
+   images: Map<string, ImageInsight>;
+}
+
+/** File sizes within this ratio read as the same; re-saves differ by a few bytes. */
+const meaningfulSizeRatio = 1.05;
+
+const splitPath = (value: string): string[] => value.split(/[\\/]/u).filter((part) => part.length > 0);
+
+const getParentFolder = (filePath: string): string => filePath.replace(/[\\/][^\\/]*$/u, "");
+
+const getCommonFolder = (folders: string[]): string => {
+   const [first, ...rest] = folders;
+   if (first === undefined) return "";
+   const separator = first.includes("\\") ? "\\" : "/";
+   let common = splitPath(first);
+   for (const folder of rest) {
+      const parts = splitPath(folder);
+      let length = 0;
+      while (length < common.length && length < parts.length && common[length]?.toLowerCase() === parts[length]?.toLowerCase()) length += 1;
+      common = common.slice(0, length);
+   }
+   const joined = common.join(separator);
+   return first.startsWith(separator) && !first.startsWith(separator + separator) ? separator + joined : joined;
+};
+
+/**
+ * What tells the images of one set apart: which has the most pixels, which is
+ * the largest file, and where each lives. Only available images take part, and
+ * a rank appears only when the set actually differs on it, so identical files
+ * show no highlight at all. The suggestion is the autoselect pick, shown only
+ * when resolution or file size gives it a reason.
+ */
+export const getSetInsights = (imageSet: ImageSet): SetInsights => {
+   const available = imageSet.images.filter((image) => image.sourceStatus === "available");
+   const pixels = available.map((image) => image.width * image.height);
+   const sizes = available.map((image) => image.size);
+   const maxPixels = Math.max(0, ...pixels);
+   const minPixels = Math.min(...pixels);
+   const maxSize = Math.max(0, ...sizes);
+   const minSize = Math.min(...sizes);
+   const pixelsDiffer = available.length > 1 && maxPixels !== minPixels;
+   const sizesDiffer = available.length > 1 && maxSize > minSize * meaningfulSizeRatio;
+
+   const folders = imageSet.images.map((image) => getParentFolder(image.originalPath));
+   const commonFolder = getCommonFolder(folders);
+   const foldersDiffer = new Set(folders.map((folder) => folder.toLowerCase())).size > 1;
+   // Labels are relative to the shared folder. When one image sits in that
+   // folder itself, every label starts from its name so "Photos" and
+   // "Photos/Backup" read as siblings instead of "Photos" and "Backup".
+   const commonParts = splitPath(commonFolder);
+   const relativeParts = folders.map((folder) => splitPath(folder).slice(commonParts.length));
+   const anchor = relativeParts.some((parts) => parts.length === 0) ? commonParts.slice(-1) : [];
+
+   const images = new Map<string, ImageInsight>();
+   imageSet.images.forEach((image, index) => {
+      const isAvailable = image.sourceStatus === "available";
+      images.set(image.originalPath, {
+         resolution: isAvailable && pixelsDiffer ? (image.width * image.height === maxPixels ? "best" : "lower") : null,
+         size: isAvailable && sizesDiffer ? (image.size * meaningfulSizeRatio >= maxSize ? "best" : "lower") : null,
+         folderLabel: foldersDiffer ? [...anchor, ...(relativeParts[index] ?? [])].join("/") : null,
+      });
+   });
+
+   const suggestedPath = (pixelsDiffer || sizesDiffer) && available.length > 1 ? getLargestImage({ ...imageSet, images: available }).originalPath : null;
+   return { suggestedPath, commonFolder, images };
 };
 
 export const formatBytes = (bytes: number): string => {

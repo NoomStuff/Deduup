@@ -76,9 +76,16 @@ export const useReviewController = ({
       onKeep: (image, other, advance) => keepImageRef.current(image, other, advance),
    });
 
+   const lastSetNudgeRef = useRef(0);
    const goTo = useCallback(
       (index: number): void => {
          const nextIndex = Math.max(0, Math.min(groups.length - 1, index));
+         // Stepping past the last set is the natural moment to point at the
+         // next stage; repeated presses within a few seconds stay quiet.
+         if (index > groups.length - 1 && currentIndex === groups.length - 1 && groups.length > 0 && Date.now() - lastSetNudgeRef.current > 6000) {
+            lastSetNudgeRef.current = Date.now();
+            notify({ tone: "info", title: "That was the last set", message: "Open the final review to see everything you discarded before anything moves." });
+         }
          if (nextIndex === currentIndex) return;
          hideTooltip();
          setTravelDirection(nextIndex > currentIndex ? "right" : "left");
@@ -93,7 +100,7 @@ export const useReviewController = ({
             setTravelDirection("idle");
          }, 180);
       },
-      [closeCompare, currentIndex, groups.length, hideTooltip, setCurrentIndex, setSelectedImagePath]
+      [closeCompare, currentIndex, groups.length, hideTooltip, notify, setCurrentIndex, setSelectedImagePath]
    );
 
    const goToAdjacentSimilarityBand = useCallback(
@@ -267,13 +274,16 @@ export const useReviewController = ({
          if (selectedImage !== null) toggleImageRemoval(currentSet, selectedImage, false);
       },
       onDiscardSet: () => requestDiscardSet(currentSet),
+      onKeepOnlySelected: () => {
+         if (selectedImage !== null) toggleOnlyImageKept(currentSet, selectedImage, false);
+      },
       onImageClick: handleImageClick,
       onImageContextMenu: handleImageContextMenu,
       onImagePreview: previewImageOf,
       onImageSetContextMenu: openSetContextMenu,
       onNavigate: goTo,
       onOpenContextMenu: setContextMenu,
-      onOpenSetFolder: () => void openFolder(currentSet.folderPath),
+      onOpenSetFolder: (folderPath) => void openFolder(folderPath),
       onPreviewSelected: () => {
          if (selectedImage !== null) previewImageOf(selectedImage);
       },
@@ -325,6 +335,7 @@ export const useReviewController = ({
       autoSelectImageSet,
       clearImageSetChoices,
       toggleImageRemoval,
+      toggleOnlyImageKept,
       discardSet,
       discardBand,
       requestBandAutoselect,
