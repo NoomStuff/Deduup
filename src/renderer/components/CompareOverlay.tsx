@@ -1,15 +1,36 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { CSSProperties, PointerEvent } from "react";
 import { X } from "lucide-react";
 import type { ImageItem } from "../../shared/types.js";
 import type { CompareState } from "../appTypes.js";
-import { clamp } from "../reviewModel.js";
+import { clamp, formatBytes, getSetInsights, type ImageInsight } from "../reviewModel.js";
 import { usePanZoom } from "../hooks/usePanZoom.js";
 import { OverlayPanel } from "./OverlayPanel.js";
 import "./CompareOverlay.css";
 
+const rankClass = (rank: ImageInsight["resolution"] | undefined): string | undefined =>
+   rank === "best" ? "compare__value--best" : rank === "lower" ? "compare__value--lower" : undefined;
+
+/** Resolution and size under each keep button, ranked between the two images. */
+const CompareDetails = ({ image, insight }: { image: ImageItem; insight: ImageInsight | undefined }) => (
+   <span className="compare__details">
+      <span>
+         <span className={rankClass(insight?.resolution)}>
+            {image.width}x{image.height}
+         </span>
+         {" · "}
+         <span className={rankClass(insight?.size)}>{formatBytes(image.size)}</span>
+      </span>
+      {insight?.folderLabel != null && <span className="compare__folder">{insight.folderLabel}</span>}
+   </span>
+);
+
 export const CompareOverlay = ({ compare, onClose, onKeep }: { compare: CompareState; onClose: () => void; onKeep: (image: ImageItem) => void }) => {
    const { stageRef, transform, isZoomed, isPanning, panHandlers } = usePanZoom();
+   const insights = useMemo(
+      () => getSetInsights({ id: "compare", similarity: 0, folderPath: "", images: [compare.left, compare.right] }).images,
+      [compare.left, compare.right]
+   );
    const [thumbState, setThumbState] = useState({ left: false, right: false });
    const [fullState, setFullState] = useState({ left: false, right: false });
    const leftThumbRef = useRef<HTMLImageElement | null>(null);
@@ -91,6 +112,7 @@ export const CompareOverlay = ({ compare, onClose, onKeep }: { compare: CompareS
                </strong>
                <span>Keep image {compare.leftIndex + 1}</span>
                <small title={compare.left.file}>{compare.left.file}</small>
+               <CompareDetails image={compare.left} insight={insights.get(compare.left.originalPath)} />
                <kbd>←</kbd>
             </button>
             <div
@@ -159,6 +181,7 @@ export const CompareOverlay = ({ compare, onClose, onKeep }: { compare: CompareS
                </strong>
                <span>Keep image {compare.rightIndex + 1}</span>
                <small title={compare.right.file}>{compare.right.file}</small>
+               <CompareDetails image={compare.right} insight={insights.get(compare.right.originalPath)} />
                <kbd>→</kbd>
             </button>
          </div>
