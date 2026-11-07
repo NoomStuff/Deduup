@@ -161,6 +161,14 @@ export const buildReviewCommands = ({
             if (currentSet !== null && selectedImage !== null) toggleOnlyImageKept(currentSet, selectedImage, event?.ctrlKey === true);
          },
       },
+      keepOnlyByNumber: {
+         enabled: () => reviewCommandsActive,
+         run: (event) => {
+            const index = Number.parseInt(event?.code.replace("Digit", "") ?? "", 10) - 1;
+            const image = currentSet?.images[index];
+            if (currentSet !== null && image !== undefined) toggleOnlyImageKept(currentSet, image, event?.ctrlKey === true);
+         },
+      },
       toggleImageByNumber: {
          enabled: () => reviewCommandsActive,
          run: (event) => {

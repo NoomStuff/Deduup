@@ -38,6 +38,12 @@ const definitions = {
    previewSelected: { label: "Preview image", group: "Review", keys: ["Enter"] },
    toggleSelected: { label: "Toggle Discard", group: "Review", keys: ["Delete", "Ctrl+Delete"] },
    keepOnlySelected: { label: "Keep only selected", group: "Review", keys: ["K", "Ctrl+K"] },
+   keepOnlyByNumber: {
+      label: "Keep only image (N)",
+      group: "Review",
+      display: "Shift+1–9 / Ctrl+Shift+1–9",
+      fixed: true,
+   },
    toggleImageByNumber: {
       label: "Toggle Discard (N)",
       group: "Review",
@@ -163,6 +169,9 @@ export const useCommands = (commands: Commands, blocked: boolean, overrides: Sho
          const { commands: current, blocked: isBlocked, overrides: currentOverrides } = latest.current;
          const id = (Object.keys(commandDefinitions) as CommandId[]).find((candidate) => {
             if (candidate === "toggleImageByNumber") return /^[1-9]$/.test(event.key) && !event.altKey && !event.metaKey && !event.shiftKey;
+            // Shift changes the produced character per keyboard layout, so the
+            // physical digit row identifies the image instead.
+            if (candidate === "keepOnlyByNumber") return /^Digit[1-9]$/.test(event.code) && event.shiftKey && !event.altKey && !event.metaKey;
             return bindingsFor(candidate, currentOverrides).some((keys) => keys.toUpperCase() === normalized);
          });
          if (id === undefined) return;
