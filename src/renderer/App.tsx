@@ -31,7 +31,7 @@ import { useReviewController } from "./hooks/useReviewController.js";
 import { useReviewPersistence } from "./hooks/useReviewPersistence.js";
 import { useScanController } from "./hooks/useScanController.js";
 import { useTooltip } from "./hooks/useTooltip.js";
-import { createConfirmAction, emptyImageSetDecision, getDecision, getFolderName, getReviewSummary, getSetNumber, getSimilarityBands } from "./reviewModel.js";
+import { createConfirmAction, emptyImageSetDecision, getDecision, getFolderName, getReviewSummary, getSimilarityBands } from "./reviewModel.js";
 
 export const App = () => {
    const {
@@ -356,7 +356,6 @@ export const App = () => {
                canRedo={canRedo}
                canUndo={canUndo}
                commands={commands}
-               currentNumber={currentSet === null ? "#0" : getSetNumber(currentSet.id)}
                finalReviewOpen={isFinalReviewOpen}
                getTooltipProps={getTooltipProps}
                menu={menu}
@@ -364,7 +363,6 @@ export const App = () => {
                reviewActive={reviewActive}
                onMenuChange={setMenu}
                onToggleFinalReview={() => setIsFinalReviewOpen(!isFinalReviewOpen)}
-               totalSets={groups.length}
             />
 
             <div className="app__content" inert={fileOperationActive}>

@@ -166,11 +166,10 @@ test("set numbers format to a hash plus plain number", () => {
    assert.equal(getSetNumber("set_341"), "#341");
 });
 
-test("set insights rank only real differences and point at the autoselect pick", async () => {
+test("set insights rank only real differences", async () => {
    const { getSetInsights } = await import("../src/renderer/reviewModel.ts");
    const identical = makeSet("set_010", 0, [image("a.jpg", 800, 600, 500), image("b.jpg", 800, 600, 500)]);
    const flat = getSetInsights(identical);
-   assert.equal(flat.suggestedPath, null);
    assert.deepEqual(
       [...flat.images.values()],
       [
@@ -181,11 +180,9 @@ test("set insights rank only real differences and point at the autoselect pick",
 
    // Re-saves a few bytes apart read as the same size.
    const resaved = getSetInsights(makeSet("set_011", 1, [image("a.jpg", 800, 600, 1000), image("b.jpg", 800, 600, 1010)]));
-   assert.equal(resaved.suggestedPath, null);
    assert.equal(resaved.images.get("C:/lib/a.jpg")?.size, null);
 
    const ranked = getSetInsights(threeSet);
-   assert.equal(ranked.suggestedPath, "C:/lib/c.jpg");
    assert.equal(ranked.images.get("C:/lib/a.jpg")?.resolution, "lower");
    assert.equal(ranked.images.get("C:/lib/b.jpg")?.resolution, "best");
    assert.equal(ranked.images.get("C:/lib/b.jpg")?.size, "lower");

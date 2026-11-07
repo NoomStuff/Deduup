@@ -49,6 +49,12 @@
    font-variant-numeric: tabular-nums;
 }
 
+.setHeader__number > span {
+   color: var(--faint);
+   font-size: 13px;
+   font-weight: 700;
+}
+
 .setHeader__kept {
    color: var(--muted);
    font-size: 12.5px;
@@ -113,16 +119,6 @@
    align-items: center;
    gap: 5px;
    flex-wrap: wrap;
-}
-
-.setHeader__selection {
-   width: 110px;
-   overflow: hidden;
-   color: var(--muted);
-   font-size: 12px;
-   text-overflow: ellipsis;
-   white-space: nowrap;
-   margin-right: 8px;
 }
 
 .setHeader__action {
@@ -463,7 +459,7 @@
    font-variant-numeric: tabular-nums;
 }
 
-/* Seen-state dot. */
+/* Choice dot: only sets with discards carry one, so open sets stay quiet. */
 
 .filmstrip__item::after {
    content: "";
@@ -473,7 +469,7 @@
    width: 5px;
    height: 5px;
    border-radius: 50%;
-   background: var(--line-strong);
+   background: transparent;
    transform: translateX(-50%);
 }
 

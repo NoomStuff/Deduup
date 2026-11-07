@@ -1,10 +1,9 @@
 import { useMemo } from "react";
 import type { CSSProperties, MouseEvent, RefObject } from "react";
-import { CircleCheck, Eraser, Eye, FolderOpen, MousePointer2, Search, Trash2 } from "lucide-react";
+import { CircleCheck, Eraser, FolderOpen, MousePointer2, Search, Trash2 } from "lucide-react";
 import type { ImageItem, ImageSet, ImageSetDecision } from "../../shared/types.js";
 import type { ContextMenuState, SimilarityBand, TravelDirection } from "../appTypes.js";
 import { useBindingDisplay } from "../commands.js";
-import { useCtrlHeld } from "../hooks/usePreference.js";
 import type { TooltipProps } from "../hooks/useTooltip.js";
 import {
    getDeletedImagePaths,
@@ -33,7 +32,6 @@ interface ReviewWorkspaceProps {
    wrapShelf: boolean;
    getTooltipProps: (title: string, body: string, hotkey?: string) => TooltipProps;
    onBeginComparePick: () => void;
-   onClearSet: () => void;
    onCompareSelected: () => void;
    onDiscardSelected: () => void;
    onDiscardSet: () => void;
@@ -45,7 +43,6 @@ interface ReviewWorkspaceProps {
    onNavigate: (index: number) => void;
    onOpenContextMenu: (state: ContextMenuState) => void;
    onOpenSetFolder: (folderPath: string) => void;
-   onPreviewSelected: () => void;
 }
 
 export const ReviewWorkspace = (props: ReviewWorkspaceProps) => {
@@ -53,10 +50,8 @@ export const ReviewWorkspace = (props: ReviewWorkspaceProps) => {
    const selectedImage = props.currentSet.images.find((image) => image.originalPath === props.selectedImagePath) ?? null;
    const selectedImageIsDiscarded = selectedImage !== null && discardedPaths.has(selectedImage.originalPath);
    const selectedIsAvailable = selectedImage !== null && selectedImage.sourceStatus === "available";
-   const selectedIsPreviewable = selectedImage !== null && selectedImage.sourceStatus !== "missing" && selectedImage.sourceStatus !== "recycledByApp";
    const availableCount = props.currentSet.images.filter((image) => image.sourceStatus === "available").length;
    const compareNeedsPick = availableCount > 2;
-   const discardCount = discardedPaths.size;
    const insights = useMemo(() => getSetInsights(props.currentSet), [props.currentSet]);
    const setFolder = insights.commonFolder.length > 0 ? insights.commonFolder : props.currentSet.folderPath;
    const selectedIsOnlyKept =
@@ -67,10 +62,8 @@ export const ReviewWorkspace = (props: ReviewWorkspaceProps) => {
          (image) => image.originalPath === selectedImage.originalPath || image.sourceStatus !== "available" || discardedPaths.has(image.originalPath)
       );
    const keepOnlyHint = useBindingDisplay("keepOnlySelected");
-   const ctrlHeld = useCtrlHeld();
    const discardSetHint = useBindingDisplay("discardSet");
    const compareHint = useBindingDisplay("compareSelected");
-   const previewHint = useBindingDisplay("previewSelected");
    const toggleHint = useBindingDisplay("toggleSelected");
    const previousHint = useBindingDisplay("previousSet");
    const nextHint = useBindingDisplay("nextSet");
@@ -91,7 +84,10 @@ export const ReviewWorkspace = (props: ReviewWorkspaceProps) => {
             <div className="reviewWorkspace__main">
                <header className="setHeader">
                   <div className="setHeader__identity">
-                     <span className="setHeader__number">{getSetNumber(props.currentSet.id)}</span>
+                     <span aria-label={`Set ${getSetNumber(props.currentSet.id).replace("#", "")} of ${props.decisionRows.size}`} className="setHeader__number">
+                        {getSetNumber(props.currentSet.id)}
+                        <span>/{props.decisionRows.size}</span>
+                     </span>
                      <span className="setHeader__kept">{getImageSetLabel(props.currentSet, props.currentDecision)} kept</span>
                      <span
                         className="setHeader__difference"
@@ -113,9 +109,6 @@ export const ReviewWorkspace = (props: ReviewWorkspaceProps) => {
                   {/* Actions stay visible and disable instead of appearing and
                      vanishing with the selection, so the bar never reflows. */}
                   <div className="setHeader__actions">
-                     <span className="setHeader__selection" title={selectedImage?.file}>
-                        {selectedImage === null ? "Select an image" : selectedImage.file}
-                     </span>
                      <button
                         className={`setHeader__action${selectedImageIsDiscarded ? "" : " setHeader__action--danger"}`}
                         disabled={!selectedIsAvailable}
@@ -158,16 +151,6 @@ export const ReviewWorkspace = (props: ReviewWorkspaceProps) => {
                         <Search aria-hidden="true" />
                         <span>{compareNeedsPick ? "Compare…" : "Compare"}</span>
                      </button>
-                     <button
-                        className="setHeader__action"
-                        disabled={!selectedIsPreviewable}
-                        onClick={props.onPreviewSelected}
-                        type="button"
-                        {...props.getTooltipProps("Preview", "Open this image full size.", previewHint)}
-                     >
-                        <Eye aria-hidden="true" />
-                        <span>Preview</span>
-                     </button>
                      <span aria-hidden="true" className="setHeader__rule" />
                      <button
                         className="setHeader__action setHeader__action--danger"
@@ -178,16 +161,6 @@ export const ReviewWorkspace = (props: ReviewWorkspaceProps) => {
                      >
                         <Trash2 aria-hidden="true" />
                         <span>Discard set</span>
-                     </button>
-                     <button
-                        className="setHeader__action"
-                        disabled={discardCount === 0}
-                        onClick={props.onClearSet}
-                        type="button"
-                        {...props.getTooltipProps("Clear", "Remove every discard in this set.")}
-                     >
-                        <Eraser aria-hidden="true" />
-                        <span>Clear set</span>
                      </button>
                   </div>
                </header>
@@ -206,12 +179,10 @@ export const ReviewWorkspace = (props: ReviewWorkspaceProps) => {
                         isComparePick={props.comparePick?.originalPath === image.originalPath}
                         isSelected={props.selectedImagePath === image.originalPath}
                         insight={insights.images.get(image.originalPath)}
-                        isSuggested={insights.suggestedPath === image.originalPath}
                         key={image.originalPath}
                         onClick={props.onImageClick}
                         onContextMenu={props.onImageContextMenu}
                         onPreview={props.onImagePreview}
-                        showIndexHint={ctrlHeld}
                         state={discardedPaths.has(image.originalPath) ? "deleted" : "active"}
                      />
                   ))}

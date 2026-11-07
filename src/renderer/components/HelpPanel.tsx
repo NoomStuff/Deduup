@@ -61,10 +61,8 @@ const topics: { id: HelpTab; label: string; body: ReactNode }[] = [
                   Where the images of a set differ, the larger resolution and file size read <strong>green</strong> and weaker values fade. Identical values
                   stay plain.
                </li>
-               <li>
-                  The <strong>Largest</strong> tag marks the image Autoselect would keep. It is a suggestion; the choice is yours.
-               </li>
                <li>When a set spans folders, each image shows its folder.</li>
+               <li>Double-click an image, or press Enter, to see it full size.</li>
             </ul>
             <h3>Discarding</h3>
             <ul>
@@ -78,7 +76,7 @@ const topics: { id: HelpTab; label: string; body: ReactNode }[] = [
                <li>
                   <strong>X</strong> discards every image in the set; <strong>V</strong> autoselects sets without existing choices in the band.
                </li>
-               <li>Right-click an image, a set tile, or a band tag for its full menu.</li>
+               <li>Right-click an image, a set tile, or a band tag for its full menu. Clear choices lives on the set tile.</li>
             </ul>
             <h3>Comparing</h3>
             <p>
@@ -87,8 +85,8 @@ const topics: { id: HelpTab; label: string; body: ReactNode }[] = [
             </p>
             <h3>The filmstrip</h3>
             <p>
-               The dot under a set tile reflects its choices: gray has no discards, amber has some, and red means every image is discarded. Click a tile to jump
-               there; a band tag jumps to its whole group.
+               A dot under a set tile marks its choices: amber has some discards, and red means every image is discarded. Click a tile to jump there; a band tag
+               jumps to its whole group.
             </p>
             <h3>The final review</h3>
             <p>
@@ -114,10 +112,7 @@ const HelpPanel = ({ onClose }: { onClose: () => void }) => {
          onClose={onClose}
       >
          <header className="panelModal__header">
-            <div>
-               <h2 id="help-title">Help</h2>
-               <p className="helpPanel__sub">Any shortcut can be rebound in Settings.</p>
-            </div>
+            <h2 id="help-title">Help</h2>
             <button aria-label="Close help" className="iconButton" onClick={onClose} type="button">
                <X aria-hidden="true" />
             </button>
