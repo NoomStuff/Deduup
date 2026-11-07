@@ -235,6 +235,23 @@ test("keeps identical hashes together across large-group chunk boundaries", asyn
    assert.equal(centerSets[0].images.filter((image) => image.hash === centerHash).length, 2);
 });
 
+test("never matches a portrait image with a landscape one", async () => {
+   const sized = (hash, index, width, height) => ({ ...createImage(hash, index), width, height });
+   const flipped = await groupImages([sized(0n, 0, 4032, 3024), sized(0n, 1, 3024, 4032)], () => undefined);
+   assert.equal(flipped.length, 0);
+
+   // A chain through a square image cannot carry a flip into one set either.
+   const chained = await groupImages([sized(0n, 0, 4000, 3000), sized(1n, 1, 1000, 1000), sized(3n, 2, 3000, 4000)], () => undefined);
+   for (const group of chained) {
+      const orientations = new Set(group.images.map((image) => Math.sign(image.width - image.height)));
+      assert.ok(!(orientations.has(1) && orientations.has(-1)), "a set mixed portrait and landscape images");
+   }
+
+   // Resizes keep their orientation and still match.
+   const resized = await groupImages([sized(0n, 0, 4032, 3024), sized(1n, 1, 1008, 756)], () => undefined);
+   assert.equal(resized.length, 1);
+});
+
 test("finds every match inside the distance threshold", async () => {
    const images = [createImage(0n, 0), createImage(0x0020181002860002n, 1)];
    const groups = await groupImages(images, () => undefined);
