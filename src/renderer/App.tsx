@@ -376,6 +376,8 @@ export const App = () => {
                   <StartupScreen
                      hasSavedReview={groups.length > 0}
                      savedSetCount={groups.length}
+                     pendingDiscardCount={fileWorkflow.readyToMoveCount}
+                     movedCount={fileWorkflow.movedCount}
                      isDragOver={isDragOver}
                      onContinue={() => setIsStartupOpen(false)}
                      onDragLeave={handleDragLeave}
@@ -399,6 +401,8 @@ export const App = () => {
                   <StartupScreen
                      hasSavedReview={groups.length > 0}
                      savedSetCount={groups.length}
+                     pendingDiscardCount={fileWorkflow.readyToMoveCount}
+                     movedCount={fileWorkflow.movedCount}
                      isDragOver={isDragOver}
                      onContinue={() => setIsStartupOpen(false)}
                      onDragLeave={handleDragLeave}

@@ -44,6 +44,7 @@
 }
 
 .confirmDialog__content p {
+   overflow-wrap: anywhere;
    margin: 0;
    color: var(--muted);
    font-size: 13px;
