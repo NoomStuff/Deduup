@@ -103,6 +103,8 @@ try {
    await check();
    assert.equal((await state()).update.mode, "releases", "development builds only link to releases");
    const chip = () => page.locator(".updateChip__trigger");
+   // Main-process state settles before the renderer has drawn it; wait for the chip.
+   const chipHas = (attribute, value) => page.locator(`.updateChip__trigger[${attribute}="${value}"]`).waitFor();
    const act = async () => {
       if (await page.locator(".settingsPanel").count())
          await page
@@ -149,7 +151,7 @@ try {
       await check();
       await act();
       await waitPhase("error");
-      assert.equal(await chip().getAttribute("aria-label"), "Retry download");
+      await chipHas("aria-label", "Retry download");
       assert.match((await state()).status.message, /verification/);
       assert.equal((await readdir(downloads)).filter((name) => name.endsWith(".part")).length, 0);
       await app.evaluate(() => {
@@ -157,7 +159,7 @@ try {
       });
       await act();
       await waitUntil(async () => (await state()).status?.percent > 0);
-      assert.equal(await chip().getAttribute("aria-disabled"), "true");
+      await chipHas("aria-disabled", "true");
       await assert.rejects(page.evaluate(() => window.imageDeduplicator.downloadUpdate("99.0.0")));
       assert.equal(await app.evaluate(() => globalThis.updateFixture.payloads), 2);
       await page.setViewportSize({ width: 980, height: 720 });
@@ -180,7 +182,7 @@ try {
       assert.equal((await state()).status.phase, "downloaded", "manual checks retain verified downloads");
       await page.reload();
       await settings();
-      assert.equal(await chip().getAttribute("aria-label"), "Show in Downloads");
+      await chipHas("aria-label", "Show in Downloads");
       await page.screenshot({ animations: "disabled", path: path.join(artifacts, "02-downloaded.png") });
    }
 
@@ -221,7 +223,7 @@ try {
          globalThis.updateFixture.finishAutomatic();
       });
       await waitPhase("ready");
-      assert.equal(await chip().getAttribute("aria-label"), "Apply and restart");
+      await chipHas("aria-label", "Apply and restart");
       await check();
       assert.equal((await state()).status.phase, "ready");
       await page.screenshot({ animations: "disabled", path: path.join(artifacts, "03-ready.png") });
@@ -232,7 +234,7 @@ try {
       await settings();
       assert.equal(await app.evaluate(() => globalThis.updateFixture.installs), 1);
       assert.match((await state()).status.message, /Could not apply/);
-      assert.equal(await chip().getAttribute("aria-label"), "View release");
+      await chipHas("aria-label", "View release");
       await page.screenshot({ animations: "disabled", path: path.join(artifacts, "04-install-recovery.png") });
       assert.ok(await page.evaluate(() => window.imageDeduplicator.loadData()), "database reopens after a failed installer");
    }
