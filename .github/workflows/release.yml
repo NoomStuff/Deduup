@@ -108,6 +108,10 @@ jobs:
            env:
               RELEASE_TAG: ${{ needs.prepare.outputs.tag }}
            run: bun scripts/prepare-update-feed.mjs dist dist/feed "$RELEASE_TAG"
+         - name: Select exact app downloads and feeds
+           env:
+              RELEASE_TAG: ${{ needs.prepare.outputs.tag }}
+           run: bun scripts/release-downloads.mjs dist dist/feed dist/release "$RELEASE_TAG"
          - name: Create draft release
            env:
               GH_TOKEN: ${{ github.token }}
@@ -115,9 +119,9 @@ jobs:
               RELEASE_TAG: ${{ needs.prepare.outputs.tag }}
            run: |
               shopt -s nullglob
-              assets=(dist/Deduup-*.AppImage dist/Deduup-*.dmg dist/Deduup-*.exe)
-              if [ "${#assets[@]}" -ne 6 ]; then
-                echo "Expected six app downloads (2 exe, 2 dmg, 2 AppImage), found ${#assets[@]}." >&2
+              assets=(dist/release/*)
+              if [ "${#assets[@]}" -ne 10 ]; then
+                echo "Expected seven downloads and three updater feeds, found ${#assets[@]}." >&2
                 exit 1
               fi
               case "${RELEASE_TAG#v}" in
@@ -129,9 +133,7 @@ jobs:
                   gh release upload "$RELEASE_TAG" "${assets[@]}" --clobber
                 fi
               else
-                gh release create "$RELEASE_TAG" "${assets[@]}" --draft \
-                  --title "Deduup ${RELEASE_TAG#v}" \
-                  --target "$GITHUB_SHA" --generate-notes $flags
+                gh release create "$RELEASE_TAG" "${assets[@]}" --draft                   --title "Deduup ${RELEASE_TAG#v}"                   --target "$GITHUB_SHA" --notes "" $flags
               fi
          - name: Publish release
            env:
@@ -139,40 +141,3 @@ jobs:
               GH_REPO: ${{ github.repository }}
               RELEASE_TAG: ${{ needs.prepare.outputs.tag }}
            run: gh release edit "$RELEASE_TAG" --draft=false
-         - name: Publish update feeds
-           uses: actions/github-script@v9
-           env:
-              RELEASE_TAG: ${{ needs.prepare.outputs.tag }}
-           with:
-              script: |
-                 const fs = require('node:fs');
-                 const { owner, repo } = context.repo;
-                 const branch = 'updates';
-                 let parent;
-                 try {
-                   parent = (await github.rest.git.getRef({ owner, repo, ref: `heads/${branch}` })).data.object.sha;
-                 } catch (error) {
-                   if (error.status !== 404) throw error;
-                 }
-                 const tree = await github.rest.git.createTree({
-                   owner,
-                   repo,
-                   tree: ['latest.yml', 'latest-linux.yml', 'latest-linux-arm64.yml'].map(path => ({
-                     path,
-                     mode: '100644',
-                     type: 'blob',
-                     content: fs.readFileSync(`dist/feed/${path}`, 'utf8'),
-                   })),
-                 });
-                 const commit = await github.rest.git.createCommit({
-                   owner,
-                   repo,
-                   message: `Update feeds for ${process.env.RELEASE_TAG}`,
-                   tree: tree.data.sha,
-                   parents: [parent ?? context.sha],
-                 });
-                 if (parent) {
-                   await github.rest.git.updateRef({ owner, repo, ref: `heads/${branch}`, sha: commit.data.sha });
-                 } else {
-                   await github.rest.git.createRef({ owner, repo, ref: `refs/heads/${branch}`, sha: commit.data.sha });
-                 }

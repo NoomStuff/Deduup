@@ -58,14 +58,12 @@ bun run verify:package
    - runs `bun run verify` on Windows (tag pushes must match `package.json`),
    - packages five targets: Windows x64 (portable + installer), macOS x64 and arm64 (dmg), Linux x64 and arm64 (AppImage), each verified with `verify:package`,
    - rewrites the electron-updater feeds (`scripts/prepare-update-feed.mjs`) to point at the release assets,
-   - creates a **draft** GitHub release with all six assets, then publishes it and commits the feeds to the `updates` branch.
-3. The git tag is created by the release step, after every package passed verification — a failed package never produces a tag.
+   - creates a **draft** GitHub release with the downloads under versionless names, such as `Deduup-windows-x64-setup.exe`, the installer blockmap and the three feeds, then publishes it.
+3. The git tag is created by the release step, after every package passed verification. A failed package never produces a tag.
 
-Installed Windows builds update automatically through electron-updater against the `updates` branch. The portable build and AppImage verify and download the new package via the GitHub API; mac builds open the release page. Old portable builds from before the update feed existed update by downloading the new exe manually.
+Installed Windows builds and AppImages update automatically through electron-updater, which reads the feeds from the latest release. Windows updates download only the changed blocks of the installer. The portable build verifies and downloads the new package through the GitHub API, and mac builds open the release page.
 
-### Update feeds, briefly
-
-Releases hold only user-downloadable artifacts. The `updates` branch holds `latest.yml`, `latest-linux.yml`, and `latest-linux-arm64.yml`, each rewritten to point at the release download URLs. This decouples what users download from what the updater reads, so a broken feed can be fixed by committing to that branch without touching a release.
+Because file names carry no version, `https://github.com/NoomStuff/Deduup/releases/latest/download/<name>` always serves the newest build.
 
 ## Reporting issues
 

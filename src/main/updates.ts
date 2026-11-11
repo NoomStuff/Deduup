@@ -8,7 +8,8 @@ import type { AvailableUpdate, UpdateStatus, UpdateState } from "../shared/types
 import { isPackagedApp } from "./identity.js";
 import { fetchAvailableUpdate, repository } from "./updateCheck.js";
 
-const updateFeedUrl = `https://raw.githubusercontent.com/${repository}/updates/`;
+// The newest release's feed, resolved through GitHub's latest-release redirect.
+const updateFeedUrl = `https://github.com/${repository}/releases/latest/download/`;
 
 export const updateMode = (): AvailableUpdate["mode"] => {
    if (!isPackagedApp()) return "releases";
@@ -92,12 +93,10 @@ export class UpdateManager {
          const updater = module.autoUpdater ?? module.default?.autoUpdater;
          if (updater === undefined) throw new Error("electron-updater is unavailable.");
          this.updater = updater;
-         updater.setFeedURL({ provider: "generic", url: updateFeedUrl });
+         // GitHub's download host does not answer multi-range requests, so ranges are fetched one by one.
+         updater.setFeedURL({ provider: "generic", url: updateFeedUrl, useMultipleRangeRequest: false });
          updater.autoDownload = true;
          updater.autoInstallOnAppQuit = false;
-         // Only app packages appear on GitHub Releases; NSIS must download the
-         // full installer because its separate blockmap is not published.
-         if (process.platform === "win32") updater.disableDifferentialDownload = true;
          // electron-updater exposes a module singleton: wiring the listeners once keeps
          // repeated update offers from stacking duplicate progress and error handlers.
          if (!this.automaticWired) {
@@ -196,7 +195,7 @@ export class UpdateManager {
             );
          });
       try {
-         const name = `Deduup-${version}-win-${process.arch}.exe`;
+         const name = `Deduup-windows-${process.arch}-portable.exe`;
          const releaseResponse = await guarded(
             net.fetch(`https://api.github.com/repos/${repository}/releases/tags/v${version}`, {
                headers: { Accept: "application/vnd.github+json", "User-Agent": `Deduup/${app.getVersion()}` },
@@ -212,8 +211,8 @@ export class UpdateManager {
          const expectedHash = typeof asset.digest === "string" && asset.digest.startsWith("sha256:") ? asset.digest.slice(7) : null;
          if (!expectedHash || !/^[0-9a-f]{64}$/i.test(expectedHash)) throw new Error("The download could not be verified.");
          const directory = app.getPath("downloads");
-         const stem = name.slice(0, -4);
-         let destination = join(directory, name);
+         const stem = `Deduup-${version}-windows-${process.arch}-portable`;
+         let destination = join(directory, `${stem}.exe`);
          for (let index = 2; existsSync(destination) || existsSync(`${destination}.part`); index++) destination = join(directory, `${stem} (${index}).exe`);
          temporary = `${destination}.part`;
          const response = await guarded(net.fetch(asset.browser_download_url, { signal: abort.signal }));

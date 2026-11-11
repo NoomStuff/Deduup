@@ -38,7 +38,7 @@ net.fetch = async input => {
       if (state.failCheck) throw new Error("Offline fixture");
       return Response.json({ tag_name: "v" + state.version, name: "Fixture release", html_url: "https://github.com/NoomStuff/Deduup/releases/tag/v" + state.version, draft: false, prerelease: false });
    }
-   if (url.includes("/tags/")) return Response.json({ assets: [{ name: "Deduup-" + state.version + "-win-" + process.arch + ".exe", browser_download_url: "https://example.invalid/payload", digest: "sha256:${digest}" }] });
+   if (url.includes("/tags/")) return Response.json({ assets: [{ name: "Deduup-windows-" + process.arch + "-portable.exe", browser_download_url: "https://example.invalid/payload", digest: "sha256:${digest}" }] });
    state.payloads++;
    if (state.damaged) return new Response("Damaged bytes");
    const bytes = new TextEncoder().encode(${JSON.stringify(payload)});
@@ -55,7 +55,7 @@ let app = await electron.launch({
    executablePath: require("electron"),
    cwd: root,
    args: [bootstrap, `--user-data-dir=${profile}`],
-   env: { ...process.env, IMAGE_DEDUPLICATOR_PROD: "1" },
+   env: { ...process.env, DEDUUP_TEST_BACKGROUND: "1", IMAGE_DEDUPLICATOR_PROD: "1" },
 });
 let page = await app.firstWindow({ timeout: 15000 });
 page.setDefaultTimeout(15000);
@@ -138,7 +138,7 @@ try {
       app = await electron.launch({
          executablePath: executable,
          args: [`--user-data-dir=${profile}`],
-         env: { ...process.env, IMAGE_DEDUPLICATOR_PROD: "1", PORTABLE_EXECUTABLE_FILE: "fixture.exe" },
+         env: { ...process.env, DEDUUP_TEST_BACKGROUND: "1", IMAGE_DEDUPLICATOR_PROD: "1", PORTABLE_EXECUTABLE_FILE: "fixture.exe" },
       });
       page = await app.firstWindow({ timeout: 15000 });
       page.setDefaultTimeout(15000);
@@ -146,7 +146,7 @@ try {
       await app.evaluate(() => {
          globalThis.updateFixture.version = "99.0.0";
       });
-      const name = `Deduup-99.0.0-win-${process.arch}.exe`;
+      const name = `Deduup-99.0.0-windows-${process.arch}-portable.exe`;
       await writeFile(path.join(downloads, name), "Preserve this existing file");
       await check();
       await act();
