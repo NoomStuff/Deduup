@@ -20,7 +20,7 @@ const launch = async (scan = false) => {
       executablePath: require("electron"),
       cwd: repoRoot,
       args: [".", `--user-data-dir=${profile}`, ...(scan ? [`--scan=${root}`] : [])],
-      env: { ...process.env, IMAGE_DEDUPLICATOR_PROD: "1" },
+      env: { ...process.env, DEDUUP_TEST_BACKGROUND: "1", IMAGE_DEDUPLICATOR_PROD: "1" },
    });
    window = await app.firstWindow();
    if (!scan) await window.getByRole("button", { name: /continue review/i }).click();

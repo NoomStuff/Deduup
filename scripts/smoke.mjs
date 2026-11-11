@@ -46,7 +46,7 @@ const run = async () => {
       executablePath,
       cwd: repoRoot,
       args: [".", `--user-data-dir=${profileDir}`, `--scan=${fixturesRoot}`],
-      env: { ...process.env, IMAGE_DEDUPLICATOR_PROD: "1", ELECTRON_ENABLE_LOGGING: "1" },
+      env: { ...process.env, DEDUUP_TEST_BACKGROUND: "1", IMAGE_DEDUPLICATOR_PROD: "1", ELECTRON_ENABLE_LOGGING: "1" },
    });
    const window = await app.firstWindow();
    window.on("console", (message) => {
