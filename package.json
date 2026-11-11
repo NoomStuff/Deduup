@@ -1,6 +1,6 @@
 {
    "name": "deduup",
-   "version": "0.4.0",
+   "version": "0.5.0",
    "description": "Find and review redundant images locally",
    "author": "NoomStuff",
    "license": "MIT",
