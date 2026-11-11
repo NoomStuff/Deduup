@@ -34,7 +34,10 @@ export default tseslint.config(
          "react-refresh": reactRefresh,
       },
       rules: {
-         ...reactHooks.configs.recommended.rules,
+         // The two classic hook rules, as in AcroClip and AttaCut. Version 7 also offers
+         // React Compiler rules, which this renderer has not adopted.
+         "react-hooks/rules-of-hooks": "error",
+         "react-hooks/exhaustive-deps": "error",
          "react-refresh/only-export-components": ["warn", { allowConstantExport: true }],
          "@typescript-eslint/consistent-type-imports": ["error", { prefer: "type-imports", fixStyle: "inline-type-imports" }],
          "@typescript-eslint/no-confusing-void-expression": ["error", { ignoreArrowShorthand: true }],

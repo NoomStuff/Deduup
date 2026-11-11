@@ -58,7 +58,8 @@ const moveAcrossVolumes = async (source: string, destination: string): Promise<v
    } catch (error: unknown) {
       if (!isObject(error) || !["EXDEV", "EPERM", "EOPNOTSUPP", "ENOSYS"].includes(String(error["code"]))) throw error;
       await copyFile(source, destination, constants.COPYFILE_EXCL);
-      if ((await fileChecksum(source)) !== (await fileChecksum(destination))) throw new Error(`The copied file could not be verified: ${destination}`);
+      if ((await fileChecksum(source)) !== (await fileChecksum(destination)))
+         throw new Error(`The copied file could not be verified: ${destination}`, { cause: error });
       await utimes(destination, sourceStat.atime, sourceStat.mtime);
    }
    const currentStat = await lstat(source);
@@ -96,7 +97,7 @@ export const assertManagedFolder = async (duplicatePath: string): Promise<void> 
          throw new Error(`The managed folder or ownership marker is not a regular directory and file: ${duplicatePath}`);
       marker = await readFile(markerPath(duplicatePath), "utf8");
    } catch (error: unknown) {
-      if (isMissingPathError(error)) throw new Error(`The managed duplicate folder is not owned by this app: ${duplicatePath}`);
+      if (isMissingPathError(error)) throw new Error(`The managed duplicate folder is not owned by this app: ${duplicatePath}`, { cause: error });
       throw error;
    }
    if (marker !== duplicateOwnershipMarkerContents) throw new Error(`The managed duplicate folder is not owned by this app: ${duplicatePath}`);
