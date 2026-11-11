@@ -72,7 +72,10 @@ const launchAndScan = async (binary, fixtures) => {
    // CI runners cannot give chrome-sandbox its required root ownership, so the
    // Linux check starts without it; user machines are unaffected.
    const sandboxArgs = process.platform === "linux" ? ["--no-sandbox"] : [];
-   const child = spawn(binary, [...sandboxArgs, `--user-data-dir=${profile}`, `--scan=${fixtures}`], { stdio: ["ignore", "pipe", "pipe"] });
+   const child = spawn(binary, [...sandboxArgs, `--user-data-dir=${profile}`, `--scan=${fixtures}`], {
+      stdio: ["ignore", "pipe", "pipe"],
+      env: { ...process.env, DEDUUP_TEST_BACKGROUND: "1" },
+   });
    let output = "";
    child.stdout.on("data", (chunk) => {
       output += String(chunk);

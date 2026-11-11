@@ -9,6 +9,9 @@ const isDev = !app.isPackaged && process.env["IMAGE_DEDUPLICATOR_PROD"] !== "1";
 // From sources the renderer is served by vite (assets live in public/); once
 // packaged, vite's output rides along inside the app bundle.
 const rendererDir = isDev ? "public" : path.join("build", "renderer");
+// Automated runs set DEDUUP_TEST_BACKGROUND=1 so test windows never take focus or
+// appear on screen. The window still renders normally for the test driver.
+const background = process.env["DEDUUP_TEST_BACKGROUND"] === "1";
 
 export const createWindow = (): BrowserWindow => {
    const iconPath = path.join(app.getAppPath(), rendererDir, "favicon.ico");
@@ -20,7 +23,9 @@ export const createWindow = (): BrowserWindow => {
       backgroundColor: "#131313",
       titleBarStyle: "hidden",
       icon: iconPath,
+      ...(background ? { show: false, skipTaskbar: true } : {}),
       webPreferences: {
+         ...(background ? { backgroundThrottling: false } : {}),
          preload: path.join(app.getAppPath(), "build", "electron", "preload", "index.cjs"),
          contextIsolation: true,
          nodeIntegration: false,
@@ -37,6 +42,11 @@ export const createWindow = (): BrowserWindow => {
       if (!isExpected) event.preventDefault();
    });
 
+   if (background)
+      window.once("ready-to-show", () => {
+         window.setOpacity(0);
+         window.showInactive();
+      });
    if (isDev) void window.loadURL(devServerUrl);
    else void window.loadFile(path.join(app.getAppPath(), rendererDir, "index.html"));
    return window;
