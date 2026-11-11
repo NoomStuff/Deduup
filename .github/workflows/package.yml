@@ -50,6 +50,7 @@ jobs:
               name: dist-${{ matrix.target }}
               path: |
                  release/Deduup-*.exe
+                 release/Deduup-*-Installer.exe.blockmap
                  release/Deduup-*.dmg
                  release/Deduup-*.AppImage
                  release/latest*.yml
