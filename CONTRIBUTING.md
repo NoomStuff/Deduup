@@ -53,8 +53,8 @@ bun run verify:package
 
 ### How a release happens
 
-1. Bump `version` in `package.json` (semver; a prerelease suffix like `-rc.1` marks the release as a prerelease). Open a pull request for the change.
-2. Merging to `main` triggers the Release workflow. If the version changed since the last push (or a `v*` tag was pushed), CI:
+1. Push your changes to `main`. Every push packages and verifies all five targets and reports a `Release candidate` status on the commit.
+2. Once that status passes, run `bun run release <major|minor|patch>`. It bumps `version` in `package.json` (semver; a prerelease suffix like `-rc.1` marks the release as a prerelease) and pushes a commit that changes only the version. When the version changed since the last push (or a `v*` tag was pushed), CI:
    - runs `bun run verify` on Windows (tag pushes must match `package.json`),
    - packages five targets: Windows x64 (portable + installer), macOS x64 and arm64 (dmg), Linux x64 and arm64 (AppImage), each verified with `verify:package`,
    - rewrites the electron-updater feeds (`scripts/prepare-update-feed.mjs`) to point at the release assets,

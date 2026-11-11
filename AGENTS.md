@@ -41,3 +41,11 @@ Use these terms consistently in code, UI, tests, and documentation. Avoid callin
 Agents should always run `bun run verify` (format check, lint, typecheck plus unit tests, and the UI smoke test) or at minimum `bun run test` and `bun run lint` before claiming an outcome. The same checks run in GitHub Actions on every push. For anything that touches the renderer, run `bun run test:ui` as well: it builds the app, launches it in Electron against an isolated profile, generates a deterministic fixture library (`scripts/makeFixtures.mjs`), and walks the core flows through the real DOM. Screenshots from that run land in `.cache/ui-smoke/` — inspect them when a change is visual.
 
 To explore the app manually without touching real scan data, launch the built app with `--user-data-dir=<isolated folder>` plus `--scan=<folder>` (and `IMAGE_DEDUPLICATOR_PROD=1` when running from sources); the scan hook starts the scan without the native folder dialog. Never point a test scan at the real `%APPDATA%` profile: a scan replaces all saved review choices.
+
+## Versioning
+
+Pushing to main with a new version number in `package.json` triggers a release via GitHub Actions. Bump it appropriately for the changes made, not every change needs a new version. Follow ups should not bump again unless pushes to main have been made since. Don't blindly push without permission from the user.
+
+Every push to main also packages and verifies all five targets as a candidate. To release, push the changes first, wait for that commit's `Release candidate` status to pass, then run `bun run release <major|minor|patch>`. It refuses without a passing candidate and pushes a commit that changes only the version. A version bump in the same commit as other changes still releases.
+
+After a version bump, watch the release through completion on all five targets. If an unpublished release fails, rerun the failed jobs or fix and retry the same version. Public releases and tags are immutable, so fixes after publication require a new version. A release carries the app downloads under versionless names, the updater feeds and the installer blockmap.

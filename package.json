@@ -26,6 +26,7 @@
       "dist:linux": "node scripts/package-app.mjs dist linux",
       "package": "node scripts/package-app.mjs package",
       "verify:package": "node scripts/verify-package.mjs",
+      "release": "bun scripts/release.mjs",
       "open": "node scripts/open.mjs",
       "lint": "eslint . --max-warnings 0",
       "format": "prettier --write .",
