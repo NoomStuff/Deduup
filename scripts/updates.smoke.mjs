@@ -204,6 +204,9 @@ try {
             globalThis.updateFixture.installs++;
             autoUpdater.emit("error", new Error("Fixture installer failure"));
          };
+         // The updater refuses to launch a missing package. This fixture skips the download,
+         // so point it at an existing file to reach the installer that fails to start.
+         Object.defineProperty(autoUpdater, "installerPath", { get: () => process.execPath, configurable: true });
          globalThis.updateFixture.version = "99.0.1";
       });
       await check();

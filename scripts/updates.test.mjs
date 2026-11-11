@@ -1,6 +1,10 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { fetchAvailableUpdate, isNewerVersion } from "../src/main/updateCheck.ts";
+import { mock } from "bun:test";
+
+// The shared updater core imports Electron. These checks only need its pure functions.
+mock.module("electron", () => ({ app: { isPackaged: false }, net: {} }));
+const { fetchAvailableUpdate, isNewerVersion } = await import("../src/main/update-manager.ts");
 
 const releaseResponse = (release) => new Response(JSON.stringify(release), { status: 200 });
 
