@@ -49,3 +49,5 @@ Pushing to main with a new version number in `package.json` triggers a release v
 Every push to main also packages and verifies all five targets as a candidate. To release, push the changes first, wait for that commit's `Release candidate` status to pass, then run `bun run release <major|minor|patch>`. It refuses without a passing candidate and pushes a commit that changes only the version. A version bump in the same commit as other changes still releases.
 
 After a version bump, watch the release through completion on all five targets. If an unpublished release fails, rerun the failed jobs or fix and retry the same version. Public releases and tags are immutable, so fixes after publication require a new version. A release carries the app downloads under versionless names, the updater feeds and the installer blockmap.
+
+`src/main/update-manager.ts` is shared line for line with AcroClip and AttaCut, apart from its imports and app block. Make updater changes there and copy them to both apps in the same turn.
