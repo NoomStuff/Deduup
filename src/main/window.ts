@@ -1,6 +1,7 @@
 import { app, BrowserWindow } from "electron";
 import path from "node:path";
 import { pathToFileURL } from "node:url";
+import { launcherPath, releaseSplash } from "./splash.js";
 
 const devServerUrl = process.env["VITE_DEV_SERVER_URL"] ?? "http://127.0.0.1:5173";
 // Running from sources normally means the vite dev server; the smoke test sets
@@ -23,7 +24,9 @@ export const createWindow = (): BrowserWindow => {
       backgroundColor: "#131313",
       titleBarStyle: "hidden",
       icon: iconPath,
-      ...(background ? { show: false, skipTaskbar: true } : {}),
+      // Shown once the first frame is ready, when the launcher's native splash hands over.
+      show: false,
+      ...(background ? { skipTaskbar: true } : {}),
       webPreferences: {
          ...(background ? { backgroundThrottling: false } : {}),
          preload: path.join(app.getAppPath(), "build", "electron", "preload", "index.cjs"),
@@ -42,11 +45,19 @@ export const createWindow = (): BrowserWindow => {
       if (!isExpected) event.preventDefault();
    });
 
-   if (background)
-      window.once("ready-to-show", () => {
+   if (process.platform === "win32")
+      // Taskbar relaunches go through the launcher, so they show the splash too.
+      window.setAppDetails({
+         relaunchDisplayName: "Deduup",
+         relaunchCommand: app.isPackaged ? `"${launcherPath()}"` : `"${process.execPath}" "${app.getAppPath()}"`,
+      });
+   window.once("ready-to-show", () => {
+      if (background) {
          window.setOpacity(0);
          window.showInactive();
-      });
+      } else window.show();
+      releaseSplash();
+   });
    if (isDev) void window.loadURL(devServerUrl);
    else void window.loadFile(path.join(app.getAppPath(), rendererDir, "index.html"));
    return window;
