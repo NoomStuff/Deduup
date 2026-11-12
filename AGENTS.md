@@ -50,4 +50,4 @@ Every push to main also packages and verifies all five targets as a candidate. T
 
 After a version bump, watch the release through completion on all five targets. If an unpublished release fails, rerun the failed jobs or fix and retry the same version. Public releases and tags are immutable, so fixes after publication require a new version. A release carries the app downloads under versionless names, the updater feeds and the installer blockmap.
 
-`src/main/update-manager.ts` is shared line for line with AcroClip and AttaCut, apart from its imports and app block. Make updater changes there and copy them to both apps in the same turn.
+These files are shared line for line with AcroClip and AttaCut, apart from their imports and app blocks: `src/main/update-manager.ts`, `src/main/splash.ts`, `scripts/splash/splash.cs`, `scripts/after-pack.cjs` and `scripts/release-notes.mjs`. Each app keeps its own `scripts/splash/identity.cs`. Make changes to a shared file in all three apps in the same turn.
