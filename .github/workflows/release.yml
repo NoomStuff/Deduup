@@ -159,7 +159,9 @@ jobs:
                   gh release upload "$RELEASE_TAG" "${assets[@]}" --clobber
                 fi
               else
-                gh release create "$RELEASE_TAG" "${assets[@]}" --draft                   --title "Deduup ${RELEASE_TAG#v}"                   --target "$GITHUB_SHA" --notes "" $flags
+                # The notes list the commits since the previous release.
+                notes=$(bun scripts/release-notes.mjs "$RELEASE_TAG" "$GITHUB_SHA")
+                gh release create "$RELEASE_TAG" "${assets[@]}" --draft --title "Deduup ${RELEASE_TAG#v}" --target "$GITHUB_SHA" --notes "$notes" $flags
               fi
          - name: Publish release
            env:
