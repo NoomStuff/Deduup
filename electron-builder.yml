@@ -7,9 +7,13 @@ files:
    - build/electron/**
 artifactName: ${productName}-${version}-${os}-${arch}.${ext}
 copyright: Copyright © 2026 NoomStuff
+afterPack: scripts/after-pack.cjs
 extraResources:
    - from: LICENSE
      to: LICENSE
+   # The Windows splash launcher draws this icon.
+   - from: public/icon.png
+     to: icons/icon.png
 win:
    icon: public/favicon.ico
    target:

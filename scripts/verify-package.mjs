@@ -48,8 +48,15 @@ const assertWindowsBranding = (binary) => {
    }
 };
 
+// On Windows the product exe is the splash launcher, and the window belongs to the
+// Electron runtime it starts, so a child's window counts too.
 const windowsWindowShown = (pid) =>
-   Number.parseInt(powershellJson(`(Get-Process | Where-Object Id -eq ${pid} | Where-Object { $_.MainWindowTitle }).Count`).trim(), 10) > 0;
+   Number.parseInt(
+      powershellJson(
+         `$ids = @(${pid}) + @(Get-CimInstance Win32_Process -Filter "ParentProcessId = ${pid}" | ForEach-Object { $_.ProcessId }); (Get-Process -Id $ids -ErrorAction SilentlyContinue | Where-Object { $_.MainWindowTitle }).Count`
+      ).trim(),
+      10
+   ) > 0;
 const windowsProcessAlive = (pid) => powershellJson(`if (Get-Process -Id ${pid} -ErrorAction SilentlyContinue) { 'alive' } else { 'gone' }`).trim() === "alive";
 
 const stop = async (child) => {
@@ -123,7 +130,13 @@ const launchAndScan = async (binary, fixtures) => {
 };
 
 const binary = executablePath();
-if (process.platform === "win32") assertWindowsBranding(binary);
+if (process.platform === "win32") {
+   assertWindowsBranding(binary);
+   // The launcher runs the renamed Electron runtime, which must carry the same branding.
+   const runtime = path.join(path.dirname(binary), `${productName}-app.exe`);
+   if (!existsSync(runtime)) throw new Error(`Missing Electron runtime beside the launcher: ${runtime}`);
+   assertWindowsBranding(runtime);
+}
 const fixtures = path.resolve(".cache/verify-package/fixtures");
 const generated = spawnSync(process.execPath, ["scripts/makeFixtures.mjs", fixtures], { stdio: "inherit" });
 if (generated.status !== 0 || !existsSync(fixtures)) throw new Error("Fixture generation failed.");
