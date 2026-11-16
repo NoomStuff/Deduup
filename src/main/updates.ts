@@ -80,7 +80,7 @@ export class Updates {
 
    /** Starts the silent installer through the normal quit path. `onFailure` restores the app if it cannot start. */
    install(onFailure: () => void): void {
-      if (!this.isReady || this.current === null) throw new Error("The update is not ready yet.");
+      if (!this.isReady || this.current === null) throw new Error("The update isn't ready yet.");
       const version = this.current.version;
       const failed = (message: string) => {
          onFailure();
@@ -89,7 +89,7 @@ export class Updates {
       try {
          this.manager.install(failed);
       } catch (error) {
-         failed(error instanceof Error ? error.message : "Could not apply the update. Open the release to update manually.");
+         failed(error instanceof Error ? error.message : "Couldn't install the update. Download it from the release page.");
       }
    }
 }

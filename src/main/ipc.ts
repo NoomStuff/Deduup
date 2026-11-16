@@ -192,7 +192,7 @@ export const registerIpcHandlers = (): void => {
       return updateManager.downloadPortable(version);
    });
    ipcMain.handle("update:restart", (): void => {
-      if (!updateManager.isReady) throw new Error("The update is not ready yet.");
+      if (!updateManager.isReady) throw new Error("The update isn't ready yet.");
       if (hasActiveOperation()) throw new Error("Wait for the current file operation to finish before restarting.");
       // Installs through the window-all-closed path, after the database closes.
       setApplyUpdate(() =>

@@ -152,7 +152,7 @@ try {
       await act();
       await waitPhase("error");
       await chipHas("aria-label", "Retry download");
-      assert.match((await state()).status.message, /verification/);
+      assert.match((await state()).status.message, /damaged/);
       assert.equal((await readdir(downloads)).filter((name) => name.endsWith(".part")).length, 0);
       await app.evaluate(() => {
          globalThis.updateFixture.damaged = false;
@@ -236,7 +236,7 @@ try {
       await waitPhase("error");
       await settings();
       assert.equal(await app.evaluate(() => globalThis.updateFixture.installs), 1);
-      assert.match((await state()).status.message, /Could not apply/);
+      assert.match((await state()).status.message, /Couldn't install/);
       await chipHas("aria-label", "View release");
       await page.screenshot({ animations: "disabled", path: path.join(artifacts, "04-install-recovery.png") });
       assert.ok(await page.evaluate(() => window.imageDeduplicator.loadData()), "database reopens after a failed installer");
